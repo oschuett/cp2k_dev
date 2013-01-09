@@ -28,8 +28,9 @@ MODULE input_constants
                                               do_farming=2,&
                                               do_test=3,&
                                               do_cp2k=4,&
-                                              do_optimize_input=5
-
+                                              do_optimize_input=5,&
+                                              do_global_opt=6
+                                              
   INTEGER, PARAMETER, PUBLIC               :: opt_force_matching=1
 
   INTEGER, PARAMETER, PUBLIC               :: do_full_density=0,&

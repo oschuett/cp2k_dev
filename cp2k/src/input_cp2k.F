@@ -45,6 +45,7 @@ MODULE input_cp2k
                                              keyword_release,&
                                              keyword_type
   USE input_optimize_input,            ONLY: create_optimize_input_section
+  USE input_global_opt,                ONLY: create_global_opt_section      
   USE input_parsing,                   ONLY: section_vals_parse
   USE input_section_types,             ONLY: &
        section_add_keyword, section_add_subsection, section_create, &
@@ -172,7 +173,11 @@ CONTAINS
        CALL create_optimize_input_section(section,error=error)
        CALL section_add_subsection(root_section,section,error=error)
        CALL section_release(section,error=error)
-
+       
+       CALL create_global_opt_section(section,error=error)
+       CALL section_add_subsection(root_section,section,error=error)
+       CALL section_release(section,error=error)
+       
        CALL create_ext_restart_section(section,error=error)
        CALL section_add_subsection(root_section,section,error=error)
        CALL section_release(section,error=error)
@@ -378,13 +383,14 @@ CONTAINS
          variants=(/"PROGRAM"/),&
          description="Which program should be run",&
          usage="PROGRAM_NAME <STRING>",&
-         enum_c_vals=s2a("ATOM","FARMING","TEST","CP2K","OPTIMIZE_INPUT"),&
+         enum_c_vals=s2a("ATOM","FARMING","TEST","CP2K","OPTIMIZE_INPUT","GLOBAL_OPT"),&
          enum_desc=s2a("Runs single atom calculations",&
                        "Runs N independent jobs in a single run",&
                        "Do some benchmarking and testing",&
                        "Runs one of the CP2K package",&
-                       "A tool do optimize parameters in a CP2K input"),&
-         enum_i_vals=(/do_atom, do_farming, do_test, do_cp2k, do_optimize_input/),&
+                       "A tool do optimize parameters in a CP2K input",&
+                       "Runs a global geometrie optimization"),&
+         enum_i_vals=(/do_atom, do_farming, do_test, do_cp2k, do_optimize_input, do_global_opt/),&
          default_i_val=do_cp2k, supported_feature=.TRUE., error=error)
     CALL section_add_keyword(section,keyword,error=error)
     CALL keyword_release(keyword,error=error)

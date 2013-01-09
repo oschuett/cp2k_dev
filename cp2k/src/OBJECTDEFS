@@ -790,4 +790,10 @@ OBJECTS_GENERIC =\
  list.o\
  dict_str_i4.o\
  dict_i4tuple_callstat.o\
- dict.o
+ dict.o\
+ glbopt_env_types.o\
+ glbopt.o\
+ glbopt_methods.o\
+ mdctrl_types.o\
+ mdctrl_methods.o\
+ input_global_opt.o

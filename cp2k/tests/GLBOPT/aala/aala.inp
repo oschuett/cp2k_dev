@@ -1,0 +1,47 @@
+
+&FORCE_EVAL
+  METHOD FIST
+  &MM
+    &FORCEFIELD
+      parm_file_name aala.pot
+      parmtype CHM
+    &END FORCEFIELD
+    &POISSON
+      &EWALD
+        EWALD_TYPE SPME
+        GMAX 20
+      &END EWALD
+    &END POISSON
+  &END MM
+  &SUBSYS
+    &CELL
+      ABC 20 20 20
+    &END CELL
+    &TOPOLOGY
+      CHARGE_BETA
+      COORD_FILE_NAME aala.pdb
+      COORDINATE PDB
+    &END TOPOLOGY
+  &END SUBSYS
+&END FORCE_EVAL
+&GLOBAL
+  PRINT_LEVEL LOW
+  PROJECT aala
+  RUN_TYPE GEO_OPT
+&END GLOBAL
+
+&MOTION
+  &GEO_OPT
+    OPTIMIZER CG
+    MAX_ITER 100
+  &END GEO_OPT
+  &PRINT
+    &TRAJECTORY
+      LOG_PRINT_KEY T
+      &EACH
+        GEO_OPT 1
+      &END EACH
+      ADD_LAST NUMERIC
+	&END TRAJECTORY
+  &END PRINT
+&END MOTION
