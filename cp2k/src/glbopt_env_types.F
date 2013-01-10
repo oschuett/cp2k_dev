@@ -11,8 +11,9 @@
 MODULE glbopt_env_types
 
 #include "cp_common_uses.h"
-USE kinds,                           ONLY: dp
-
+ USE kinds,                           ONLY: dp
+ USE cp_para_types,                   ONLY: cp_para_env_type
+  
  IMPLICIT NONE
  PRIVATE
 
@@ -22,13 +23,25 @@ USE kinds,                           ONLY: dp
   TYPE glbopt_env_type
      !PRIVATE  !TODO: make this private with getters & setters
      INTEGER                                    :: ref_count
-     INTEGER                                    :: walker_num
-     REAL(KIND=dp), DIMENSION(:), POINTER       :: epot_history
+     ! config parameters
+     INTEGER                                    :: n_masters
+     INTEGER                                    :: n_walkers
+     INTEGER                                    :: n_hashes
+     INTEGER                                    :: n_colvars
+     INTEGER                                    :: bloom_size
      INTEGER                                    :: epot_ndown
      INTEGER                                    :: epot_nup
-     INTEGER                                    :: mincount
-     INTEGER                                    :: mincount_max
-     REAL(KIND=dp), DIMENSION(:), POINTER       :: latest_positions
+     INTEGER                                    :: md_mincount_max
+     INTEGER                                    :: hop_count_max
+     ! stuff passed on for master/slave communication
+     TYPE(cp_para_env_type), POINTER            :: full_para_env
+     INTEGER                                    :: my_walker_id
+     INTEGER                                    :: my_master_id
+     ! stuff needed for md_callback
+     INTEGER                                    :: md_mincounter
+     REAL(KIND=dp), DIMENSION(:), POINTER       :: epot_history
+     !mixed
+     
   END TYPE glbopt_env_type
 
   
@@ -62,7 +75,7 @@ CONTAINS
     CPPrecondition(ASSOCIATED(glbopt_env),cp_failure_level,routineP,error,failure)
     IF (.NOT. failure) THEN
        CPPrecondition(glbopt_env%ref_count>0,cp_failure_level,routineP,error,failure)
-       glbopt_env%ref_count=glbopt_env%ref_count+1
+       glbopt_env%ref_count = glbopt_env%ref_count + 1
     END IF
   END SUBROUTINE retain_glbopt_env
   
@@ -92,7 +105,7 @@ CONTAINS
 
     IF (ASSOCIATED(glbopt_env)) THEN
        CPPrecondition(glbopt_env%ref_count>0,cp_failure_level,routineP,error,failure)
-       glbopt_env%ref_count=glbopt_env%ref_count-1
+       glbopt_env%ref_count = glbopt_env%ref_count - 1
        IF (glbopt_env%ref_count==0) THEN
           !NULLIFY(glbopt_env%foobar)
           DEALLOCATE(glbopt_env,stat=stat)

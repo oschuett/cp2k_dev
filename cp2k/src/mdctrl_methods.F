@@ -46,7 +46,7 @@ CONTAINS
        routineP = moduleN//':'//routineN
     LOGICAL                                  :: failure = .FALSE.
     
-    WRITE (*,*) "hello word - mdctrl_callback"
+    !WRITE (*,*) "hello word - mdctrl_callback"
     
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(mdctrl), cp_failure_level,routineP,error,failure)

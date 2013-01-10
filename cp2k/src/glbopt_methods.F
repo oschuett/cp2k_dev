@@ -82,7 +82,7 @@ MODULE glbopt_methods
     CPPrecondition(ASSOCIATED(glbopt_env), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
         
-    WRITE (*,*) "hello word - glbopt_md_callback"
+    !WRITE (*,*) "hello word - glbopt_md_callback"
     
     ! add new potential energy value to history
     NULLIFY(md_ener)
@@ -106,13 +106,13 @@ MODULE glbopt_methods
          passed_minimum = .FALSE.
     END DO
     
-    WRITE (*,*) "passed minima : ", glbopt_env%mincount
+    !WRITE (*,*) "passed minima : ", glbopt_env%md_mincounter
     
     ! count the passed minima and stop md_run when mincount_max is reached.
     IF(passed_minimum) &
-       glbopt_env%mincount = glbopt_env%mincount + 1
+       glbopt_env%md_mincounter = glbopt_env%md_mincounter + 1
     
-    IF(glbopt_env%mincount >= glbopt_env%mincount_max) &
+    IF(glbopt_env%md_mincounter >= glbopt_env%md_mincount_max) &
        should_stop = .TRUE.
     
     
