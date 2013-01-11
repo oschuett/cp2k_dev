@@ -4,8 +4,8 @@
 !-----------------------------------------------------------------------------!
 
 MODULE hash_functions
- USE kinds, ONLY: int_4
- 
+  USE kinds,                           ONLY: int_4
+
  IMPLICIT NONE
  PRIVATE
  
@@ -14,21 +14,21 @@ MODULE hash_functions
 
 ! *****************************************************************************
 !> \brief Take from: http://coding.derkeiler.com/Archive/Fortran/comp.lang.fortran/2005-10/msg00164.html
-!>        Converted to take a character-array rathern than an assumed-length string as key.	
+!>        Converted to take a character-array rathern than an assumed-length string as key.        
 !> \par History
 !> \author Ole
 ! *****************************************************************************
-function b3hs_hash_key_jenkins (key, range) result (code)
-  character, dimension(:), intent(in) :: key
-  integer, intent(in)      :: range
-  integer                  :: code
+FUNCTION b3hs_hash_key_jenkins (key, range) RESULT (code)
+  CHARACTER, DIMENSION(:), INTENT(in) :: key
+  INTEGER, INTENT(in)      :: range
+  INTEGER                  :: code
 
 
-  integer                  :: len_key
-  integer(int_4)           :: a
-  integer(int_4)           :: b
-  integer(int_4)           :: c
-  integer                  :: k
+  INTEGER                  :: len_key
+  INTEGER(int_4)           :: a
+  INTEGER(int_4)           :: b
+  INTEGER(int_4)           :: c
+  INTEGER                  :: k
 
 
 ! Hash the key into a code, using the algorithm
@@ -51,10 +51,10 @@ function b3hs_hash_key_jenkins (key, range) result (code)
   k = 1
 
 
-  char_loop : do
+  char_loop : DO
 
 
-     if(len_key < 12) exit char_loop
+     IF(len_key < 12) EXIT char_loop
 
 
 ! Pack the key into 32 bits
@@ -71,7 +71,7 @@ function b3hs_hash_key_jenkins (key, range) result (code)
 ! Mix it up
 
 
-     call b3hs_hash_key_jenkins_mix_()
+     CALL b3hs_hash_key_jenkins_mix_()
 
 
      k = k + 12
@@ -80,7 +80,7 @@ function b3hs_hash_key_jenkins (key, range) result (code)
      len_key = len_key - 12
 
 
-  end do char_loop
+  END DO char_loop
 
 
   c = c + len_key
@@ -89,58 +89,58 @@ function b3hs_hash_key_jenkins (key, range) result (code)
 ! Process remaining bits
 
 
-  select case(len_key)
-  case(11)
+  SELECT CASE(len_key)
+  CASE(11)
      c = c + ISHFT(ICHAR(key(k+10)), 24) + ISHFT(ICHAR(key(k+9)), 16) + &
      &       ISHFT(ICHAR(key(k+8)), 8)
      b = b + ISHFT(ICHAR(key(k+7)), 24) + ISHFT(ICHAR(key(k+6)), 16) + &
      &       ISHFT(ICHAR(key(k+5)), 8) + ICHAR(key(k+4))
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(10)
+  CASE(10)
      c = c + ISHFT(ICHAR(key(k+9)), 16) + ISHFT(ICHAR(key(k+8)), 8)
      b = b + ISHFT(ICHAR(key(k+7)), 24) + ISHFT(ICHAR(key(k+6)), 16) + &
      &       ISHFT(ICHAR(key(k+5)), 8) + ICHAR(key(k+4))
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(9)
+  CASE(9)
      c = c + ISHFT(ICHAR(key(k+8)), 8)
      b = b + ISHFT(ICHAR(key(k+7)), 24) + ISHFT(ICHAR(key(k+6)), 16) + &
      &       ISHFT(ICHAR(key(k+5)), 8) + ICHAR(key(k+4))
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(8)
+  CASE(8)
      b = b + ISHFT(ICHAR(key(k+7)), 24) + ISHFT(ICHAR(key(k+6)), 16) + &
      &       ISHFT(ICHAR(key(k+5)), 8) + ICHAR(key(k+4))
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(7)
+  CASE(7)
      b = b + ISHFT(ICHAR(key(k+6)), 16) + ISHFT(ICHAR(key(k+5)), 8) + &
      &       ICHAR(key(k+4))
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(6)
+  CASE(6)
      b = b + ISHFT(ICHAR(key(k+5)), 8) + ICHAR(key(k+4))
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(5)
+  CASE(5)
      b = b + ICHAR(key(k+4))
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(4)
+  CASE(4)
      a = a + ISHFT(ICHAR(key(k+3)), 24) + ISHFT(ICHAR(key(k+2)), 16) + &
      &       ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(3)
+  CASE(3)
      a = a + ISHFT(ICHAR(key(k+2)), 16) + ISHFT(ICHAR(key(k+1)), 8) + &
      &       ICHAR(key(k))
-  case(2)
+  CASE(2)
      a = a + ISHFT(ICHAR(key(k+1)), 8) + ICHAR(key(k))
-  case(1)
+  CASE(1)
      a = a + ICHAR(key(k))
-  end select
+  END SELECT
 
 
-  call b3hs_hash_key_jenkins_mix_()
+  CALL b3hs_hash_key_jenkins_mix_()
 
 
   code = IAND(c, range - 1) + 1
@@ -149,13 +149,13 @@ function b3hs_hash_key_jenkins (key, range) result (code)
 ! Finish
 
 
-  return
+  RETURN
 
 
-contains
+CONTAINS
 
 
-  subroutine b3hs_hash_key_jenkins_mix_
+  SUBROUTINE b3hs_hash_key_jenkins_mix_
 
 
 ! Mix a, b and c
@@ -179,12 +179,12 @@ contains
 ! Finish
 
 
-    return
+    RETURN
 
 
-  end subroutine b3hs_hash_key_jenkins_mix_
+  END SUBROUTINE b3hs_hash_key_jenkins_mix_
 
 
-end function b3hs_hash_key_jenkins
+END FUNCTION b3hs_hash_key_jenkins
 
-end module hash_functions
+END MODULE hash_functions

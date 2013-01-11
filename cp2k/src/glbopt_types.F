@@ -10,10 +10,10 @@
 ! *****************************************************************************
 MODULE glbopt_types
 
+  USE cp_para_types,                   ONLY: cp_para_env_type
+  USE kinds,                           ONLY: dp
 #include "cp_common_uses.h"
- USE kinds,                           ONLY: dp
- USE cp_para_types,                   ONLY: cp_para_env_type
-  
+
  IMPLICIT NONE
  PRIVATE
 
@@ -66,9 +66,9 @@ MODULE glbopt_types
  PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
  PUBLIC :: glbopt_msg_minima_new, glbopt_msg_minima_old, glbopt_msg_shutdown
   
- CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_types' 
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_types' 
 CONTAINS
-	
+        
  
 END MODULE glbopt_types
 

@@ -14,19 +14,17 @@
 ! *****************************************************************************
 MODULE mdctrl_methods
 
+  USE glbopt_callback,                 ONLY: glbopt_md_callback
   USE md_environment_types,            ONLY: md_environment_type
   USE mdctrl_types,                    ONLY: mdctrl_type
-  USE glbopt_callback,                 ONLY: glbopt_md_callback
-  
-  
 #include "cp_common_uses.h"
 
  PUBLIC :: mdctrl_callback
   
- CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'mdctrl_methods' 
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'mdctrl_methods' 
 CONTAINS
-	
-	  
+        
+          
 ! *****************************************************************************
 !> \brief This is called by md_run for each step during during its main-loop.
 !> \param mdctrl data which is passed on to the wrapped client-routine
@@ -40,14 +38,15 @@ CONTAINS
     TYPE(md_environment_type), POINTER       :: md_env
     LOGICAL, INTENT(inout)                   :: should_stop
     TYPE(cp_error_type), INTENT(inout)       :: error
-    
-    ! ====== Local Variables ======
+
     CHARACTER(len=*), PARAMETER :: routineN = 'mdctrl_callback', &
-       routineP = moduleN//':'//routineN
+      routineP = moduleN//':'//routineN
+
     LOGICAL                                  :: failure = .FALSE.
-    
-    !WRITE (*,*) "hello word - mdctrl_callback"
-    
+
+! ====== Local Variables ======
+!WRITE (*,*) "hello word - mdctrl_callback"
+
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(mdctrl), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(mdctrl%glbopt), cp_failure_level,routineP,error,failure)
@@ -55,6 +54,6 @@ CONTAINS
     CALL glbopt_md_callback(mdctrl%glbopt, md_env, should_stop, error)
     
   END SUBROUTINE mdctrl_callback
-	
+        
 END MODULE mdctrl_methods
 

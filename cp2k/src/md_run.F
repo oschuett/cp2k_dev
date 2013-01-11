@@ -70,6 +70,8 @@ MODULE md_run
                                              comvel_control,&
                                              setup_velocities,&
                                              temperature_control
+  USE mdctrl_methods,                  ONLY: mdctrl_callback
+  USE mdctrl_types,                    ONLY: mdctrl_type
   USE metadynamics,                    ONLY: metadyn_forces,&
                                              metadyn_write_colvar
   USE metadynamics_types,              ONLY: set_meta_env
@@ -98,10 +100,6 @@ MODULE md_run
   USE virial_methods,                  ONLY: virial_evaluate
   USE wiener_process,                  ONLY: create_wiener_process,&
                                              create_wiener_process_cv
-                                             
-  USE mdctrl_types,                    ONLY: mdctrl_type
-  USE mdctrl_methods,                  ONLY: mdctrl_callback
-  
 #include "cp_common_uses.h"
 
   IMPLICIT NONE

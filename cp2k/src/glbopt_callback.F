@@ -9,49 +9,16 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_callback
-  USE force_env_types,                 ONLY: force_env_type,&
-                                             force_env_get
-  USE global_types,                    ONLY: global_environment_type
-  USE input_section_types,             ONLY: section_vals_get_subs_vals,&
-                                             section_vals_type,&
-                                             section_vals_val_get,&
-                                             section_vals_val_set
-  USE kinds,                           ONLY: dp,&
-                                             default_path_length,&
-                                             default_string_length
-
-  USE timings,                         ONLY: timeset,&
-                                             timestop
-  USE cp_para_types,                   ONLY: cp_para_env_type
-  USE cp_para_env,                     ONLY: cp_para_env_create
-  USE message_passing,                 ONLY: &
-       mp_any_source, mp_bcast, mp_comm_dup, mp_comm_free, mp_comm_split, &
-       mp_comm_split_direct, mp_environ, mp_recv, mp_send, mp_sum, mp_sync
- 
-       
-  USE f77_interface,                   ONLY: create_force_env,&
-                                             destroy_force_env,&
-                                             f77_default_para_env => default_para_env,&
-                                             f_env_add_defaults,&
-                                             f_env_rm_defaults,&
-                                             f_env_type
-  USE input_cp2k,                      ONLY: create_cp2k_input_reading,&
-                                             empty_initial_variables
-  USE md_environment_types,            ONLY: get_md_env,&
-                                             md_env_create,&
-                                             md_env_release,&
-                                             md_environment_type,&
-                                             set_md_env
+  USE glbopt_types,                    ONLY: glbopt_mdctrl_data_type
   USE md_ener_types,                   ONLY: md_ener_type
-  USE glbopt_types,                ONLY: glbopt_mdctrl_data_type
-
-    
+  USE md_environment_types,            ONLY: get_md_env,&
+                                             md_environment_type
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
  PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_md_callback'
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_callback'
 
  PUBLIC :: glbopt_md_callback
 
@@ -70,14 +37,17 @@ MODULE glbopt_callback
     TYPE(md_environment_type), POINTER       :: md_env
     LOGICAL, INTENT(inout)                   :: should_stop
     TYPE(cp_error_type), INTENT(inout)       :: error
-    
-    ! ====== Local Variables ======
+
     CHARACTER(len=*), PARAMETER :: routineN = 'glbopt_md_callback', &
-       routineP = moduleN//':'//routineN
-    LOGICAL                                  :: failure = .FALSE.
-    TYPE(md_ener_type), POINTER              :: md_ener
+      routineP = moduleN//':'//routineN
+
     INTEGER                                  :: i
-    LOGICAL                                  :: passed_minimum
+    LOGICAL                                  :: failure = .FALSE., &
+                                                passed_minimum
+    TYPE(md_ener_type), POINTER              :: md_ener
+
+! ====== Local Variables ======
+
     CPPrecondition(ASSOCIATED(mdctrl_data), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
         

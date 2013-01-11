@@ -10,9 +10,7 @@
 ! *****************************************************************************
 MODULE mdctrl_types
 
-  USE glbopt_types,                 ONLY: glbopt_mdctrl_data_type
-  
-                                     
+  USE glbopt_types,                    ONLY: glbopt_mdctrl_data_type
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -26,8 +24,8 @@ MODULE mdctrl_types
   
  PUBLIC :: mdctrl_type
   
- CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'mdctrl_types' 
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'mdctrl_types' 
 CONTAINS
-	
+        
 END MODULE mdctrl_types
 

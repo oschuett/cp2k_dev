@@ -41,11 +41,11 @@ MODULE input_cp2k
   USE input_cp2k_motion,               ONLY: create_motion_section
   USE input_cp2k_rsgrid,               ONLY: create_rsgrid_section
   USE input_cp2k_vib,                  ONLY: create_vib_section
+  USE input_global_opt,                ONLY: create_global_opt_section
   USE input_keyword_types,             ONLY: keyword_create,&
                                              keyword_release,&
                                              keyword_type
   USE input_optimize_input,            ONLY: create_optimize_input_section
-  USE input_global_opt,                ONLY: create_global_opt_section      
   USE input_parsing,                   ONLY: section_vals_parse
   USE input_section_types,             ONLY: &
        section_add_keyword, section_add_subsection, section_create, &
