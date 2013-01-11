@@ -36,6 +36,8 @@ MODULE glbopt_walker
   USE parallel_rng_types,              ONLY: reset_to_next_rng_substream
   USE timings,                         ONLY: timeset,&
                                              timestop
+  USE input_section_types,             ONLY: section_vals_val_set,section_vals_val_get
+  
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -81,7 +83,8 @@ MODULE glbopt_walker
     TYPE(global_environment_type), POINTER   :: globenv
     TYPE(mdctrl_type), POINTER               :: mdctrl_p
     TYPE(mdctrl_type), TARGET                :: mdctrl
-
+    REAL(kind=dp)                            :: temp
+    
 ! ====== Local Variables ======
 !LOGICAL :: known_minima
 
@@ -117,34 +120,38 @@ MODULE glbopt_walker
     WRITE(*,*) "setup done"
     DO WHILE(.TRUE.) !main-loop of minima hopping
       ! store starting configuration
+      ! backup position as possible restart point 
       CALL pack_subsys_particles(subsys, r=latest_positions, error=error)
+      
+      ! reset md history
       mdctrl_data%epot_history = 0.0 
       mdctrl_data%md_mincounter = 0
-      !WRITE(*,*) "starting md"
       
+      ! addjust temperture
+      !motion_section => section_vals_get_subs_vals(force_env%root_section,"MOTION",error=error)
+      !md_section => section_vals_get_subs_vals(motion_section,"MD",error=error)
+      temp = 0.00013300624774681083
+      CALL section_vals_val_set(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temp, error=error)
+      !CALL section_vals_val_get(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temp, error=error)
+      write (*,*) "got temp: ", temp
       CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
-      !WRITE(*,*) "starting geoopt"
       CALL cp_geo_opt(force_env, globenv, error=error)
       ! TODO: find out if minimazation was successfull
       ! TODO: find out if its a new minima
       
-      !WRITE(*,*) "collecting colvars"
-      colvar_values = 0.0_dp
+      
+      ! calculate new colvar values and send them to the master
       DO i=1, n_colvars
          CALL colvar_eval_glob_f(i,force_env,error=error)
-         !WRITE (*,*) "Colvar ", i, "value: ", subsys%colvar_p(i)%colvar%ss
          colvar_values(i) = subsys%colvar_p(i)%colvar%ss
       END DO
-      
       master_id = para_env%num_pe-1
-      !WRITE(*,*) "Walker: sending to master", my_walker_id
       CALL mp_send(colvar_values,master_id,42,para_env%group)
-      !WRITE(*,*) "Walker: waiting for answer", my_walker_id
       tag = 42
       CALL mp_recv(msg, master_id, tag, para_env%group)
-      !WRITE(*,*) "Walker: got msg from master: ", msg, my_walker_id
       
       
+      ! Follow the instruction just received from the master
       SELECT CASE (msg)
        CASE (glbopt_msg_minima_new)
           ! just continue with next loop cylce

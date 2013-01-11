@@ -119,13 +119,13 @@ MODULE glbopt
     IF (im_the_master) THEN
        CALL mp_comm_split_direct(para_env%group, subgroup, 1)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
+       !WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
        IF(subgroup_size/=1) STOP "glbopt: mp_comm_split_direct failed (master)"
     ELSE
        CALL mp_comm_split_direct(para_env%group, subgroup, 2)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
-       IF(subgroup_size/=glbopt_cfg%n_walkers) STOP "glbopt: mp_comm_split_direct failed (walker)"
+       !WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
+       IF(subgroup_size/=para_env%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
     ENDIF
 
     
