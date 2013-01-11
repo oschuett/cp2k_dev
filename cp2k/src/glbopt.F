@@ -243,11 +243,13 @@ MODULE glbopt
       	! Encode the colvar values as a character array and calculate hash
       	DO i=1, glbopt_env%n_hashes
           key = transfer(key_parts, key)    
-          hashes(i) = b3hs_hash_key_jenkins(key, glbopt_env%bloom_size)
-          IF(hashes(i) > glbopt_env%bloom_size) STOP "too large hash value"
-          IF(hashes(i) < 0 ) STOP "too small hash value"
+          hashes(i) = b3hs_hash_key_jenkins(key, glbopt_env%bloom_size) - 1
+          IF(hashes(i) > glbopt_env%bloom_size) STOP "hash value too large"
+          IF(hashes(i) < 0 ) STOP "hash value too small"
           key_parts(glbopt_env%n_colvars + i) = hashes(i)
         END DO
+        
+        !write (*,*) "hahshes: ",hashes
         
         ! lockup and register minima at the same time 
         match = .TRUE.
@@ -277,8 +279,7 @@ MODULE glbopt
            write (*,*) "Master: shutdown all walkers - exiting main loop."
            exit
         end if
-        !write (*,*) "key_parts: ", key_parts
-        !write (*,*) "hashes: ", hashes
+        
       END DO
       
       DEALLOCATE(key)
@@ -311,10 +312,8 @@ MODULE glbopt
      	  STOP "set_bitfield: underflow"
      end if
      
-     
      was_set = IAND(bitfield(offset), mask) == mask
      bitfield(offset) = IOR(bitfield(offset), mask)
-   !  WRITE (*,*) "idx: ", idx, "offset: ", offset, "mask: ",mask, "was_set:", was_set
   END FUNCTION bitfield_set
   
 ! *****************************************************************************
