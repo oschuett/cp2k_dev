@@ -16,7 +16,7 @@ MODULE mdctrl_methods
 
   USE md_environment_types,            ONLY: md_environment_type
   USE mdctrl_types,                    ONLY: mdctrl_type
-  USE glbopt_methods,                  ONLY: glbopt_md_callback
+  USE glbopt_callback,                 ONLY: glbopt_md_callback
   
   
 #include "cp_common_uses.h"
@@ -50,9 +50,9 @@ CONTAINS
     
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(mdctrl), cp_failure_level,routineP,error,failure)
-    CPPrecondition(ASSOCIATED(mdctrl%glbopt_env), cp_failure_level,routineP,error,failure)
+    CPPrecondition(ASSOCIATED(mdctrl%glbopt), cp_failure_level,routineP,error,failure)
     
-    CALL glbopt_md_callback(mdctrl%glbopt_env, md_env, should_stop, error)
+    CALL glbopt_md_callback(mdctrl%glbopt, md_env, should_stop, error)
     
   END SUBROUTINE mdctrl_callback
 	

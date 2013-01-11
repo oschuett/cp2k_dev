@@ -791,9 +791,11 @@ OBJECTS_GENERIC =\
  dict_str_i4.o\
  dict_i4tuple_callstat.o\
  dict.o\
- glbopt_env_types.o\
+ glbopt_types.o\
  glbopt.o\
- glbopt_methods.o\
+ glbopt_master.o\
+ glbopt_walker.o\
+ glbopt_callback.o\
  mdctrl_types.o\
  mdctrl_methods.o\
  input_global_opt.o\

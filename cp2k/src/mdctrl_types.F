@@ -10,7 +10,7 @@
 ! *****************************************************************************
 MODULE mdctrl_types
 
-  USE glbopt_env_types,                 ONLY: glbopt_env_type
+  USE glbopt_types,                 ONLY: glbopt_mdctrl_data_type
   
                                      
 #include "cp_common_uses.h"
@@ -19,7 +19,7 @@ MODULE mdctrl_types
  PRIVATE
 
   TYPE mdctrl_type
-     TYPE(glbopt_env_type), POINTER                 :: glbopt_env
+     TYPE(glbopt_mdctrl_data_type), POINTER                 :: glbopt
      !... and possible more in the future
   END TYPE mdctrl_type
 
