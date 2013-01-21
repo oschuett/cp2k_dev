@@ -70,7 +70,7 @@ MODULE glbopt_walker
     INTEGER                                  :: handle, i, stat, master_id, &
                                                 msg, n_atoms, output_unit, tag
     LOGICAL                                  :: failure
-    REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: latest_positions
+    REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: prev_positions
     TYPE(force_env_type), POINTER            :: force_env
     TYPE(f_env_type), POINTER                :: f_env
     TYPE(cp_subsys_type), POINTER            :: subsys
@@ -83,7 +83,7 @@ MODULE glbopt_walker
     TYPE(global_environment_type), POINTER   :: globenv
     TYPE(mdctrl_type), POINTER               :: mdctrl_p
     TYPE(mdctrl_type), TARGET                :: mdctrl
-    REAL(kind=dp)                            :: temp
+    REAL(kind=dp)                            :: temperature, prev_energy, Ediff
     
 ! ====== Local Variables ======
 !LOGICAL :: known_minima
@@ -102,9 +102,9 @@ MODULE glbopt_walker
     force_env => f_env%force_env
     CALL force_env_get(force_env, globenv=globenv, subsys=subsys, error=error)
     CALL cp_subsys_get(subsys, natom=n_atoms, error=error)
-    ALLOCATE(latest_positions(1:3*n_atoms), stat=stat)
+    ALLOCATE(prev_positions(1:3*n_atoms), stat=stat)
     if(stat /= 0) stop "glbopt_drive_walker: allocation failed"
-     
+    prev_positions = 0.0_dp
     
     ! We want different random-number-streams for each walker
     DO i = 1, my_walker_id
@@ -117,29 +117,36 @@ MODULE glbopt_walker
     mdctrl%glbopt => mdctrl_data
     mdctrl_p => mdctrl
     
+    Ediff = glbopt_cfg%Ediff0
+    
+    prev_energy = 0.0 !TODO
     WRITE(*,*) "setup done"
-    DO WHILE(.TRUE.) !main-loop of minima hopping
+    mainloop: DO WHILE(.TRUE.) !main-loop of minima hopping
       ! store starting configuration
       ! backup position as possible restart point 
-      CALL pack_subsys_particles(subsys, r=latest_positions, error=error)
+      CALL pack_subsys_particles(subsys, r=prev_positions, error=error)
       
       ! reset md history
       mdctrl_data%epot_history = 0.0 
       mdctrl_data%md_mincounter = 0
       
-      ! addjust temperture
-      !motion_section => section_vals_get_subs_vals(force_env%root_section,"MOTION",error=error)
-      !md_section => section_vals_get_subs_vals(motion_section,"MD",error=error)
-      temp = 0.00013300624774681083
-      CALL section_vals_val_set(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temp, error=error)
-      !CALL section_vals_val_get(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temp, error=error)
+      temperature = 0.00013300624774681083
+      CALL section_vals_val_set(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
+      !CALL section_vals_val_get(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
       write (*,*) "got temp: ", temp
       CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
       CALL cp_geo_opt(force_env, globenv, error=error)
       ! TODO: find out if minimazation was successfull
       ! TODO: find out if its a new minima
+      IF (epot > prev_energy + Ediff) THEN
+      	 ! rejected new minimum due to energy.
+      	 CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
+         Ediff = Ediff * glbopt_cfg%alpha2
+         CYLCE mainloop
+      END IF
       
       
+      ! ok the mimima would be acceptable energy-wise, let's see if its new
       ! calculate new colvar values and send them to the master
       DO i=1, n_colvars
          CALL colvar_eval_glob_f(i,force_env,error=error)
@@ -154,16 +161,46 @@ MODULE glbopt_walker
       ! Follow the instruction just received from the master
       SELECT CASE (msg)
        CASE (glbopt_msg_minima_new)
-          ! just continue with next loop cylce
+           ! found a new minimum - and accepted it
+           Ediff = Ediff * glbopt_cfg%.alpha1
        CASE (glbopt_msg_minima_old)
-          ! reset to lastest starting positions
-          CALL unpack_subsys_particles(subsys, r=latest_positions, error=error)
+          ! Found previously found minimum - reset to lastest starting positions
+          temperature = temperature * glbopt_cfg%beta2
+          CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
+          
        CASE (glbopt_msg_shutdown)
           WRITE (*,*) "walker: received shutdown signal ", my_walker_id
                 EXIT
        CASE DEFAULT
           STOP "Walker: received unkown message"
       END SELECT
+      
+      
+!          if not unique:
+!170	            self._temperature *= self._beta2
+!171	            self._log('msg', 'Found previously found minimum.')
+!172	            self._log('par')
+!173	            if self._previous_optimum:
+!174	                self._log('msg', 'Restoring last minimum.')
+!175	                self._atoms.positions = self._previous_optimum.positions
+!176	            return
+!177	        # Must have found a unique minimum.
+!178	        self._temperature *= self._beta3
+!179	        self._log('msg', 'Found a new minimum.')
+!180	        self._log('par')
+!181	        if (self._atoms.get_potential_energy() <
+!182	            self._previous_energy + self._Ediff):
+!183	                self._log('msg', 'Accepted new minimum.')
+!184	                self._Ediff *= self._alpha1
+!185	                self._log('par')
+!186	                self._record_minimum()
+!187	        else:
+!188	            self._log('msg', 'Rejected new minimum due to energy. '
+!189	                             'Restoring last minimum.')
+!190	            self._atoms.positions = self._previous_optimum.positions
+!191	            self._Ediff *= self._alpha2
+!192	            self._log('par')
+!193	 
       
       
     END DO

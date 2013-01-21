@@ -56,15 +56,20 @@ MODULE glbopt
     CALL section_vals_val_get(root_section,"GLOBAL_OPT%NUMBER_OF_WALKERS",&
        i_val=glbopt_cfg%n_walkers,error=error)
     !TODO: read from input or make educated guess
+    ! TODO: more hierarchic naming scheme eg. bloom_* md_* ...
     glbopt_cfg%n_hashes = 3
     glbopt_cfg%bloom_size = 2**8
     glbopt_cfg%epot_ndown = 2
     glbopt_cfg%epot_nup = 2
     glbopt_cfg%md_mincount_max = 3
     glbopt_cfg%hop_count_max = 100
- 
-    CALL glbopt_driver(glbopt_cfg, root_section, para_env, input_path, error)                
-    
+    glbopt_cfg%beta1  = 1.1
+    glbopt_cfg%beta2  = 1.1
+    glbopt_cfg%beta3  = 1.0 / 1.1
+    glbopt_cfg%Ediff0 = 0.5
+    glbopt_cfg%alpha1 = 0.98
+    glbopt_cfg%alpha2 = 1 / 0.98 
+                    
    
   END SUBROUTINE run_global_opt  
   
