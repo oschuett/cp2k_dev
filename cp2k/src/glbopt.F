@@ -53,6 +53,8 @@ MODULE glbopt
 
     TYPE(glbopt_config_type)                 :: glbopt_cfg
 
+    TYPE(section_vals_type), POINTER         :: colvar_section
+
     CALL section_vals_val_get(root_section,"GLOBAL_OPT%NUMBER_OF_WALKERS",&
        i_val=glbopt_cfg%n_walkers,error=error)
     !TODO: read from input or make educated guess
@@ -64,15 +66,20 @@ MODULE glbopt
     glbopt_cfg%md_mincount_max = 3
     glbopt_cfg%hop_count_max = 100
     glbopt_cfg%beta1  = 1.1
-    glbopt_cfg%beta2  = 1.1
+    ! glbopt_cfg%beta2  = 1.1
     glbopt_cfg%beta3  = 1.0 / 1.1
     glbopt_cfg%Ediff0 = 0.5
     glbopt_cfg%alpha1 = 0.98
-    glbopt_cfg%alpha2 = 1 / 0.98 
-                    
-   
-  END SUBROUTINE run_global_opt  
-  
+    glbopt_cfg%alpha2 = 1 / 0.98
+
+    ! make sure there are colvars
+    colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)
+    CALL section_vals_get(colvar_section,n_repetition=glbopt_cfg%n_colvars,error=error)
+    IF(glbopt_cfg%n_colvars == 0) STOP "No colvars found. Aborting."
+
+    CALL glbopt_driver(glbopt_cfg, root_section, para_env, input_path, error)
+
+  END SUBROUTINE run_global_opt
 
 ! *****************************************************************************
 !> \brief Main driver to perform global optimization
@@ -86,40 +93,57 @@ MODULE glbopt
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     TYPE(cp_error_type), INTENT(inout)       :: error
 
+    INTEGER :: f_env_id, handle
     CHARACTER(len=*), PARAMETER :: routineN = 'glbopt_driver', &
       routineP = moduleN//':'//routineN
+    CALL timeset(routineN,handle)
 
-    INTEGER :: f_env_id, handle, my_walker_id, n_colvars, n_groups_created, &
+    WRITE(*,*) "Global optimisation reporting for duty :-)"
+
+    IF(glbopt_cfg%n_walkers == 1) THEN
+       WRITE(*,*) "Running in single walker mode."
+       f_env_id = walker_create_f_env(root_section, input_path, para_env%group, 0, error)
+       CALL glbopt_drive_walker(glbopt_cfg, f_env_id, para_env, para_env%group, 0, error)
+    ELSE
+       WRITE(*,*) "Running in master/walkers mode."
+       CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, error)
+    ENDIF
+
+    CALL timestop(handle)
+   END SUBROUTINE glbopt_driver
+
+! *****************************************************************************
+! *****************************************************************************
+   SUBROUTINE driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, error)
+    TYPE(glbopt_config_type)                 :: glbopt_cfg
+    TYPE(section_vals_type), POINTER         :: root_section
+    TYPE(cp_para_env_type), POINTER          :: para_env
+    CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    TYPE(cp_error_type), INTENT(inout)       :: error
+
+    INTEGER :: f_env_id, my_walker_id, n_groups_created, &
       pe_per_walker, subgroup, subgroup_rank, subgroup_size, walker_group
     LOGICAL                                  :: im_the_master
     INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
     INTEGER, &
       DIMENSION(0:para_env%num_pe-2), TARGET :: group_distribution
-    TYPE(section_vals_type), POINTER         :: colvar_section
 
-    CALL timeset(routineN,handle)
-    WRITE(*,*) "Global optimisation reporting for duty :-)"
-    
-    ! make sure there are colvars
-    colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)
-    CALL section_vals_get(colvar_section,n_repetition=n_colvars,error=error)
-    IF(n_colvars == 0) STOP "No colvars found. Aborting."
-     
+
     ! ====== Setup of MPI-Groups ======
     IF (MOD(para_env%num_pe-1, glbopt_cfg%n_walkers) /= 0) &
        STOP "number of processors-1 is not divisible by n_walkers."
     IF (para_env%num_pe < glbopt_cfg%n_walkers + 1) &
        STOP "There are not enough processes for n_walkers + 1. Aborting."
-       
+
     pe_per_walker = (para_env%num_pe-1)/glbopt_cfg%n_walkers
-    
-    WRITE(*,*) "!!! Number of processors: ",para_env%num_pe
+
+    WRITE(*,*) "!!! Number of mpi ranks: ",para_env%num_pe
     WRITE(*,*) "!!! Number of walkers: ", glbopt_cfg%n_walkers
-    WRITE(*,*) "!!! Number of colvars: ", n_colvars
-        
+    WRITE(*,*) "!!! Number of colvars: ", glbopt_cfg%n_colvars
+
     ! the last task becomes the master. Keeps node-alignment of other tasks.
     im_the_master = (para_env%mepos == para_env%num_pe-1)
-    
+
     ! First split split para_env%group into a master- and a walkers-groups...
     IF (im_the_master) THEN
        CALL mp_comm_split_direct(para_env%group, subgroup, 1)
@@ -133,9 +157,9 @@ MODULE glbopt
        IF(subgroup_size/=para_env%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
     ENDIF
 
-    
+
     IF (im_the_master) THEN
-       CALL glbopt_drive_master(glbopt_cfg, para_env, n_colvars, error)
+       CALL glbopt_drive_master(glbopt_cfg, para_env, error)
     ELSE
        ! ...then split walkers-group into n_walkers groups - one for each walker.
        group_distribution_p => group_distribution
@@ -143,18 +167,16 @@ MODULE glbopt
        my_walker_id = group_distribution(subgroup_rank)
        IF(n_groups_created/=glbopt_cfg%n_walkers) STOP "glbopt: mp_comm_split failed."
         f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
-       CALL glbopt_drive_walker(glbopt_cfg, f_env_id, n_colvars, para_env, walker_group, my_walker_id, error)
+       CALL glbopt_drive_walker(glbopt_cfg, f_env_id, para_env, walker_group, my_walker_id, error)
        CALL mp_comm_free(walker_group)
     ENDIF
-    
+
     CALL mp_comm_free(subgroup)
-    CALL timestop(handle)
 
-  END SUBROUTINE glbopt_driver
- 
+  END SUBROUTINE driver_master_walkers
 
-  ! *****************************************************************************
-  
+
+! *****************************************************************************
   FUNCTION walker_create_f_env(root_section, input_path, mpi_comm, walker_id, error) RESULT(f_env_id)
     TYPE(section_vals_type), POINTER         :: root_section
     CHARACTER(LEN=*), INTENT(IN)             :: input_path

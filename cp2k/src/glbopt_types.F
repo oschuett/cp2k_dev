@@ -17,10 +17,11 @@ MODULE glbopt_types
  IMPLICIT NONE
  PRIVATE
 
-                                    
+
  TYPE glbopt_config_type
    INTEGER                                    :: n_walkers
    INTEGER                                    :: n_hashes
+   INTEGER                                    :: n_colvars
    INTEGER                                    :: bloom_size
    INTEGER                                    :: epot_ndown
    INTEGER                                    :: epot_nup
@@ -31,9 +32,9 @@ MODULE glbopt_types
    REAL                                       :: beta3
    REAL                                       :: Ediff0
    REAL                                       :: alpha1
-   REAL                                       :: alpha2     
-   
-  
+   REAL                                       :: alpha2
+
+
 !19	    _default_settings = {
 !20	        'T0': 1000.,  # K, initial MD 'temperature'
 !21	        'beta1': 1.1,  # temperature adjustment parameter
@@ -50,7 +51,7 @@ MODULE glbopt_types
 !32	        'minima_traj': 'minima.traj',  # storage file for minima list
 !33	        'fmax' : 0.05, # eV/A, max force for optimizations
 !34	                          }
-   
+
  END TYPE glbopt_config_type
 
  TYPE glbopt_mdctrl_data_type
@@ -65,6 +66,8 @@ MODULE glbopt_types
 
 
 !  TYPE glbopt_env_type
+!      TYPE(glbopt_config_type)                   :: cfg
+!      INTEGER                                    :: n_colvars
 !     !PRIVATE  !TODO: make this private with getters & setters
 !     INTEGER                                    :: ref_count
 !     ! config parameters
@@ -85,9 +88,9 @@ MODULE glbopt_types
 !     INTEGER                                    :: md_mincounter
 !     REAL(KIND=dp), DIMENSION(:), POINTER       :: epot_history
 !     !mixed
-!     
-!  END TYPE glbopt_env_type
 !
+!  END TYPE glbopt_env_type
+
  PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
  PUBLIC :: glbopt_msg_minima_new, glbopt_msg_minima_old, glbopt_msg_shutdown
   

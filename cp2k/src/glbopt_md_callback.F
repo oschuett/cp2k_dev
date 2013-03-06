@@ -27,8 +27,8 @@ MODULE glbopt_md_callback
   USE message_passing,                 ONLY: &
        mp_any_source, mp_bcast, mp_comm_dup, mp_comm_free, mp_comm_split, &
        mp_comm_split_direct, mp_environ, mp_recv, mp_send, mp_sum, mp_sync
- 
-       
+
+
   USE f77_interface,                   ONLY: create_force_env,&
                                              destroy_force_env,&
                                              f77_default_para_env => default_para_env,&
@@ -45,7 +45,7 @@ MODULE glbopt_md_callback
   USE md_ener_types,                   ONLY: md_ener_type
   USE glbopt_types,                ONLY: glbopt_mdctrl_data_type
 
-    
+
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -55,11 +55,11 @@ MODULE glbopt_md_callback
 
  PUBLIC :: glbopt_md_callback
 
-  
- CONTAINS 
- 
- 
-  
+
+ CONTAINS
+
+
+
 ! *****************************************************************************
 !> \brief Main driver to perform global optimization
 !> \param error variable to control error logging, stopping,...
@@ -70,7 +70,7 @@ MODULE glbopt_md_callback
     TYPE(md_environment_type), POINTER       :: md_env
     LOGICAL, INTENT(inout)                   :: should_stop
     TYPE(cp_error_type), INTENT(inout)       :: error
-    
+
     ! ====== Local Variables ======
     CHARACTER(len=*), PARAMETER :: routineN = 'glbopt_md_callback', &
        routineP = moduleN//':'//routineN
@@ -80,9 +80,9 @@ MODULE glbopt_md_callback
     LOGICAL                                  :: passed_minimum
     CPPrecondition(ASSOCIATED(mdctrl_data), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
-        
+
     !WRITE (*,*) "hello word - glbopt_md_callback"
-    
+
     ! add new potential energy value to history
     NULLIFY(md_ener)
     CALL get_md_env(md_env=md_env, md_ener=md_ener, error=error)
@@ -92,31 +92,31 @@ MODULE glbopt_md_callback
     !DO i=1,SIZE(glbopt_env%epot_history,1)
     !  WRITE (*,*), glbopt_env%epot_history(i)
     !END DO
-    
+
     ! check if we passed a minimum
     passed_minimum = .TRUE.
     DO i=1, mdctrl_data%cfg%epot_nup
       IF(mdctrl_data%epot_history(i) <= mdctrl_data%epot_history(i+1)) &
          passed_minimum = .FALSE.
     END DO
-    
+
     DO i=mdctrl_data%cfg%epot_nup+1, mdctrl_data%cfg%epot_nup+mdctrl_data%cfg%epot_ndown
       IF(mdctrl_data%epot_history(i) >= mdctrl_data%epot_history(i+1)) &
          passed_minimum = .FALSE.
     END DO
-    
+
     !WRITE (*,*) "passed minima : ", glbopt_env%md_mincounter
-    
+
     ! count the passed minima and stop md_run when mincount_max is reached.
     IF(passed_minimum) &
        mdctrl_data%md_mincounter = mdctrl_data%md_mincounter + 1
-    
+
     IF(mdctrl_data%md_mincounter >= mdctrl_data%cfg%md_mincount_max) &
        should_stop = .TRUE.
-    
-    
-    
+
+
+
   END SUBROUTINE glbopt_md_callback
- 
+
 END MODULE glbopt_md_callback
 
