@@ -461,10 +461,10 @@ CONTAINS
        ! Free Energy calculation
        CALL free_energy_evaluate(md_env,should_stop,free_energy_section,error)
 
-        ! Global Optimization
+       ! call external hook e.g. from global optimization
        IF (PRESENT(mdctrl)) &
           CALL mdctrl_callback(mdctrl, md_env, should_stop, error)
-       
+
        IF (should_stop) EXIT
 
        ! Test for <PROJECT_NAME>.EXIT_MD or for WALL_TIME to exit

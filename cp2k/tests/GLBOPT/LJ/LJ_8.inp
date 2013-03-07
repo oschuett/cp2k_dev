@@ -1,0 +1,109 @@
+&GLOBAL
+  PROGRAM_NAME GLOBAL_OPT
+  RUN_TYPE NONE
+&END GLOBAL
+
+&MOTION
+ &GEO_OPT
+  OPTIMIZER BFGS
+  MAX_ITER 3000
+  MAX_DR 0.00000001
+ &END GEO_OPT
+
+ &MD
+    ENSEMBLE NVT
+    STEPS 30
+    TIMESTEP 0.5
+    TEMPERATURE 1.0
+    &THERMOSTAT
+        REGION MOLECULE
+        TYPE NOSE
+        &NOSE
+            LENGTH 3
+            YOSHIDA 3
+            TIMECON 1000
+        &END NOSE
+    &END
+ &END MD
+&END MOTION
+
+&GLOBAL_OPT
+  
+!  	PRESAMPLING_FILE_NAME lalala.xyz
+    NUMBER_OF_WALKERS 1
+!    POINT_SRC PRESAMPLING
+!	POINT_RANKING ole123
+!	SCHEDULER ole567
+!	&PRESAMPLING
+!		TRJ_FILE lalala.xyz
+!	&END PRESAMPLING
+
+&END GLOBAL_OPT
+
+&FORCE_EVAL
+  METHOD FIST
+  &MM
+    &FORCEFIELD
+     &SPLINE
+        EMAX_ACCURACY 500.0
+        EMAX_SPLINE 1000.0
+        EPS_SPLINE 1.0E-9
+      &END
+      &NONBONDED
+        &LENNARD-JONES
+          atoms Ar Ar
+          EPSILON [hartree] 1.0
+          SIGMA 1.0
+          RCUT 50.0
+        &END LENNARD-JONES
+      &END NONBONDED
+      &CHARGE
+        ATOM Ar
+        CHARGE 0.0
+      &END CHARGE
+    &END FORCEFIELD
+    &POISSON
+      &EWALD
+        EWALD_TYPE none
+      &END EWALD
+    &END POISSON
+    &PRINT
+      &FF_INFO
+      &END
+    &END
+  &END MM
+  &SUBSYS
+    &CELL
+      ABC 100.0 100.0 100.0
+      PERIODIC NONE
+    &END CELL
+    &COORD
+      Ar 0.0 0.0 0.0
+      Ar 0.0 1.5 0.0
+      Ar 0.0 0.0 1.5
+      Ar 0.0 1.5 1.5
+
+      Ar 1.5 0.0 0.0
+      Ar 1.5 0.0 1.5
+      Ar 1.5 1.5 0.0
+      Ar 1.5 1.5 1.5
+
+   &END COORD
+    &TOPOLOGY
+      CONNECTIVITY OFF
+    &END TOPOLOGY
+
+    &COLVAR
+      &U
+      &END U
+    &END COLVAR
+
+    &COLVAR
+      &DISTANCE
+        ATOMS 1 2
+      &END DISTANCE
+    &END COLVAR
+
+  &END SUBSYS
+  STRESS_TENSOR ANALYTICAL
+&END FORCE_EVAL

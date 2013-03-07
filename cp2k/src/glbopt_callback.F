@@ -50,9 +50,9 @@ MODULE glbopt_callback
 
     CPPrecondition(ASSOCIATED(mdctrl_data), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
-        
-    !WRITE (*,*) "hello word - glbopt_md_callback"
-    
+
+
+
     ! add new potential energy value to history
     NULLIFY(md_ener)
     CALL get_md_env(md_env=md_env, md_ener=md_ener, error=error)
@@ -62,31 +62,33 @@ MODULE glbopt_callback
     !DO i=1,SIZE(glbopt_env%epot_history,1)
     !  WRITE (*,*), glbopt_env%epot_history(i)
     !END DO
-    
+
+    !WRITE (*,*) "hello word - glbopt_md_callback epot: ", md_ener%epot
+
     ! check if we passed a minimum
     passed_minimum = .TRUE.
     DO i=1, mdctrl_data%cfg%epot_nup
       IF(mdctrl_data%epot_history(i) <= mdctrl_data%epot_history(i+1)) &
          passed_minimum = .FALSE.
     END DO
-    
+
     DO i=mdctrl_data%cfg%epot_nup+1, mdctrl_data%cfg%epot_nup+mdctrl_data%cfg%epot_ndown
       IF(mdctrl_data%epot_history(i) >= mdctrl_data%epot_history(i+1)) &
          passed_minimum = .FALSE.
     END DO
-    
-    !WRITE (*,*) "passed minima : ", glbopt_env%md_mincounter
-    
+
+    !WRITE (*,*) "passed minima : ", mdctrl_data%md_mincounter
+
     ! count the passed minima and stop md_run when mincount_max is reached.
     IF(passed_minimum) &
        mdctrl_data%md_mincounter = mdctrl_data%md_mincounter + 1
-    
-    IF(mdctrl_data%md_mincounter >= mdctrl_data%cfg%md_mincount_max) &
+
+    IF(mdctrl_data%md_mincounter >= mdctrl_data%cfg%md_mincount_max) THEN
        should_stop = .TRUE.
-    
-    
-    
+       WRITE (*,*) "callback: stoping md"
+    END IF
+
   END SUBROUTINE glbopt_md_callback
- 
+
 END MODULE glbopt_callback
 

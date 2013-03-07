@@ -28,7 +28,7 @@ MODULE glbopt_walker
                                              glbopt_msg_minima_old,&
                                              glbopt_msg_shutdown
   USE global_types,                    ONLY: global_environment_type
-  USE kinds,                           ONLY: dp, int_4
+  USE kinds,                           ONLY: dp, sp, int_4
   USE md_run,                          ONLY: qs_mol_dyn
   USE mdctrl_types,                    ONLY: mdctrl_type
   USE message_passing,                 ONLY: mp_recv,&
@@ -131,6 +131,9 @@ MODULE glbopt_walker
     ! -----------main-loop of minima hopping---------------
     mainloop: DO WHILE(.TRUE.) !
 
+      WRITE (*,*) ""
+      WRITE (*,*) "=========== Start of main loop iteration ==============="
+
       ! quit when system explodes
       IF(temperature*kelvin > 1000) THEN
          WRITE (*,*) "Reached T>1000K, quiting minima hopping."
@@ -142,9 +145,11 @@ MODULE glbopt_walker
       mdctrl_data%md_mincounter = 0
 
       CALL section_vals_val_set(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
-      write (*,*) "set temp to [K]: ", temperature*kelvin
+      write (*,*) "Temperature [K]: ", temperature*kelvin
 
+      WRITE (*,*) "starting md"
       CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
+      WRITE (*,*) "starting local geo opt"
       CALL cp_geo_opt(force_env, globenv, error=error)
       ! TODO: find out if minimazation was successfull
 
@@ -292,18 +297,18 @@ MODULE glbopt_walker
      TYPE(cp_error_type), INTENT(inout)                          :: error
 
 
-     REAL(kind=dp), DIMENSION(glbopt_cfg%n_colvars+glbopt_cfg%n_hashes) :: key_parts
+     REAL(kind=sp), DIMENSION(glbopt_cfg%n_colvars+glbopt_cfg%n_hashes) :: key_parts
      CHARACTER, ALLOCATABLE, DIMENSION(:)                        :: key
      INTEGER                                                     :: key_length, i
      INTEGER(kind=int_4), DIMENSION(glbopt_cfg%n_hashes)         :: hashes
 
-     key_parts = 0.0_dp
+     key_parts = 0.0_sp
      DO i=1, glbopt_cfg%n_colvars
         CALL colvar_eval_glob_f(i,force_env,error=error)
         key_parts(i) = subsys%colvar_p(i)%colvar%ss
      END DO
 
-     !WRITE (*,*) "colvars: ", key_parts
+     WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)
 
      ! following advise from:
      ! http://spyced.blogspot.ch/2009/01/all-you-ever-wanted-to-know-about.html
