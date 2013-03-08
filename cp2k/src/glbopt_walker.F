@@ -91,8 +91,8 @@ MODULE glbopt_walker
 
     INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: bitfield
     TYPE(INTEGER(kind=int_4)), DIMENSION(glbopt_cfg%n_hashes) :: bloomidx
-! ====== Local Variables ======
-!LOGICAL :: known_minima
+    LOGICAL                                  :: minima_known
+
 
     failure = .FALSE.
 
@@ -163,9 +163,17 @@ MODULE glbopt_walker
 
       CALL calc_bloom_indices(glbopt_cfg, force_env, subsys, bloomidx, error)
       WRITE (*,*) "got bloom indices: ", bloomidx
-      WRITE (*,*) "is_member: ", bloomfilter_query(bitfield, bloomidx)
 
-      IF(bloomfilter_query(bitfield, bloomidx)) THEN
+
+      minima_known = bloomfilter_query(bitfield, bloomidx)
+
+      IF(.NOT. minima_known .AND. glbopt_cfg%n_walkers > 1) THEN
+         ! Sync with master and check again.
+         CALL master_sync_bloomfilter(para_env, bitfield)
+         minima_known = bloomfilter_query(bitfield, bloomidx)
+      END IF
+
+      IF(minima_known) THEN
           WRITE (*,*) "known minima"
           ! known minima restart MD
           temperature = temperature*glbopt_cfg%beta1
@@ -173,7 +181,6 @@ MODULE glbopt_walker
           CYCLE mainloop
       END IF
 
-      !TODO: get bloomfilter update from master and check again.
       ! found a new minima
 
       temperature = temperature*glbopt_cfg%beta3
@@ -190,10 +197,13 @@ MODULE glbopt_walker
 
      ! Hurra, we accept a new minimum
      Write (*,*) "!**********Accepted the new minima*************!"
-     CALL bloomfilter_add(bitfield, bloomidx) 
+     CALL bloomfilter_add(bitfield, bloomidx)
      Eaccept = Eaccept * glbopt_cfg%alpha1
      prev_epot = epot
      CALL pack_subsys_particles(subsys, r=prev_positions, error=error)
+     IF(glbopt_cfg%n_walkers > 1) &
+        CALL master_sync_bloomfilter(para_env, bitfield)
+
 
 !      ! ok the mimima would be acceptable energy-wise, let's see if its new
 !      ! calculate new colvar values and send them to the master
@@ -264,6 +274,19 @@ MODULE glbopt_walker
     CALL timestop(handle)
   END SUBROUTINE glbopt_drive_walker
 
+! *****************************************************************************
+!> \brief
+! *****************************************************************************
+  SUBROUTINE master_sync_bloomfilter(para_env, bitfield)
+     TYPE(cp_para_env_type), POINTER          :: para_env
+     INTEGER(kind=int_4), DIMENSION(:), INTENT(inout)    :: bitfield
+     INTEGER :: master_id, tag
+
+     master_id = para_env%num_pe-1
+     tag = 42
+     CALL mp_send(bitfield, master_id, 42, para_env%group)
+     CALL mp_recv(bitfield, master_id, tag, para_env%group)
+  END SUBROUTINE master_sync_bloomfilter
 
 ! *****************************************************************************
 !> \brief

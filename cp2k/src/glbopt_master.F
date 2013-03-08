@@ -43,7 +43,8 @@ MODULE glbopt_master
     TYPE(cp_error_type), INTENT(inout)       :: error
 
    ! CHARACTER, ALLOCATABLE, DIMENSION(:)     :: key
-   ! INTEGER                                  :: calling_walker, hop_counter, &
+   INTEGER                                  :: calling_walker, tag
+   !hop_counter, &
    !                                             i, key_length, &
    !                                             minima_counter, msg, &
    !                                             shutdown_walkers, tag
@@ -52,11 +53,19 @@ MODULE glbopt_master
    !   n_colvars+glbopt_cfg%n_hashes)         :: key_parts  
    ! INTEGER(kind=int_4), &
    !   DIMENSION(glbopt_cfg%n_hashes)         :: hashes
-   ! INTEGER(kind=int_4), &
-   !   DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: bloomfilter
+   INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: shared_bitfield
+   INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: recv_bitfield
 
     WRITE (*,*) "Master standing by"
-    
+    DO WHILE(.TRUE.)
+      calling_walker = mp_any_source
+      tag = 42
+      CALL mp_recv(recv_bitfield, calling_walker, tag, para_env%group)
+      shared_bitfield = IOR(shared_bitfield, recv_bitfield)
+      CALL mp_send(shared_bitfield, calling_walker, 42, para_env%group)
+      WRITE(*,*) "Master: synced with walker ", calling_walker
+    END DO
+
 !      key_length = SIZE(TRANSFER(key_parts, key)) 
 !      ALLOCATE(key(key_length))
 !      bloomfilter = 0

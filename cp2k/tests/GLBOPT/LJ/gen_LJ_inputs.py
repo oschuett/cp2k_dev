@@ -35,7 +35,7 @@ def gen_input(size, Estop):
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
-    output += "   NUMBER_OF_WALKERS  2\n"
+    output += "   NUMBER_OF_WALKERS  10\n"
     output += "   ENERGY_STOP %f\n"%Estop
     output += "&END GLOBAL_OPT\n"
 
@@ -61,9 +61,9 @@ def gen_input(size, Estop):
   &MM
     &FORCEFIELD
      &SPLINE
-        EMAX_ACCURACY 1.0E3
-        EMAX_SPLINE 1.0E5
-        EPS_SPLINE 1.0E-9
+        EMAX_ACCURACY 1.0E12
+        EMAX_SPLINE 1.0E12
+        EPS_SPLINE 1.0E-12
       &END
       &NONBONDED
         &LENNARD-JONES
