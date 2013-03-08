@@ -28,7 +28,7 @@ MODULE glbopt_walker
                                              glbopt_msg_minima_old,&
                                              glbopt_msg_shutdown
   USE global_types,                    ONLY: global_environment_type
-  USE kinds,                           ONLY: dp, sp, int_4
+  USE kinds,                           ONLY: dp, sp, int_4, int_8
   USE md_run,                          ONLY: qs_mol_dyn
   USE mdctrl_types,                    ONLY: mdctrl_type
   USE message_passing,                 ONLY: mp_recv,&
@@ -69,7 +69,8 @@ MODULE glbopt_walker
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, i, stat, master_id, &
-                                                msg, n_atoms, output_unit, tag
+                                                msg, n_atoms, output_unit, tag,&
+                                                i_mainloop
     LOGICAL                                  :: failure
     REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: prev_positions
     TYPE(force_env_type), POINTER            :: force_env
@@ -86,7 +87,7 @@ MODULE glbopt_walker
     TYPE(global_environment_type), POINTER   :: globenv
     TYPE(mdctrl_type), POINTER               :: mdctrl_p
     TYPE(mdctrl_type), TARGET                :: mdctrl
-    REAL(kind=dp)                            :: temperature, prev_epot, Ediff, epot
+    REAL(kind=dp)                            :: temperature, prev_epot, Eaccept, epot
 
     INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: bitfield
     TYPE(INTEGER(kind=int_4)), DIMENSION(glbopt_cfg%n_hashes) :: bloomidx
@@ -122,17 +123,24 @@ MODULE glbopt_walker
     mdctrl%glbopt => mdctrl_data
     mdctrl_p => mdctrl
 
-    Ediff = glbopt_cfg%Ediff0
+    Eaccept = glbopt_cfg%Eaccept0
     prev_epot = Huge(1.0_dp)
+    epot = Huge(1.0_dp)
     ! store starting configuration,  backup position as possible restart point
     CALL pack_subsys_particles(subsys, r=prev_positions, error=error)     
     CALL section_vals_val_get(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
 
     ! -----------main-loop of minima hopping---------------
-    mainloop: DO WHILE(.TRUE.) !
+    mainloop: DO i_mainloop = 1, HUGE(1)
 
       WRITE (*,*) ""
-      WRITE (*,*) "=========== Start of main loop iteration ==============="
+      WRITE (*,*) i_mainloop, "=========== Start of main loop iteration ==============="
+
+      ! quit when known minima is reached
+      IF(epot <= glbopt_cfg%Estop) THEN
+         WRITE (*,*) "Reached Estop, quiting minima hopping."
+         EXIT mainloop
+      END IF
 
       ! quit when system explodes
       IF(temperature*kelvin > 1000) THEN
@@ -145,7 +153,7 @@ MODULE glbopt_walker
       mdctrl_data%md_mincounter = 0
 
       CALL section_vals_val_set(force_env%root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
-      write (*,*) "Temperature [K]: ", temperature*kelvin
+      write (*,"('Temperature [K]: ',F5.1,3X,'Eaccept: ',F10.6)"), temperature*kelvin, Eaccept
 
       WRITE (*,*) "starting md"
       CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
@@ -165,25 +173,25 @@ MODULE glbopt_walker
           CYCLE mainloop
       END IF
 
+      !TODO: get bloomfilter update from master and check again.
       ! found a new minima
-
 
       temperature = temperature*glbopt_cfg%beta3
 
       CALL force_env_get(force_env, potential_energy=epot, error=error)
       WRITE (*,*) "found a new minima with epot= ", epot
-      IF (epot - prev_epot > Ediff) THEN
+      IF (epot - prev_epot > Eaccept) THEN
          ! rejected new minimum due to energy.
          Write (*,*) "rejected minima due to energy difference"
          CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
-         Ediff = Ediff * glbopt_cfg%alpha2
+         Eaccept = Eaccept * glbopt_cfg%alpha2
          CYCLE mainloop
       END IF
 
      ! Hurra, we accept a new minimum
      Write (*,*) "!**********Accepted the new minima*************!"
      CALL bloomfilter_add(bitfield, bloomidx) 
-     Ediff = Ediff * glbopt_cfg%alpha1
+     Eaccept = Eaccept * glbopt_cfg%alpha1
      prev_epot = epot
      CALL pack_subsys_particles(subsys, r=prev_positions, error=error)
 
@@ -203,7 +211,7 @@ MODULE glbopt_walker
 !      SELECT CASE (msg)
 !       CASE (glbopt_msg_minima_new)
 !           ! found a new minimum - and accepted it
-!           Ediff = Ediff * glbopt_cfg%alpha1
+!           Eaccept = Eaccept * glbopt_cfg%alpha1
 !       CASE (glbopt_msg_minima_old)
 !          ! Found previously found minimum - reset to lastest starting positions
 !          temperature = temperature * glbopt_cfg%beta2
@@ -230,16 +238,16 @@ MODULE glbopt_walker
 !179	        self._log('msg', 'Found a new minimum.')
 !180	        self._log('par')
 !181	        if (self._atoms.get_potential_energy() <
-!182	            self._previous_energy + self._Ediff):
+!182	            self._previous_energy + self._Eaccept):
 !183	                self._log('msg', 'Accepted new minimum.')
-!184	                self._Ediff *= self._alpha1
+!184	                self._Eaccept *= self._alpha1
 !185	                self._log('par')
 !186	                self._record_minimum()
 !187	        else:
 !188	            self._log('msg', 'Rejected new minimum due to energy. '
 !189	                             'Restoring last minimum.')
 !190	            self._atoms.positions = self._previous_optimum.positions
-!191	            self._Ediff *= self._alpha2
+!191	            self._Eaccept *= self._alpha2
 !192	            self._log('par')
 
 
@@ -297,18 +305,30 @@ MODULE glbopt_walker
      TYPE(cp_error_type), INTENT(inout)                          :: error
 
 
-     REAL(kind=sp), DIMENSION(glbopt_cfg%n_colvars+glbopt_cfg%n_hashes) :: key_parts
+     REAL(kind=dp), DIMENSION(glbopt_cfg%n_colvars+glbopt_cfg%n_hashes) :: key_parts
      CHARACTER, ALLOCATABLE, DIMENSION(:)                        :: key
-     INTEGER                                                     :: key_length, i
+     INTEGER                                                     :: key_length, i, handle
      INTEGER(kind=int_4), DIMENSION(glbopt_cfg%n_hashes)         :: hashes
 
-     key_parts = 0.0_sp
+     INTEGER, PARAMETER                                          :: colvar_precision = 10**9
+
+     CHARACTER(len=*), PARAMETER :: routineN = 'calc_bloom_indices', &
+      routineP = moduleN//':'//routineN
+     CALL timeset(routineN,handle)
+
+     key_parts = 0.0_dp
      DO i=1, glbopt_cfg%n_colvars
         CALL colvar_eval_glob_f(i,force_env,error=error)
         key_parts(i) = subsys%colvar_p(i)%colvar%ss
      END DO
 
      WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)
+     key_parts = REAL(FLOOR(key_parts*colvar_precision, int_8), dp)/colvar_precision
+     WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)
+     !WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)
+     !WRITE (*,*) "blub: ", key_parts(1)*10**8, REAL(FLOOR(key_parts(1)*10**8, int_8), dp)/10**8, REAL(key_parts(1), sp)
+     !key_parts = FLOOR(key_parts*10**8)/10**8
+     !WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)
 
      ! following advise from:
      ! http://spyced.blogspot.ch/2009/01/all-you-ever-wanted-to-know-about.html
@@ -323,6 +343,7 @@ MODULE glbopt_walker
        key_parts(glbopt_cfg%n_colvars + i) = bloomidx(i)
      END DO
 
+     CALL timestop(handle)
   END SUBROUTINE
 
 ! *****************************************************************************

@@ -30,9 +30,10 @@ MODULE glbopt_types
    REAL                                       :: beta1
    REAL                                       :: beta2
    REAL                                       :: beta3
-   REAL                                       :: Ediff0
+   REAL                                       :: Eaccept0
    REAL                                       :: alpha1
    REAL                                       :: alpha2
+   REAL(KIND=dp)                              :: Estop
 
 
 !19	    _default_settings = {

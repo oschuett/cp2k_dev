@@ -17,7 +17,7 @@ MODULE input_global_opt
   USE input_section_types,             ONLY: section_add_keyword,&
                                              section_create,&
                                              section_type
-  USE input_val_types,                 ONLY: integer_t
+  USE input_val_types,                 ONLY: integer_t, real_t
 #include "cp_common_uses.h"
 
   IMPLICIT NONE
@@ -55,7 +55,13 @@ CONTAINS
         type_of_var=integer_t,required=.TRUE.,error=error)
     CALL section_add_keyword(section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
-    
+
+    CALL keyword_create(keyword, name="ENERGY_STOP",&
+        description="balba TODO.",&
+        usage="ENERGY_STOP <INTEGER>", &
+        type_of_var=real_t,required=.TRUE.,error=error)
+    CALL section_add_keyword(section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
   END SUBROUTINE create_global_opt_section
 
 END MODULE input_global_opt

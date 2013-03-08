@@ -55,7 +55,8 @@ MODULE glbopt_master
    ! INTEGER(kind=int_4), &
    !   DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: bloomfilter
 
-
+    WRITE (*,*) "Master standing by"
+    
 !      key_length = SIZE(TRANSFER(key_parts, key)) 
 !      ALLOCATE(key(key_length))
 !      bloomfilter = 0
