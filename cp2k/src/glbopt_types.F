@@ -34,7 +34,7 @@ MODULE glbopt_types
    REAL                                       :: alpha1
    REAL                                       :: alpha2
    REAL(KIND=dp)                              :: Emin
-   REAL(KIND=dp)                              :: md_max_force
+   REAL(KIND=dp)                              :: md_max_dist
 
 
 !19	    _default_settings = {

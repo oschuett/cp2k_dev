@@ -56,7 +56,7 @@ def gen_input(size, Emin):
     ENSEMBLE NVE
     STEPS 1000
     TIMESTEP 1.0
-    TEMPERATURE 300
+    TEMPERATURE 0.001
     STEP_START_VAL 1 !otherwise md_energies::md_write_output flushes trajectory
   &END MD
 

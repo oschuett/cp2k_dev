@@ -47,8 +47,12 @@ MODULE glbopt_walker
                                              cp_print_key_finished_output,&
                                              cp_print_key_should_output,&
                                              cp_print_key_unit_nr
-
-
+  USE force_env_types,                 ONLY: force_env_get,&
+                                             force_env_type
+  USE cp_subsys_types,                 ONLY: cp_subsys_get,&
+                                             cp_subsys_type
+  USE particle_list_types,             ONLY: particle_list_type
+  USE kinds,                           ONLY: dp
 
 #include "cp_common_uses.h"
 
@@ -137,6 +141,7 @@ MODULE glbopt_walker
     IF(stat/=0) STOP "glbopt: failed to create force_env"
 
 
+
     ! ======= More setup stuff =======
     CALL f_env_add_defaults(f_env_id, f_env, error, failure)
     if(failure) stop "glbopt_drive_walker: f_env_add_defaults failed" 
@@ -200,9 +205,25 @@ MODULE glbopt_walker
 
       IF (iw>0) WRITE (iw,'(A)') " GLOBAL_OPT| starting md"
       CALL qs_mol_dyn(force_env, globenv, rm_restart_info=.FALSE., mdctrl=mdctrl_p, error=error)
+
+      ! Stop if cluster starts to splits into multiple fragments.
+      IF(.NOT. check_connectivity(force_env, glbopt_cfg%md_max_dist, error)) THEN
+         IF(iw > 0) WRITE (iw,"(A,I4,A)") " GLOBAL_OPT| Rejecting MD end-point because of MD_MAX_DIST."
+         CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
+         CYCLE mainloop
+      END IF
+
+
       IF (iw>0) WRITE (iw,'(A)') " GLOBAL_OPT| starting local geo opt"
       CALL cp_geo_opt(force_env, globenv, error=error)
       ! TODO: find out if minimazation was successfull
+
+      ! Stop if cluster starts to splits into multiple fragments.
+      IF(.NOT. check_connectivity(force_env, glbopt_cfg%md_max_dist, error)) THEN
+         IF(iw > 0) WRITE (iw,"(A,I4,A)") " GLOBAL_OPT| Rejecting minima because of MD_MAX_DIST."
+         CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
+         CYCLE mainloop
+      END IF
 
       CALL force_env_get(force_env, potential_energy=epot, error=error)
       IF (iw>0) WRITE (iw,'(A,22X,E20.10)')' GLOBAL_OPT| Potential Energy [Hartree]',Epot
@@ -317,8 +338,52 @@ MODULE glbopt_walker
     CALL timestop(handle)
   END SUBROUTINE glbopt_drive_walker
 
-  
-  
+
+! *****************************************************************************
+! *****************************************************************************
+  FUNCTION check_connectivity(force_env, max_distance, error) RESULT(all_connected)
+    TYPE(force_env_type), POINTER            :: force_env
+    REAL(KIND=dp)                            :: max_distance
+    TYPE(cp_error_type), INTENT(inout)       :: error
+    LOGICAL                                  :: all_connected
+
+    TYPE(cp_subsys_type), POINTER            :: subsys
+    TYPE(particle_list_type), POINTER        :: particles
+    REAL(KIND=dp)                            :: dr(3), dr_norm
+    INTEGER                                  :: iparticle, jparticle
+    LOGICAL, DIMENSION(:), ALLOCATABLE       :: marked
+    INTEGER, DIMENSION(:), ALLOCATABLE       :: stack
+    INTEGER                                  :: stack_size
+
+    CALL force_env_get(force_env, subsys=subsys, error=error)
+    CALL cp_subsys_get(subsys,particles=particles,error=error)
+
+    ALLOCATE(stack(SIZE(particles%els)), marked(SIZE(particles%els)))
+    marked = .FALSE.; stack_size = 0
+
+    ! First particle taken as root of flooding, mark it and push to stack
+    marked(1) = .TRUE.; stack(1) = 1; stack_size = 1
+
+
+    DO WHILE (stack_size > 0)
+       iparticle = stack(stack_size); stack_size=stack_size-1  !pop
+       DO jparticle = 1, SIZE(particles%els)
+         dr = particles%els(iparticle)%r(:) - particles%els(jparticle)%r(:)
+         dr_norm = SQRT(DOT_PRODUCT(dr,dr))
+         !WRITE (*,*) "dist ", iparticle, jparticle, dr_norm
+         IF(dr_norm < max_distance) THEN ! they are close = they are connected
+            IF(.NOT. marked(jparticle)) THEN
+                marked(jparticle) = .TRUE.
+                stack(stack_size+1) = jparticle; stack_size=stack_size+1; !push
+            END IF
+         END IF
+       END DO
+    END DO
+
+    all_connected = ALL(marked) !did we visit every particle?
+  END FUNCTION check_connectivity
+
+
 ! *****************************************************************************
 !> \brief
 ! *****************************************************************************
