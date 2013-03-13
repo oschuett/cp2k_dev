@@ -20,11 +20,11 @@ MODULE mdctrl_methods
 #include "cp_common_uses.h"
 
  PUBLIC :: mdctrl_callback
-  
+
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'mdctrl_methods' 
 CONTAINS
-        
-          
+
+
 ! *****************************************************************************
 !> \brief This is called by md_run for each step during during its main-loop.
 !> \param mdctrl data which is passed on to the wrapped client-routine
@@ -50,10 +50,10 @@ CONTAINS
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(mdctrl), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(mdctrl%glbopt), cp_failure_level,routineP,error,failure)
-    
+
     CALL glbopt_md_callback(mdctrl%glbopt, md_env, should_stop, error)
-    
+
   END SUBROUTINE mdctrl_callback
-        
+
 END MODULE mdctrl_methods
 

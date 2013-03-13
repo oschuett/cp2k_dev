@@ -57,15 +57,15 @@ MODULE glbopt
 
     CALL section_vals_val_get(root_section,"GLOBAL_OPT%NUMBER_OF_WALKERS",&
        i_val=glbopt_cfg%n_walkers,error=error)
-    CALL section_vals_val_get(root_section,"GLOBAL_OPT%ENERGY_STOP",&
-       r_val=glbopt_cfg%Estop,error=error)
+    CALL section_vals_val_get(root_section,"GLOBAL_OPT%EMIN",&
+       r_val=glbopt_cfg%Emin,error=error)
     !TODO: read from input or make educated guess
     ! TODO: more hierarchic naming scheme eg. bloom_* md_* ...
     glbopt_cfg%n_hashes = 10
     glbopt_cfg%bloom_size = 2**10
     glbopt_cfg%epot_ndown = 2
     glbopt_cfg%epot_nup = 2
-    glbopt_cfg%md_mincount_max = 3
+    glbopt_cfg%md_mincount_max = 3000
     glbopt_cfg%hop_count_max = 100
     glbopt_cfg%beta1  = 1.1
     ! glbopt_cfg%beta2  = 1.1
@@ -73,6 +73,7 @@ MODULE glbopt
     glbopt_cfg%Eaccept0 = 0.001
     glbopt_cfg%alpha1 = 0.98
     glbopt_cfg%alpha2 = 1 / 0.98
+    glbopt_cfg%md_max_force = 2.0E-4
 
     ! make sure there are colvars
     colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)
@@ -104,8 +105,9 @@ MODULE glbopt
 
     IF(glbopt_cfg%n_walkers == 1) THEN
        WRITE(*,*) "Running in single walker mode."
-       f_env_id = walker_create_f_env(root_section, input_path, para_env%group, 0, error)
-       CALL glbopt_drive_walker(glbopt_cfg, f_env_id, para_env, para_env%group, 0, error)
+       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, para_env, para_env%group, 0, error)
+       !f_env_id = walker_create_f_env(root_section, input_path, para_env%group, 0, error)
+       !CALL glbopt_drive_walker(glbopt_cfg, f_env_id, para_env, para_env%group, 0, error)
     ELSE
        WRITE(*,*) "Running in master/walkers mode."
        CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, error)
@@ -161,15 +163,15 @@ MODULE glbopt
 
 
     IF (im_the_master) THEN
-       CALL glbopt_drive_master(glbopt_cfg, para_env, error)
+       CALL glbopt_drive_master(glbopt_cfg, root_section, para_env, error)
     ELSE
        ! ...then split walkers-group into n_walkers groups - one for each walker.
        group_distribution_p => group_distribution
        CALL mp_comm_split(subgroup, walker_group, n_groups_created, group_distribution_p, n_subgroups=glbopt_cfg%n_walkers)
        my_walker_id = group_distribution(subgroup_rank)
        IF(n_groups_created/=glbopt_cfg%n_walkers) STOP "glbopt: mp_comm_split failed."
-        f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
-       CALL glbopt_drive_walker(glbopt_cfg, f_env_id, para_env, walker_group, my_walker_id, error)
+       ! f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
+       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, para_env, walker_group, my_walker_id, error)
        CALL mp_comm_free(walker_group)
     ENDIF
 
@@ -178,39 +180,40 @@ MODULE glbopt
   END SUBROUTINE driver_master_walkers
 
 
-! *****************************************************************************
-  FUNCTION walker_create_f_env(root_section, input_path, mpi_comm, walker_id, error) RESULT(f_env_id)
-    TYPE(section_vals_type), POINTER         :: root_section
-    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-    INTEGER, INTENT(IN)                      :: mpi_comm, walker_id
-    TYPE(cp_error_type), INTENT(inout)       :: error
-    INTEGER                                  :: ierr, f_env_id
-
-    CHARACTER(len=default_path_length)       :: output_path
-    CHARACTER(len=default_string_length)     :: new_project_name, &
-                                                project_name, walker_name
-
-! change the PROJECT_NAME to avoid clashes during backup of RESTART-files
-
-    CALL section_vals_val_get(root_section, "GLOBAL%PROJECT_NAME", c_val=project_name,error=error)
-    walker_name = "walker_"//ADJUSTL(cp_to_string(walker_id))
-    new_project_name = TRIM(project_name)//"-"//walker_name
-    CALL section_vals_val_set(root_section, "GLOBAL%PROJECT_NAME", c_val=new_project_name,error=error)
-    
-    output_path = TRIM(new_project_name)//".out"
-    WRITE (*,*) output_path
-
-    CALL create_force_env(f_env_id, &
-                          input_path=input_path, &
-                          input=root_section, &
-                          output_path=output_path, &
-                          mpi_comm=mpi_comm,&
-                          ierr=ierr)
-    
-    IF(ierr/=0) STOP "glbopt: failed to create force_env"
-    
-  END FUNCTION walker_create_f_env
-  
-  
+!! *****************************************************************************
+!  FUNCTION walker_create_f_env(root_section, input_path, mpi_comm, walker_id, error) RESULT(f_env_id)
+!    TYPE(section_vals_type), POINTER         :: root_section
+!    CHARACTER(LEN=*), INTENT(IN)             :: input_path
+!    INTEGER, INTENT(IN)                      :: mpi_comm, walker_id
+!    TYPE(cp_error_type), INTENT(inout)       :: error
+!    INTEGER                                  :: ierr, f_env_id
+!
+!    CHARACTER(len=default_path_length)       :: output_path
+!    CHARACTER(len=default_string_length)     :: new_project_name, &
+!                                                project_name, walker_name
+!
+!! change the PROJECT_NAME to avoid clashes during backup of RESTART-files
+!    IF(walker_id > 999) STOP "walker_create_f_env: Did not expect so many walkers."
+!    CALL section_vals_val_get(root_section, "GLOBAL%PROJECT_NAME", c_val=project_name,error=error)
+!    WRITE(walker_name,"('WALKER',I3.3)"), walker_id
+!    !walker_name = "walker"//ADJUSTL(cp_to_string(walker_id))
+!    new_project_name = TRIM(project_name)//"-"//walker_name
+!    CALL section_vals_val_set(root_section, "GLOBAL%PROJECT_NAME", c_val=new_project_name,error=error)
+!
+!    output_path = TRIM(new_project_name)//".out"
+!    WRITE (*,*) output_path
+!
+!    CALL create_force_env(f_env_id, &
+!                          input_path=input_path, &
+!                          input=root_section, &
+!                          output_path=output_path, &
+!                          mpi_comm=mpi_comm,&
+!                          ierr=ierr)
+!
+!    IF(ierr/=0) STOP "glbopt: failed to create force_env"
+!
+!  END FUNCTION walker_create_f_env
+!
+!
 END MODULE glbopt
 

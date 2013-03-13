@@ -21,39 +21,61 @@ def main():
         fn = "LJ%.3d.inp"%s
         print "Writting: "+fn
         f = open(fn, "w")
-        Estop = 0.99999*float(known_minima[s])
-        f.write(gen_input(size=s, Estop=Estop))
+        Emin = 0.00099999*float(known_minima[s])
+        f.write(gen_input(size=s, Emin=Emin))
         f.close()
 
 #===============================================================================
-def gen_input(size, Estop):
+def gen_input(size, Emin):
     output = ""
     output += "&GLOBAL\n"
     output += "   PROGRAM_NAME GLOBAL_OPT\n"
     output += "   RUN_TYPE NONE\n"
     output += "   PROJECT_NAME LJ%.3d\n"%size
+#    output += "   SEED 200\n"
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
-    output += "   NUMBER_OF_WALKERS  10\n"
-    output += "   ENERGY_STOP %f\n"%Estop
+    output += "   NUMBER_OF_WALKERS  1\n"
+    output += "   Emin %f\n"%Emin
     output += "&END GLOBAL_OPT\n"
 
     output += """
 &MOTION
+  &PRINT
+    &RESTART
+       BACKUP_COPIES 1000
+       &EACH
+         MD -1
+         GEO_OPT -1
+       &END EACH
+       ADD_LAST NO
+    &END RESTART
+  &END PRINT
+  &MD
+    ENSEMBLE NVE
+    STEPS 1000
+    TIMESTEP 1.0
+    TEMPERATURE 300
+    STEP_START_VAL 42
+  &END MD
 
   &GEO_OPT
     OPTIMIZER BFGS
     MAX_ITER 3000
     !MAX_DR 0.0001
+    &BFGS
+     USE_RAT_FUN_OPT
+
+      &RESTART
+        &EACH
+          GEO_OPT -1
+        &END EACH
+        ADD_LAST NO
+      &END RESTART
+    &END BFGS
   &END GEO_OPT
 
-  &MD
-    ENSEMBLE NVE
-    STEPS 3000
-    TIMESTEP 0.5
-    TEMPERATURE 1.0
-  &END MD
 &END MOTION
 
 &FORCE_EVAL
@@ -61,20 +83,21 @@ def gen_input(size, Estop):
   &MM
     &FORCEFIELD
      &SPLINE
-        EMAX_ACCURACY 1.0E12
-        EMAX_SPLINE 1.0E12
-        EPS_SPLINE 1.0E-12
-      &END
+        R0_NB 0.0     ! solely MAX_SPLINE shall control spline range
+        EMAX_SPLINE   [hartree] 1000    ! yields r_min = 0.66 bohr
+        EMAX_ACCURACY [hartree] 1000
+        EPS_SPLINE    [hartree] 1.0E-10   ! yields 1698 spline points
+     &END SPLINE
       &NONBONDED
         &LENNARD-JONES
-          atoms Ar Ar
-          EPSILON [hartree] 1.0
+          atoms X X
+          EPSILON [hartree] 0.001
           SIGMA 1.0
-          RCUT 50.0
+          RCUT 25.0
         &END LENNARD-JONES
       &END NONBONDED
       &CHARGE
-        ATOM Ar
+        ATOM X
         CHARGE 0.0
       &END CHARGE
     &END FORCEFIELD
@@ -85,21 +108,23 @@ def gen_input(size, Estop):
     &END POISSON
     &PRINT
       &FF_INFO
-      &END
-    &END
+      &END FF_INFO
+    &END PRINT
   &END MM
   &SUBSYS
     &CELL
-      ABC 100.0 100.0 100.0
-      PERIODIC NONE
-      &END CELL
-      &COORD
+    ABC [angstrom] 50.0 50.0 50.0
+      !PERIODIC NONE
+   &END CELL
+
+   &COORD
       """
 
     output += gen_coords(size=size, lattice_const=1.5)
 
     output += """
     &END COORD
+
     &TOPOLOGY
       CONNECTIVITY OFF
     &END TOPOLOGY
@@ -115,6 +140,11 @@ def gen_input(size, Estop):
     !  &END DISTANCE
     !&END COLVAR
 
+
+     &KIND X
+        ELEMENT H
+        MASS 1.0
+     &END KIND
   &END SUBSYS
   STRESS_TENSOR ANALYTICAL
 &END FORCE_EVAL
@@ -139,7 +169,7 @@ def gen_coords(size, lattice_const):
                 n += 1
                 if(n>size): return output
                 #print n, i, j, k
-                output += "Ar %f %f %f\n"%(x, y, z)
+                output += "X %f %f %f\n"%(x, y, z)
 
     assert(False) #should always exit through the return-statement
 

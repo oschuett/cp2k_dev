@@ -11,15 +11,21 @@
 MODULE glbopt_master
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE glbopt_types,                    ONLY: glbopt_config_type,&
-                                             glbopt_msg_minima_new,&
-                                             glbopt_msg_minima_old,&
-                                             glbopt_msg_shutdown
-  USE hash_functions,                  ONLY: b3hs_hash_key_jenkins  
+                                             glbopt_msg_shutdown,&
+                                             glbopt_msg_sync,&
+                                             glbopt_msg_report
+  USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
   USE kinds,                           ONLY: dp,&
                                              int_4
-  USE message_passing,                 ONLY: mp_any_source,&
+  USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
                                              mp_recv,&
                                              mp_send
+  USE cp_output_handling,              ONLY: cp_p_file,&
+                                             cp_print_key_finished_output,&
+                                             cp_print_key_should_output,&
+                                             cp_print_key_unit_nr
+  USE input_section_types,             ONLY: section_vals_type
+
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -37,13 +43,16 @@ MODULE glbopt_master
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE glbopt_drive_master(glbopt_cfg, para_env, error)
+   SUBROUTINE glbopt_drive_master(glbopt_cfg, root_section, para_env, error)
     TYPE(glbopt_config_type), INTENT(in)     :: glbopt_cfg
+    TYPE(section_vals_type), POINTER         :: root_section
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(cp_error_type), INTENT(inout)       :: error
 
+   TYPE(cp_logger_type), POINTER            :: logger
+   INTEGER                                  :: calling_walker, tag, iw
+
    ! CHARACTER, ALLOCATABLE, DIMENSION(:)     :: key
-   INTEGER                                  :: calling_walker, tag
    !hop_counter, &
    !                                             i, key_length, &
    !                                             minima_counter, msg, &
@@ -55,15 +64,43 @@ MODULE glbopt_master
    !   DIMENSION(glbopt_cfg%n_hashes)         :: hashes
    INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: shared_bitfield
    INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: recv_bitfield
+   REAL(kind=dp)                            :: Epot, Elowest
 
-    WRITE (*,*) "Master standing by"
+   Elowest = HUGE(0.0_dp)
+
+    !NULLIFY(logger)
+    !logger => cp_error_get_logger(error)
+    !iw = cp_print_key_unit_nr(logger,root_section,&
+    !    "GLOBAL_OPT%PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
+
+    iw = 6
+
+
+    IF (iw>0)  WRITE (iw,'(A)') " GLOBAL_OPT Master| standing by"
     DO WHILE(.TRUE.)
+      ! the first message from walkers always contains their bitfield
       calling_walker = mp_any_source
-      tag = 42
+      tag = mp_any_tag
       CALL mp_recv(recv_bitfield, calling_walker, tag, para_env%group)
       shared_bitfield = IOR(shared_bitfield, recv_bitfield)
-      CALL mp_send(shared_bitfield, calling_walker, 42, para_env%group)
-      WRITE(*,*) "Master: synced with walker ", calling_walker
+
+      SELECT CASE (tag)
+        CASE (glbopt_msg_sync)
+          ! walker wants to sync - send shared bitfield
+          CALL mp_send(shared_bitfield, calling_walker, glbopt_msg_sync, para_env%group)
+          !IF (iw>0)  WRITE (iw,'(A, I10)') " GLOBAL_OPT Master| synced with walker ", calling_walker\
+
+        CASE (glbopt_msg_report)
+          ! walker reports a minimum
+          CALL mp_recv(Epot, calling_walker, tag, para_env%group)
+          Elowest = MIN(Elowest, Epot)
+          IF (iw>0)  WRITE (iw,'(A,I3,A,E15.8,A,E15.8)') ' GLOBAL_OPT Master| Walker ',&
+            calling_walker, ' reported minima with Epot=',Epot,'  Elowest=',Elowest
+        CASE DEFAULT
+          STOP "glbopt_drive_master: unkown tag."
+      END SELECT
+
+
     END DO
 
 !      key_length = SIZE(TRANSFER(key_parts, key)) 

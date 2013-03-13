@@ -33,7 +33,8 @@ MODULE glbopt_types
    REAL                                       :: Eaccept0
    REAL                                       :: alpha1
    REAL                                       :: alpha2
-   REAL(KIND=dp)                              :: Estop
+   REAL(KIND=dp)                              :: Emin
+   REAL(KIND=dp)                              :: md_max_force
 
 
 !19	    _default_settings = {
@@ -61,9 +62,9 @@ MODULE glbopt_types
    TYPE(glbopt_config_type)                   :: cfg
  END TYPE glbopt_mdctrl_data_type
 
- INTEGER, PARAMETER  :: glbopt_msg_minima_new = 111
- INTEGER, PARAMETER  :: glbopt_msg_minima_old = 222
- INTEGER, PARAMETER  :: glbopt_msg_shutdown   = 999
+ INTEGER, PARAMETER  :: glbopt_msg_sync          = 333
+ INTEGER, PARAMETER  :: glbopt_msg_report        = 444
+ INTEGER, PARAMETER  :: glbopt_msg_shutdown      = 999
 
 
 !  TYPE glbopt_env_type
@@ -93,7 +94,7 @@ MODULE glbopt_types
 !  END TYPE glbopt_env_type
 
  PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
- PUBLIC :: glbopt_msg_minima_new, glbopt_msg_minima_old, glbopt_msg_shutdown
+ PUBLIC :: glbopt_msg_sync, glbopt_msg_report, glbopt_msg_shutdown
   
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_types' 
 CONTAINS
