@@ -43,8 +43,7 @@ def gen_input(size, Emin):
     output += """
 &MOTION
   &PRINT
-    &RESTART
-       BACKUP_COPIES 1000
+    &RESTART ! writting restarts is expensive, turning them off
        &EACH
          MD -1
          GEO_OPT -1
@@ -52,12 +51,13 @@ def gen_input(size, Emin):
        ADD_LAST NO
     &END RESTART
   &END PRINT
+
   &MD
     ENSEMBLE NVE
     STEPS 1000
     TIMESTEP 1.0
     TEMPERATURE 300
-    STEP_START_VAL 42
+    STEP_START_VAL 1 !otherwise md_energies::md_write_output flushes trajectory
   &END MD
 
   &GEO_OPT
@@ -65,9 +65,9 @@ def gen_input(size, Emin):
     MAX_ITER 3000
     !MAX_DR 0.0001
     &BFGS
-     USE_RAT_FUN_OPT
+     USE_RAT_FUN_OPT  ! otherwise LJ particle sth. get too close.
 
-      &RESTART
+      &RESTART  ! writting restarts is expensive, turning them off
         &EACH
           GEO_OPT -1
         &END EACH

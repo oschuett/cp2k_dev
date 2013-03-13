@@ -103,7 +103,7 @@ MODULE glbopt_callback
        WRITE (*,"(A,I4,A)") "callback: stoping MD because of MD_MINCOUNTER after ",itimes," steps."
     END IF
 
-    IF(itimes > 5000) THEN
+    IF(itimes > 5) THEN
        ! Check for particles that wander off (= with very weak forces)
        CALL get_md_env(md_env=md_env, force_env=force_env, error=error)
        CALL force_env_get(force_env, subsys=subsys, error=error)

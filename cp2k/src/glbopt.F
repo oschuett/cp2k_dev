@@ -45,10 +45,11 @@ MODULE glbopt
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE run_global_opt(root_section, para_env, input_path, error)
+   SUBROUTINE run_global_opt(root_section, para_env, input_path, output_unit, error)
     TYPE(section_vals_type), POINTER         :: root_section
     TYPE(cp_para_env_type), POINTER          :: para_env
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    INTEGER, INTENT(IN)                      :: output_unit
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     TYPE(glbopt_config_type)                 :: glbopt_cfg
@@ -73,14 +74,14 @@ MODULE glbopt
     glbopt_cfg%Eaccept0 = 0.001
     glbopt_cfg%alpha1 = 0.98
     glbopt_cfg%alpha2 = 1 / 0.98
-    glbopt_cfg%md_max_force = 2.0E-4
+    glbopt_cfg%md_max_force = 1.0E-5
 
     ! make sure there are colvars
     colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)
     CALL section_vals_get(colvar_section,n_repetition=glbopt_cfg%n_colvars,error=error)
     IF(glbopt_cfg%n_colvars == 0) STOP "No colvars found. Aborting."
 
-    CALL glbopt_driver(glbopt_cfg, root_section, para_env, input_path, error)
+    CALL glbopt_driver(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
 
   END SUBROUTINE run_global_opt
 
@@ -89,11 +90,12 @@ MODULE glbopt
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE glbopt_driver(glbopt_cfg, root_section, para_env, input_path, error)
+   SUBROUTINE glbopt_driver(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
     TYPE(glbopt_config_type)                 :: glbopt_cfg
     TYPE(section_vals_type), POINTER         :: root_section
     TYPE(cp_para_env_type), POINTER          :: para_env
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    INTEGER, INTENT(IN)                      :: output_unit
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER :: f_env_id, handle
@@ -101,16 +103,14 @@ MODULE glbopt
       routineP = moduleN//':'//routineN
     CALL timeset(routineN,handle)
 
-    WRITE(*,*) "Global optimisation reporting for duty :-)"
+    IF(output_unit > 0) WRITE(*,"(A)") " GLOBAL_OPT| Reporting for duty :-)"
 
     IF(glbopt_cfg%n_walkers == 1) THEN
-       WRITE(*,*) "Running in single walker mode."
-       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, para_env, para_env%group, 0, error)
-       !f_env_id = walker_create_f_env(root_section, input_path, para_env%group, 0, error)
-       !CALL glbopt_drive_walker(glbopt_cfg, f_env_id, para_env, para_env%group, 0, error)
+       IF(output_unit > 0) WRITE(*,"(A)") " GLOBAL_OPT| Running in single walker mode."
+       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, para_env%group, 0, error)
     ELSE
-       WRITE(*,*) "Running in master/walkers mode."
-       CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, error)
+       IF(output_unit > 0) WRITE(*,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
+       CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
     ENDIF
 
     CALL timestop(handle)
@@ -118,11 +118,12 @@ MODULE glbopt
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, error)
+   SUBROUTINE driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
     TYPE(glbopt_config_type)                 :: glbopt_cfg
     TYPE(section_vals_type), POINTER         :: root_section
     TYPE(cp_para_env_type), POINTER          :: para_env
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    INTEGER, INTENT(IN)                      :: output_unit
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER :: f_env_id, my_walker_id, n_groups_created, &
@@ -171,7 +172,7 @@ MODULE glbopt
        my_walker_id = group_distribution(subgroup_rank)
        IF(n_groups_created/=glbopt_cfg%n_walkers) STOP "glbopt: mp_comm_split failed."
        ! f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
-       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, para_env, walker_group, my_walker_id, error)
+       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, walker_group, my_walker_id, error)
        CALL mp_comm_free(walker_group)
     ENDIF
 

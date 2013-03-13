@@ -68,11 +68,11 @@ MODULE glbopt_walker
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE glbopt_drive_walker(glbopt_cfg, root_section, input_path, para_env, walker_group, walker_id, error)
+   SUBROUTINE glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, walker_group, walker_id, error)
     TYPE(glbopt_config_type), INTENT(IN)     :: glbopt_cfg
     TYPE(section_vals_type), POINTER         :: root_section
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
-
+    INTEGER, INTENT(IN)                      :: output_unit
     TYPE(cp_para_env_type), POINTER          :: para_env
     INTEGER, INTENT(in)                      :: walker_group, walker_id
     TYPE(cp_error_type), INTENT(inout)       :: error
@@ -81,7 +81,7 @@ MODULE glbopt_walker
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: handle, i, stat, master_id, &
-                                                msg, n_atoms, output_unit, tag,&
+                                                msg, n_atoms, tag,&
                                                 i_mainloop
     LOGICAL                                  :: failure
     REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: prev_positions
@@ -124,12 +124,13 @@ MODULE glbopt_walker
     new_project_name = TRIM(project_name)//"-"//walker_name
     CALL section_vals_val_set(root_section, "GLOBAL%PROJECT_NAME", c_val=new_project_name,error=error)
     output_path = TRIM(new_project_name)//".out"
-
+    IF(glbopt_cfg%n_walkers == 1) output_path="__STD_OUT__"
 
     CALL create_force_env(f_env_id, &
                           input_path=input_path, &
                           input=root_section, &
                           output_path=output_path, &
+                          output_unit=output_unit,&
                           mpi_comm=walker_group,&
                           ierr=stat)
 
@@ -245,7 +246,7 @@ MODULE glbopt_walker
      IF(glbopt_cfg%n_walkers > 1) &
         CALL master_report_minima(para_env, bitfield, Epot)
 
-
+! ========== OLD CRAP ==========================================================
 !      ! ok the mimima would be acceptable energy-wise, let's see if its new
 !      ! calculate new colvar values and send them to the master
 !      DO i=1, n_colvars
