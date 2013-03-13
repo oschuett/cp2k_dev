@@ -152,9 +152,15 @@ MODULE glbopt_walker
        CALL reset_to_next_rng_substream(globenv%gaussian_rng_stream, error)
     END DO
 
+    ! getting an output unit for logging
+    logger => cp_error_get_logger(error)
+    iw = cp_print_key_unit_nr(logger,root_section,&
+        "GLOBAL_OPT%PRINT%WALKER_RUN_INFO",extension=".walkerLog",error=error)
+
     ! setup mdctrl callback
     mdctrl_data%cfg = glbopt_cfg
     mdctrl_data%epot_history => epot_history
+    mdctrl_data%output_unit = iw
     mdctrl%glbopt => mdctrl_data
     mdctrl_p => mdctrl
 
@@ -165,23 +171,19 @@ MODULE glbopt_walker
     CALL pack_subsys_particles(subsys, r=prev_positions, error=error)
     CALL section_vals_val_get(root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
 
-    logger => cp_error_get_logger(error)
-    iw = cp_print_key_unit_nr(logger,root_section,&
-        "GLOBAL_OPT%PRINT%WALKER_RUN_INFO",extension=".walkerLog",error=error)
-
     ! -----------main-loop of minima hopping---------------
     mainloop: DO i_mainloop = 1, HUGE(1)  !infinite loop
-      IF (iw>0) THEN
-        WRITE (iw,'(A,49X,I10)') ' GLOBAL_OPT| Iteration',i_mainloop
-        WRITE (iw,'(A,43X,e10.3)') ' GLOBAL_OPT| Temperature [K]',temperature*kelvin
-        WRITE (iw,'(A,41X,e10.3)') ' GLOBAL_OPT| Eaccept [Hartree]',Eaccept
-      END IF
-
       ! quit when known minima is reached
       IF(glbopt_cfg%Emin > epot) THEN
-         IF (iw>0)  WRITE (iw,'(A,e10.3,A,e10.3)'), 'GLOBAL_OPT| Reached Emin=',&
-                glbopt_cfg%Emin,' > Epot=',Epot,'. Quiting minima hopping.'
+         IF (iw>0)  WRITE (iw,*), 'GLOBAL_OPT| Reached Emin > Epot. Quitting.'
          EXIT mainloop
+      END IF
+
+      IF (iw>0) THEN
+        WRITE (iw,'(A,A,A,I10,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
+          i_mainloop,'. Minima Hopping Iteration ',REPEAT("*", 15)
+        WRITE (iw,'(A,33X,F20.3)') ' GLOBAL_OPT| Temperature [K]',temperature*kelvin
+        WRITE (iw,'(A,21X,E20.10)')' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
       END IF
 
       ! quit when system explodes
@@ -202,10 +204,11 @@ MODULE glbopt_walker
       CALL cp_geo_opt(force_env, globenv, error=error)
       ! TODO: find out if minimazation was successfull
 
+      CALL force_env_get(force_env, potential_energy=epot, error=error)
+      IF (iw>0) WRITE (iw,'(A,22X,E20.10)')' GLOBAL_OPT| Potential Energy [Hartree]',Epot
 
       CALL calc_bloom_indices(glbopt_cfg, force_env, subsys, bloomidx, error)
-      IF (iw>0) WRITE (iw,*) " GLOBAL_OPT| got bloom indices: ", bloomidx
-
+      !IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| got bloom indices: ", bloomidx
 
       minima_known = bloomfilter_query(bitfield, bloomidx)
 
@@ -216,7 +219,7 @@ MODULE glbopt_walker
       END IF
 
       IF(minima_known) THEN
-          IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| known minima"
+          IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Result: old minima"
           ! known minima restart MD
           temperature = temperature*glbopt_cfg%beta1
           CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
@@ -227,18 +230,16 @@ MODULE glbopt_walker
 
       temperature = temperature*glbopt_cfg%beta3
 
-      CALL force_env_get(force_env, potential_energy=epot, error=error)
-      IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| found a new minima with epot= ", epot
       IF (epot - prev_epot > Eaccept) THEN
          ! rejected new minimum due to energy.
-         IF (iw>0) Write (iw,*) "GLOBAL_OPT| rejected minima due to energy difference"
+         IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Result: new minima, but got rejected due to Eaccept"
          CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
          Eaccept = Eaccept * glbopt_cfg%alpha2
          CYCLE mainloop
       END IF
 
      ! Hurra, we accept a new minimum
-     IF (iw>0) Write (iw,*) "GLOBAL_OPT| Accepted the new minima"
+     IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Result: new minima got accepted"
      CALL bloomfilter_add(bitfield, bloomidx)
      Eaccept = Eaccept * glbopt_cfg%alpha1
      prev_epot = epot

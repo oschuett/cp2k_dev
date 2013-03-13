@@ -99,28 +99,33 @@ MODULE glbopt_callback
        mdctrl_data%md_mincounter = mdctrl_data%md_mincounter + 1
 
     IF(mdctrl_data%md_mincounter >= mdctrl_data%cfg%md_mincount_max) THEN
-       should_stop = .TRUE. 
-       WRITE (*,"(A,I4,A)") "callback: stoping MD because of MD_MINCOUNTER after ",itimes," steps."
-    END IF
-
-    IF(itimes > 5) THEN
-       ! Check for particles that wander off (= with very weak forces)
-       CALL get_md_env(md_env=md_env, force_env=force_env, error=error)
-       CALL force_env_get(force_env, subsys=subsys, error=error)
-       CALL cp_subsys_get(subsys,particles=particles,error=error)
-       DO iparticle = 1, SIZE(particles%els)
-          force = particles%els(iparticle)%f(:)
-          force_norm = SQRT(DOT_PRODUCT(force,force))
-          IF(force_norm < mdctrl_data%cfg%md_max_force) THEN
-             WRITE(*,"(A,I4,A)") "callback: stoping MD because of MD_MAX_FORCE after ", itimes," steps."
-             should_stop = .TRUE.
-          END IF
-       END DO
-    END IF
-
-    IF(itimes >= 100) THEN
        should_stop = .TRUE.
-       WRITE (*,"(A,I4,A)") "callback: stoping MD because of STEPS after ",itimes," steps."
+       IF(mdctrl_data%output_unit > 0) WRITE (mdctrl_data%output_unit,&
+         "(A,I4,A)") " GLOBAL_OPT| Stoping MD because of MD_MINCOUNTER after ",itimes," steps."
+    END IF
+
+   ! IF(itimes > 5) THEN
+   !    ! Check for particles that wander off (= with very weak forces)
+   !    CALL get_md_env(md_env=md_env, force_env=force_env, error=error)
+   !    CALL force_env_get(force_env, subsys=subsys, error=error)
+   !    CALL cp_subsys_get(subsys,particles=particles,error=error)
+   !    DO iparticle = 1, SIZE(particles%els)
+   !       force = particles%els(iparticle)%f(:)
+   !       force_norm = SQRT(DOT_PRODUCT(force,force))
+   !       IF(force_norm < mdctrl_data%cfg%md_max_force) THEN
+   !          IF(mdctrl_data%output_unit > 0) &
+   !             WRITE (mdctrl_data%output_unit,"(A,I4,A)")&
+   !               " GLOBAL_OPT| Stoping MD because of MD_MAX_FORCE after ", itimes," steps."
+   !          should_stop = .TRUE.
+   !       END IF
+   !    END DO
+   ! END IF
+
+    IF(itimes >= 30) THEN
+       should_stop = .TRUE.
+       IF(mdctrl_data%output_unit > 0) &
+          WRITE (mdctrl_data%output_unit,"(A,I4,A)")&
+            " GLOBAL_OPT| stoping MD because of STEPS after ",itimes," steps."
     END IF
 
   END SUBROUTINE glbopt_md_callback

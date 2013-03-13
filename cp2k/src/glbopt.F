@@ -103,13 +103,13 @@ MODULE glbopt
       routineP = moduleN//':'//routineN
     CALL timeset(routineN,handle)
 
-    IF(output_unit > 0) WRITE(*,"(A)") " GLOBAL_OPT| Reporting for duty :-)"
+    IF(output_unit > 0) WRITE(output_unit,"(A)") " GLOBAL_OPT| Reporting for duty :-)"
 
     IF(glbopt_cfg%n_walkers == 1) THEN
-       IF(output_unit > 0) WRITE(*,"(A)") " GLOBAL_OPT| Running in single walker mode."
+       IF(output_unit > 0) WRITE(output_unit,"(A)") " GLOBAL_OPT| Running in single walker mode."
        CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, para_env%group, 0, error)
     ELSE
-       IF(output_unit > 0) WRITE(*,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
+       IF(output_unit > 0) WRITE(output_unit,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
        CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
     ENDIF
 

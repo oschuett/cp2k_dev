@@ -60,6 +60,7 @@ MODULE glbopt_types
    INTEGER                                    :: md_mincounter
    REAL(KIND=dp), DIMENSION(:), POINTER       :: epot_history
    TYPE(glbopt_config_type)                   :: cfg
+   INTEGER                                    :: output_unit
  END TYPE glbopt_mdctrl_data_type
 
  INTEGER, PARAMETER  :: glbopt_msg_sync          = 333
