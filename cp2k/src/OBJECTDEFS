@@ -796,6 +796,7 @@ OBJECTS_GENERIC =\
  glbopt_master.o\
  glbopt_walker.o\
  glbopt_callback.o\
+ glbopt_utils.o\
  mdctrl_types.o\
  mdctrl_methods.o\
  input_global_opt.o\

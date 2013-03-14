@@ -71,15 +71,16 @@ MODULE glbopt
     glbopt_cfg%bloom_size = 2**10
     glbopt_cfg%epot_ndown = 2
     glbopt_cfg%epot_nup = 2
-    glbopt_cfg%md_mincount_max = 3000
+    glbopt_cfg%md_mincount_max = 3
     glbopt_cfg%hop_count_max = 100
     glbopt_cfg%beta1  = 1.1
     ! glbopt_cfg%beta2  = 1.1
     glbopt_cfg%beta3  = 1.0 / 1.1
-    glbopt_cfg%Eaccept0 = 0.001
+    glbopt_cfg%Eaccept0 = 0.005
     glbopt_cfg%alpha1 = 0.98
     glbopt_cfg%alpha2 = 1 / 0.98
-    glbopt_cfg%md_max_dist = 3.0*angstrom
+    glbopt_cfg%md_max_dist   = 3.0/angstrom
+    glbopt_cfg%gopt_max_dist = 3.0/angstrom
 
     ! make sure there are colvars
     colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)

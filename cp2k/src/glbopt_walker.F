@@ -53,6 +53,7 @@ MODULE glbopt_walker
                                              cp_subsys_type
   USE particle_list_types,             ONLY: particle_list_type
   USE kinds,                           ONLY: dp
+  USE glbopt_utils,                    ONLY: particles_connected
 
 #include "cp_common_uses.h"
 
@@ -112,6 +113,9 @@ MODULE glbopt_walker
     CHARACTER(len=default_path_length)       :: output_path
     CHARACTER(len=default_string_length)     :: new_project_name, &
                                                 project_name, walker_name
+    INTEGER                                  :: prev_iframe, iframe
+    INTEGER                                  :: gopt_max_iter
+
     failure = .FALSE.
 
     ! ====== Usual Subroutine Setup ======
@@ -175,8 +179,11 @@ MODULE glbopt_walker
     ! store starting configuration,  backup position as possible restart point
     CALL pack_subsys_particles(subsys, r=prev_positions, error=error)
     CALL section_vals_val_get(root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
+    ! fetch original value from input
+    CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=gopt_max_iter, error=error)
 
     ! -----------main-loop of minima hopping---------------
+    prev_iframe = 0; iframe = 0
     mainloop: DO i_mainloop = 1, HUGE(1)  !infinite loop
       ! quit when known minima is reached
       IF(glbopt_cfg%Emin > epot) THEN
@@ -187,8 +194,8 @@ MODULE glbopt_walker
       IF (iw>0) THEN
         WRITE (iw,'(A,A,A,I10,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
           i_mainloop,'. Minima Hopping Iteration ',REPEAT("*", 15)
-        WRITE (iw,'(A,33X,F20.3)') ' GLOBAL_OPT| Temperature [K]',temperature*kelvin
-        WRITE (iw,'(A,21X,E20.10)')' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
+        WRITE (iw,'(A,33X,F20.3)')  ' GLOBAL_OPT| Temperature [K]',temperature*kelvin
+        WRITE (iw,'(A,21X,E20.10)') ' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
       END IF
 
       ! quit when system explodes
@@ -197,30 +204,27 @@ MODULE glbopt_walker
       !   EXIT mainloop
       !END IF
 
-      ! reset md history
-      mdctrl_data%epot_history = 0.0
+      IF (iw>0) WRITE (iw,'(A,26X,I10)') " GLOBAL_OPT| Starting MD at trajectory frame ", iframe
+      mdctrl_data%epot_history = 0.0 
       mdctrl_data%md_mincounter = 0
-
+      CALL section_vals_val_set(root_section, "MOTION%MD%STEP_START_VAL", i_val=iframe, error=error)
       CALL section_vals_val_set(root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
+      CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
+      prev_iframe = iframe
+      iframe = mdctrl_data%itimes
+      IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| md ended after ", iframe-prev_iframe, " steps."
 
-      IF (iw>0) WRITE (iw,'(A)') " GLOBAL_OPT| starting md"
-      CALL qs_mol_dyn(force_env, globenv, rm_restart_info=.FALSE., mdctrl=mdctrl_p, error=error)
-
-      ! Stop if cluster starts to splits into multiple fragments.
-      IF(.NOT. check_connectivity(force_env, glbopt_cfg%md_max_dist, error)) THEN
-         IF(iw > 0) WRITE (iw,"(A,I4,A)") " GLOBAL_OPT| Rejecting MD end-point because of MD_MAX_DIST."
-         CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
-         CYCLE mainloop
-      END IF
-
-
-      IF (iw>0) WRITE (iw,'(A)') " GLOBAL_OPT| starting local geo opt"
-      CALL cp_geo_opt(force_env, globenv, error=error)
-      ! TODO: find out if minimazation was successfull
+      IF (iw>0) WRITE (iw,'(A,10X,I10)') " GLOBAL_OPT| Starting local optimisation at trajectory frame ", iframe
+      CALL section_vals_val_set(root_section, "MOTION%GEO_OPT%STEP_START_VAL", i_val=iframe, error=error)
+      CALL section_vals_val_set(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=iframe+gopt_max_iter, error=error)
+      CALL cp_geo_opt(force_env, globenv, rm_restart_info=.FALSE., error=error)
+      prev_iframe = iframe
+      CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%STEP_START_VAL", i_val=iframe, error=error)
+      IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| gopt ended after ", iframe-prev_iframe, " steps."
 
       ! Stop if cluster starts to splits into multiple fragments.
-      IF(.NOT. check_connectivity(force_env, glbopt_cfg%md_max_dist, error)) THEN
-         IF(iw > 0) WRITE (iw,"(A,I4,A)") " GLOBAL_OPT| Rejecting minima because of MD_MAX_DIST."
+      IF(.NOT. particles_connected(force_env, glbopt_cfg%gopt_max_dist, error)) THEN
+         IF(iw > 0) WRITE (iw,"(A)") " GLOBAL_OPT| Rejecting minima because of GOPT_MAX_DIST."
          CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
          CYCLE mainloop
       END IF
@@ -338,50 +342,6 @@ MODULE glbopt_walker
     CALL timestop(handle)
   END SUBROUTINE glbopt_drive_walker
 
-
-! *****************************************************************************
-! *****************************************************************************
-  FUNCTION check_connectivity(force_env, max_distance, error) RESULT(all_connected)
-    TYPE(force_env_type), POINTER            :: force_env
-    REAL(KIND=dp)                            :: max_distance
-    TYPE(cp_error_type), INTENT(inout)       :: error
-    LOGICAL                                  :: all_connected
-
-    TYPE(cp_subsys_type), POINTER            :: subsys
-    TYPE(particle_list_type), POINTER        :: particles
-    REAL(KIND=dp)                            :: dr(3), dr_norm
-    INTEGER                                  :: iparticle, jparticle
-    LOGICAL, DIMENSION(:), ALLOCATABLE       :: marked
-    INTEGER, DIMENSION(:), ALLOCATABLE       :: stack
-    INTEGER                                  :: stack_size
-
-    CALL force_env_get(force_env, subsys=subsys, error=error)
-    CALL cp_subsys_get(subsys,particles=particles,error=error)
-
-    ALLOCATE(stack(SIZE(particles%els)), marked(SIZE(particles%els)))
-    marked = .FALSE.; stack_size = 0
-
-    ! First particle taken as root of flooding, mark it and push to stack
-    marked(1) = .TRUE.; stack(1) = 1; stack_size = 1
-
-
-    DO WHILE (stack_size > 0)
-       iparticle = stack(stack_size); stack_size=stack_size-1  !pop
-       DO jparticle = 1, SIZE(particles%els)
-         dr = particles%els(iparticle)%r(:) - particles%els(jparticle)%r(:)
-         dr_norm = SQRT(DOT_PRODUCT(dr,dr))
-         !WRITE (*,*) "dist ", iparticle, jparticle, dr_norm
-         IF(dr_norm < max_distance) THEN ! they are close = they are connected
-            IF(.NOT. marked(jparticle)) THEN
-                marked(jparticle) = .TRUE.
-                stack(stack_size+1) = jparticle; stack_size=stack_size+1; !push
-            END IF
-         END IF
-       END DO
-    END DO
-
-    all_connected = ALL(marked) !did we visit every particle?
-  END FUNCTION check_connectivity
 
 
 ! *****************************************************************************

@@ -17,7 +17,7 @@ def read_references():
 def main():
     known_minima = read_references()
 
-    for s in range(2,40):
+    for s in range(2,150):
         fn = "LJ%.3d.inp"%s
         print "Writting: "+fn
         f = open(fn, "w")
@@ -54,16 +54,14 @@ def gen_input(size, Emin):
 
   &MD
     ENSEMBLE NVE
-    STEPS 1000
+    STEPS 100
     TIMESTEP 1.0
-    TEMPERATURE 0.001
-    STEP_START_VAL 1 !otherwise md_energies::md_write_output flushes trajectory
+    TEMPERATURE 10.0
   &END MD
 
   &GEO_OPT
     OPTIMIZER BFGS
-    MAX_ITER 3000
-    !MAX_DR 0.0001
+    MAX_ITER 300
     &BFGS
      USE_RAT_FUN_OPT  ! otherwise LJ particle sth. get too close.
 

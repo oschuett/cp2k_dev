@@ -20,7 +20,7 @@ MODULE glbopt_callback
                                              cp_subsys_type
   USE particle_list_types,             ONLY: particle_list_type
   USE kinds,                           ONLY: dp
-
+  USE glbopt_utils,                    ONLY: particles_connected
 
 
 #include "cp_common_uses.h"
@@ -56,17 +56,20 @@ MODULE glbopt_callback
                                                 passed_minimum
     INTEGER, POINTER                         :: itimes
     TYPE(md_ener_type), POINTER              :: md_ener
-
+    TYPE(force_env_type), POINTER            :: force_env
+    INTEGER                                  :: iw
 ! ====== Local Variables ======
 
     CPPrecondition(ASSOCIATED(mdctrl_data), cp_failure_level,routineP,error,failure)
     CPPrecondition(ASSOCIATED(md_env), cp_failure_level,routineP,error,failure)
 
-
+    iw = mdctrl_data%output_unit
 
     ! add new potential energy value to history
     NULLIFY(md_ener, itimes)
-    CALL get_md_env(md_env=md_env, md_ener=md_ener, itimes=itimes, error=error)
+    CALL get_md_env(md_env=md_env, md_ener=md_ener, itimes=itimes, force_env=force_env, error=error)
+    mdctrl_data%itimes = itimes
+
     !WRITE (*,*) 'potential energy OLE',  glbopt_env%walker_num, md_ener%epot
     mdctrl_data%epot_history = EOSHIFT(mdctrl_data%epot_history, shift=-1)
     mdctrl_data%epot_history(1) = md_ener%epot
@@ -96,8 +99,13 @@ MODULE glbopt_callback
 
     IF(mdctrl_data%md_mincounter >= mdctrl_data%cfg%md_mincount_max) THEN
        should_stop = .TRUE.
-       IF(mdctrl_data%output_unit > 0) WRITE (mdctrl_data%output_unit,&
-         "(A,I4,A)") " GLOBAL_OPT| Stoping MD because of MD_MINCOUNTER after ",itimes," steps."
+       IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MINCOUNTER."
+    END IF
+
+    ! Stop if cluster starts to splits into multiple fragments.
+    IF(.NOT. particles_connected(force_env, mdctrl_data%cfg%md_max_dist, error)) THEN
+       IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MAX_DIST."
+       should_stop = .TRUE.
     END IF
 
    ! IF(itimes > 5) THEN
@@ -121,12 +129,12 @@ MODULE glbopt_callback
 
 
     ! stop when certain number of steps are reached.
-    IF(itimes >= 100) THEN
-       should_stop = .TRUE.
-       IF(mdctrl_data%output_unit > 0) &
-          WRITE (mdctrl_data%output_unit,"(A,I4,A)")&
-            " GLOBAL_OPT| stoping MD because of STEPS after ",itimes," steps."
-    END IF
+   ! IF(itimes >= 100) THEN
+   !    should_stop = .TRUE.
+   !    IF(mdctrl_data%output_unit > 0) &
+   !       WRITE (mdctrl_data%output_unit,"(A,I4,A)")&
+   !         " GLOBAL_OPT| stoping MD because of STEPS after ",itimes," steps."
+   ! END IF
 
   END SUBROUTINE glbopt_md_callback
 

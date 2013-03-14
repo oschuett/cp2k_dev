@@ -35,6 +35,7 @@ MODULE glbopt_types
    REAL                                       :: alpha2
    REAL(KIND=dp)                              :: Emin
    REAL(KIND=dp)                              :: md_max_dist
+   REAL(KIND=dp)                              :: gopt_max_dist
 
 
 !19	    _default_settings = {
@@ -61,6 +62,7 @@ MODULE glbopt_types
    REAL(KIND=dp), DIMENSION(:), POINTER       :: epot_history
    TYPE(glbopt_config_type)                   :: cfg
    INTEGER                                    :: output_unit
+   INTEGER                                    :: itimes
  END TYPE glbopt_mdctrl_data_type
 
  INTEGER, PARAMETER  :: glbopt_msg_sync          = 333
