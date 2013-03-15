@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from math import floor, ceil
-
+from os import mkdir
+from os import path
 
 #===============================================================================
 def read_references():
     known_minima = {}
-    f = open("LJ_known_minima.txt")
+    f = open("known_LJ_minima.txt")
     for line in f.readlines():
         parts = line.split()
         known_minima[int(parts[0])] = parts[1]
@@ -15,24 +16,64 @@ def read_references():
 
 #===============================================================================
 def main():
-    known_minima = read_references()
+    size_min, size_max = 2, 5
+    run_min, run_max   = 1, 3
 
-    for s in range(2,150):
-        fn = "LJ%.3d.inp"%s
-        print "Writting: "+fn
-        f = open(fn, "w")
-        Emin = 0.001*float(known_minima[s]) + 1.0e-6
-        f.write(gen_input(size=s, Emin=Emin))
-        f.close()
+
+    dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d"%(size_min, size_max, run_min, run_max)
+    print "Creating dir: "+dirname
+    mkdir(dirname)
+
+    jobs = []
+    known_minima = read_references()
+    for r in range(run_min, run_max):
+        for s in range(size_min, size_max):
+            fn = "LJ%.3d_RUN%.3d.inp"%(s,r)
+            jobs.append(fn)
+            Emin = 0.001*float(known_minima[s]) + 1.0e-6
+            write2file(dirname+"/"+fn, gen_glbopt_input(size=s, Emin=Emin, run=r))
+
+    write2file(dirname+"/"+dirname+".inp", gen_framing_input(jobs))
 
 #===============================================================================
-def gen_input(size, Emin):
+def write2file(fn, content):
+    print "Writting: "+fn
+    f = open(fn, "w")
+    f.write(content)
+    f.close()
+
+#===============================================================================
+def gen_framing_input(jobs):
+    output = ""
+    output += "&GLOBAL\n"
+    output += "   PROGRAM_NAME FARMING\n"
+    output += "   RUN_TYPE NONE\n"
+    output += "   PROJECT_NAME LJ_framing\n"
+    output += "&END GLOBAL\n"
+
+    output += "&FARMING\n"
+    output += "   GROUP_SIZE 1\n"
+    output += "   MASTER_SLAVE .TRUE.\n"
+
+    for j in jobs:
+        output += "   &JOB\n"
+        output += "       INPUT_FILE_NAME  %s\n"%path.basename(j)
+        output += "       OUTPUT_FILE_NAME %s\n"%path.basename(j).replace("inp","out")
+        output += "       DIRECTORY .\n"
+        output += "   &END JOB\n"
+
+    output += "&END FARMING\n"
+
+    return(output)
+
+#===============================================================================
+def gen_glbopt_input(size, Emin, run):
     output = ""
     output += "&GLOBAL\n"
     output += "   PROGRAM_NAME GLOBAL_OPT\n"
     output += "   RUN_TYPE NONE\n"
-    output += "   PROJECT_NAME LJ%.3d\n"%size
-    output += "   SEED 200\n"
+    output += "   PROJECT_NAME LJ%.3d_RUN%.3d\n"%(size, run)
+    output += "   SEED %d\n"%(100*run)
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
@@ -42,14 +83,13 @@ def gen_input(size, Emin):
 
     output += """
 &MOTION
-  &PRINT
-    &RESTART ! writting restarts is expensive, turning them off
-       &EACH
-         MD -1
-         GEO_OPT -1
-       &END EACH
-       ADD_LAST NO
+  &PRINT  ! IO is expensive, turning everything off
+    &RESTART OFF
     &END RESTART
+    &RESTART_HISTORY OFF
+    &END RESTART_HISTORY
+    &TRAJECTORY OFF
+    &END TRAJECTORY
   &END PRINT
 
   &MD
@@ -57,6 +97,10 @@ def gen_input(size, Emin):
     STEPS 100
     TIMESTEP 1.0
     TEMPERATURE 10.0
+    &PRINT   ! IO is expensive, turning everything off
+      &ENERGY OFF
+      &END ENERGY
+    &END PRINT
   &END MD
 
   &GEO_OPT
@@ -64,13 +108,8 @@ def gen_input(size, Emin):
     MAX_ITER 300
     &BFGS
      USE_RAT_FUN_OPT  ! otherwise LJ particle sth. get too close.
-
-      &RESTART  ! writting restarts is expensive, turning them off
-        &EACH
-          GEO_OPT -1
-        &END EACH
-        ADD_LAST NO
-      &END RESTART
+     &RESTART OFF     ! IO is expensive, turning everything off
+     &END RESTART
     &END BFGS
   &END GEO_OPT
 
