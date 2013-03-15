@@ -105,6 +105,7 @@ MODULE glbopt_walker
     TYPE(mdctrl_type), POINTER               :: mdctrl_p
     TYPE(mdctrl_type), TARGET                :: mdctrl
     REAL(kind=dp)                            :: temperature, prev_epot, Eaccept, epot
+    REAL(kind=dp)                            :: Elowest
 
     INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: bitfield
     TYPE(INTEGER(kind=int_4)), DIMENSION(glbopt_cfg%n_hashes) :: bloomidx
@@ -115,7 +116,7 @@ MODULE glbopt_walker
                                                 project_name, walker_name
     INTEGER                                  :: prev_iframe, iframe
     INTEGER                                  :: gopt_max_iter
-
+    INTEGER                                  :: n_accepted
     failure = .FALSE.
 
     ! ====== Usual Subroutine Setup ======
@@ -124,16 +125,19 @@ MODULE glbopt_walker
 
     !output_unit = cp_logger_get_default_io_unit(logger)
 
-    ! ======= Create f_env =======
-    ! change the PROJECT_NAME to avoid clashes during backup of RESTART-files
-    IF(walker_id > 999) STOP "walker_create_f_env: Did not expect so many walkers."
-    CALL section_vals_val_get(root_section, "GLOBAL%PROJECT_NAME", c_val=project_name,error=error)
-    WRITE(walker_name,"('WALKER',I3.3)"), walker_id
-    new_project_name = TRIM(project_name)//"-"//walker_name
-    CALL section_vals_val_set(root_section, "GLOBAL%PROJECT_NAME", c_val=new_project_name,error=error)
-    output_path = TRIM(new_project_name)//".out"
-    IF(glbopt_cfg%n_walkers == 1) output_path="__STD_OUT__"
 
+    ! change the PROJECT_NAME to avoid clashes during backup of RESTART-files
+    output_path = "__STD_OUT__"
+    IF(glbopt_cfg%n_walkers > 1) THEN
+       IF(walker_id > 999) STOP "walker_create_f_env: Did not expect so many walkers."
+       CALL section_vals_val_get(root_section, "GLOBAL%PROJECT_NAME", c_val=project_name,error=error)
+       WRITE(walker_name,"('WALKER',I3.3)"), walker_id
+       new_project_name = TRIM(project_name)//"-"//walker_name
+       CALL section_vals_val_set(root_section, "GLOBAL%PROJECT_NAME", c_val=new_project_name,error=error)
+       output_path = TRIM(new_project_name)//".out"
+    END IF
+
+    ! ======= Create f_env =======
     CALL create_force_env(f_env_id, &
                           input_path=input_path, &
                           input=root_section, &
@@ -176,6 +180,8 @@ MODULE glbopt_walker
     Eaccept = glbopt_cfg%Eaccept0
     prev_epot = Huge(1.0_dp)
     epot = Huge(1.0_dp)
+    Elowest = Huge(1.0_dp)
+    n_accepted = 0
     ! store starting configuration,  backup position as possible restart point
     CALL pack_subsys_particles(subsys, r=prev_positions, error=error)
     CALL section_vals_val_get(root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
@@ -183,7 +189,7 @@ MODULE glbopt_walker
     CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=gopt_max_iter, error=error)
 
     ! -----------main-loop of minima hopping---------------
-    prev_iframe = 0; iframe = 0
+    iframe = 0 !indicates the NEXT frame to be written
     mainloop: DO i_mainloop = 1, HUGE(1)  !infinite loop
       ! quit when known minima is reached
       IF(glbopt_cfg%Emin > epot) THEN
@@ -192,10 +198,12 @@ MODULE glbopt_walker
       END IF
 
       IF (iw>0) THEN
-        WRITE (iw,'(A,A,A,I10,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
+        WRITE (iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
           i_mainloop,'. Minima Hopping Iteration ',REPEAT("*", 15)
-        WRITE (iw,'(A,33X,F20.3)')  ' GLOBAL_OPT| Temperature [K]',temperature*kelvin
-        WRITE (iw,'(A,21X,E20.10)') ' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
+        WRITE (iw,'(A,32X,F20.3)')  ' GLOBAL_OPT| Temperature [K]',temperature*kelvin
+        WRITE (iw,'(A,20X,E20.10)') ' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
+        WRITE (iw,'(A,32X,I10)')    ' GLOBAL_OPT| Number of accepted minima', n_accepted
+        WRITE (iw,'(A,11X,E20.10)') ' GLOBAL_OPT| Lowest minima found so far [Hartree]',Elowest
       END IF
 
       ! quit when system explodes
@@ -204,33 +212,35 @@ MODULE glbopt_walker
       !   EXIT mainloop
       !END IF
 
-      IF (iw>0) WRITE (iw,'(A,26X,I10)') " GLOBAL_OPT| Starting MD at trajectory frame ", iframe
-      mdctrl_data%epot_history = 0.0 
+      IF (iw>0) WRITE (iw,'(A,25X,I10)') " GLOBAL_OPT| Starting MD at trajectory frame ", iframe
+      mdctrl_data%epot_history = 0.0
       mdctrl_data%md_mincounter = 0
-      CALL section_vals_val_set(root_section, "MOTION%MD%STEP_START_VAL", i_val=iframe, error=error)
+      prev_iframe = iframe
+      IF(iframe==0) iframe = 1 ! qs_mol_dyn behaves differently for STEP_START_VAL=0
+      CALL section_vals_val_set(root_section, "MOTION%MD%STEP_START_VAL", i_val=iframe-1, error=error)
       CALL section_vals_val_set(root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
       CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
-      prev_iframe = iframe
       iframe = mdctrl_data%itimes
       IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| md ended after ", iframe-prev_iframe, " steps."
 
-      IF (iw>0) WRITE (iw,'(A,10X,I10)') " GLOBAL_OPT| Starting local optimisation at trajectory frame ", iframe
-      CALL section_vals_val_set(root_section, "MOTION%GEO_OPT%STEP_START_VAL", i_val=iframe, error=error)
+      IF (iw>0) WRITE (iw,'(A,9X,I10)') " GLOBAL_OPT| Starting local optimisation at trajectory frame ", iframe
+      CALL section_vals_val_set(root_section, "MOTION%GEO_OPT%STEP_START_VAL", i_val=iframe-1, error=error)
       CALL section_vals_val_set(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=iframe+gopt_max_iter, error=error)
       CALL cp_geo_opt(force_env, globenv, rm_restart_info=.FALSE., error=error)
       prev_iframe = iframe
       CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%STEP_START_VAL", i_val=iframe, error=error)
+      iframe = iframe + 2 ! Compensates for different START_VAL interpretation.
       IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| gopt ended after ", iframe-prev_iframe, " steps."
-
       ! Stop if cluster starts to splits into multiple fragments.
       IF(.NOT. particles_connected(force_env, glbopt_cfg%gopt_max_dist, error)) THEN
-         IF(iw > 0) WRITE (iw,"(A)") " GLOBAL_OPT| Rejecting minima because of GOPT_MAX_DIST."
+         IF(iw > 0) WRITE (iw,"(A)") " GLOBAL_OPT| Conclusion: rejecting minima because of GOPT_MAX_DIST."
+         temperature = temperature*glbopt_cfg%beta3 !decreasing temperature
          CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
          CYCLE mainloop
       END IF
 
       CALL force_env_get(force_env, potential_energy=epot, error=error)
-      IF (iw>0) WRITE (iw,'(A,22X,E20.10)')' GLOBAL_OPT| Potential Energy [Hartree]',Epot
+      IF (iw>0) WRITE (iw,'(A,21X,E20.10)')' GLOBAL_OPT| Potential Energy [Hartree]',Epot
 
       CALL calc_bloom_indices(glbopt_cfg, force_env, subsys, bloomidx, error)
       !IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| got bloom indices: ", bloomidx
@@ -244,7 +254,7 @@ MODULE glbopt_walker
       END IF
 
       IF(minima_known) THEN
-          IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Result: old minima"
+          IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Conclusion: old minima"
           ! known minima restart MD
           temperature = temperature*glbopt_cfg%beta1
           CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
@@ -257,17 +267,19 @@ MODULE glbopt_walker
 
       IF (epot - prev_epot > Eaccept) THEN
          ! rejected new minimum due to energy.
-         IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Result: new minima, but got rejected due to Eaccept"
+         IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Conclusion: new minima, but got rejected due to Eaccept"
          CALL unpack_subsys_particles(subsys, r=prev_positions, error=error)
          Eaccept = Eaccept * glbopt_cfg%alpha2
          CYCLE mainloop
       END IF
 
      ! Hurra, we accept a new minimum
-     IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Result: new minima got accepted"
+     IF (iw>0) WRITE (iw,*) "GLOBAL_OPT| Conclusion: new minima got accepted"
      CALL bloomfilter_add(bitfield, bloomidx)
      Eaccept = Eaccept * glbopt_cfg%alpha1
      prev_epot = epot
+     Elowest = MIN(Elowest, epot)
+     n_accepted = n_accepted + 1
      CALL pack_subsys_particles(subsys, r=prev_positions, error=error)
      IF(glbopt_cfg%n_walkers > 1) &
         CALL master_report_minima(para_env, bitfield, Epot)
@@ -420,7 +432,6 @@ MODULE glbopt_walker
      INTEGER                                                     :: key_length, i, handle
      INTEGER(kind=int_4), DIMENSION(glbopt_cfg%n_hashes)         :: hashes
 
-     REAL(kind=dp), PARAMETER                                    :: colvar_precision = 1.0e6
 
      CHARACTER(len=*), PARAMETER :: routineN = 'calc_bloom_indices', &
       routineP = moduleN//':'//routineN
@@ -433,7 +444,7 @@ MODULE glbopt_walker
      END DO
 
      !WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)
-     key_parts = REAL(FLOOR(key_parts*colvar_precision, int_8), dp)/colvar_precision
+     key_parts = REAL(FLOOR(key_parts/glbopt_cfg%colvar_precision, int_8), dp)*glbopt_cfg%colvar_precision
      !WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)
 
      !WRITE (*,*) "colvars: ", key_parts(1:glbopt_cfg%n_colvars)

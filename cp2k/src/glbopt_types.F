@@ -36,6 +36,7 @@ MODULE glbopt_types
    REAL(KIND=dp)                              :: Emin
    REAL(KIND=dp)                              :: md_max_dist
    REAL(KIND=dp)                              :: gopt_max_dist
+   REAL(KIND=dp)                              :: colvar_precision
 
 
 !19	    _default_settings = {

@@ -9,16 +9,10 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_utils
-  USE colvar_methods,                  ONLY: colvar_eval_glob_f
-  USE cp_para_types,                   ONLY: cp_para_env_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_type,&
                                              pack_subsys_particles,&
                                              unpack_subsys_particles
-  USE f77_interface,                   ONLY: destroy_force_env,&
-                                             f_env_add_defaults,&
-                                             f_env_rm_defaults,&
-                                             f_env_type
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
   USE geo_opt,                         ONLY: cp_geo_opt
@@ -29,24 +23,9 @@ MODULE glbopt_utils
                                              glbopt_msg_shutdown
   USE global_types,                    ONLY: global_environment_type
   USE kinds,                           ONLY: dp, sp, int_4, int_8
-  USE md_run,                          ONLY: qs_mol_dyn
-  USE mdctrl_types,                    ONLY: mdctrl_type
-  USE message_passing,                 ONLY: mp_recv,&
-                                             mp_send
-  USE parallel_rng_types,              ONLY: reset_to_next_rng_substream
-  USE timings,                         ONLY: timeset,&
-                                             timestop
-  USE input_section_types,             ONLY: section_vals_val_set,section_vals_val_get
-  USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
   USE physcon,                         ONLY: kelvin
-  USE input_section_types,             ONLY: section_vals_type
   USE kinds,                           ONLY: default_path_length,&
                                              default_string_length
-  USE f77_interface,                   ONLY: create_force_env
-  USE cp_output_handling,              ONLY: cp_p_file,&
-                                             cp_print_key_finished_output,&
-                                             cp_print_key_should_output,&
-                                             cp_print_key_unit_nr
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&

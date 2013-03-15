@@ -21,7 +21,7 @@ def main():
         fn = "LJ%.3d.inp"%s
         print "Writting: "+fn
         f = open(fn, "w")
-        Emin = 0.00099999*float(known_minima[s])
+        Emin = 0.001*float(known_minima[s]) + 1.0e-6
         f.write(gen_input(size=s, Emin=Emin))
         f.close()
 
@@ -32,12 +32,12 @@ def gen_input(size, Emin):
     output += "   PROGRAM_NAME GLOBAL_OPT\n"
     output += "   RUN_TYPE NONE\n"
     output += "   PROJECT_NAME LJ%.3d\n"%size
-#    output += "   SEED 200\n"
+    output += "   SEED 200\n"
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
     output += "   NUMBER_OF_WALKERS  1\n"
-    output += "   Emin %f\n"%Emin
+    output += "   Emin %.10f\n"%Emin
     output += "&END GLOBAL_OPT\n"
 
     output += """
