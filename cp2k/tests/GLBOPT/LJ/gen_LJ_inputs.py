@@ -16,8 +16,8 @@ def read_references():
 
 #===============================================================================
 def main():
-    size_min, size_max = 2, 5
-    run_min, run_max   = 1, 3
+    size_min, size_max = 70, 71
+    run_min, run_max   = 1, 2
 
 
     dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d"%(size_min, size_max, run_min, run_max)

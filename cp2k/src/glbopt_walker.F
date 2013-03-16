@@ -38,7 +38,7 @@ MODULE glbopt_walker
                                              timestop
   USE input_section_types,             ONLY: section_vals_val_set,section_vals_val_get
   USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
-  USE physcon,                         ONLY: kelvin
+  USE physcon,                         ONLY: kelvin, femtoseconds
   USE input_section_types,             ONLY: section_vals_type
   USE kinds,                           ONLY: default_path_length,&
                                              default_string_length
@@ -106,6 +106,7 @@ MODULE glbopt_walker
     TYPE(mdctrl_type), TARGET                :: mdctrl
     REAL(kind=dp)                            :: temperature, prev_epot, Eaccept, epot
     REAL(kind=dp)                            :: Elowest
+    REAL(kind=dp)                            :: timestep
 
     INTEGER(kind=int_4), DIMENSION(glbopt_cfg%bloom_size/(4*8)) :: bitfield
     TYPE(INTEGER(kind=int_4)), DIMENSION(glbopt_cfg%n_hashes) :: bloomidx
@@ -197,13 +198,15 @@ MODULE glbopt_walker
          EXIT mainloop
       END IF
 
+      timestep = SQRT(MIN(1.0, 300.0/(temperature*kelvin))) / femtoseconds
       IF (iw>0) THEN
         WRITE (iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
           i_mainloop,'. Minima Hopping Iteration ',REPEAT("*", 15)
-        WRITE (iw,'(A,32X,F20.3)')  ' GLOBAL_OPT| Temperature [K]',temperature*kelvin
-        WRITE (iw,'(A,20X,E20.10)') ' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
-        WRITE (iw,'(A,32X,I10)')    ' GLOBAL_OPT| Number of accepted minima', n_accepted
         WRITE (iw,'(A,11X,E20.10)') ' GLOBAL_OPT| Lowest minima found so far [Hartree]',Elowest
+        WRITE (iw,'(A,32X,I10)')    ' GLOBAL_OPT| Number of accepted minima', n_accepted
+        WRITE (iw,'(A,20X,E20.10)') ' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
+        WRITE (iw,'(A,29X,F20.3)')  ' GLOBAL_OPT| MD temperature [K]',temperature*kelvin
+        WRITE (iw,'(A,31X,F20.3)')  ' GLOBAL_OPT| MD timestep [fs]',timestep*femtoseconds
       END IF
 
       ! quit when system explodes
@@ -219,6 +222,7 @@ MODULE glbopt_walker
       IF(iframe==0) iframe = 1 ! qs_mol_dyn behaves differently for STEP_START_VAL=0
       CALL section_vals_val_set(root_section, "MOTION%MD%STEP_START_VAL", i_val=iframe-1, error=error)
       CALL section_vals_val_set(root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
+      CALL section_vals_val_set(root_section, "MOTION%MD%TIMESTEP", r_val=timestep, error=error)
       CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
       iframe = mdctrl_data%itimes
       IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| md ended after ", iframe-prev_iframe, " steps."
