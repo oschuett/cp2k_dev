@@ -709,7 +709,8 @@ CONTAINS
                farming_env%Job(todo)%status=job_running
                IF (output_unit>0) THEN
                  WRITE(output_unit,FMT=*) "Job: ",todo," Dir: ",TRIM(farming_env%Job(todo)%cwd), &
-                                        " assigned to group ",group_distribution(slave_distribution(dest))
+                   " Input: ",TRIM(farming_env%Job(todo)%input), &
+                   " assigned to group ",group_distribution(slave_distribution(dest))
                  CALL m_flush(output_unit)
                ENDIF
              ELSE
