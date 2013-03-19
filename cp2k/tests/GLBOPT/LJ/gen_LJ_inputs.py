@@ -16,18 +16,18 @@ def read_references():
 
 #===============================================================================
 def main():
-    size_min, size_max = 70, 71
-    run_min, run_max   = 1, 2
+    size_min, size_max = 2, 50
+    run_min, run_max   = 1, 50
 
 
-    dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d"%(size_min, size_max, run_min, run_max)
+    dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d_LBFGS"%(size_min, size_max, run_min, run_max)
     print "Creating dir: "+dirname
     mkdir(dirname)
 
     jobs = []
     known_minima = read_references()
-    for r in range(run_min, run_max):
-        for s in range(size_min, size_max):
+    for r in range(run_min, run_max+1):
+        for s in range(size_min, size_max+1):
             fn = "LJ%.3d_RUN%.3d.inp"%(s,r)
             jobs.append(fn)
             Emin = 0.001*float(known_minima[s]) + 1.0e-6
@@ -88,7 +88,12 @@ def gen_glbopt_input(size, Emin, run):
     &END RESTART
     &RESTART_HISTORY OFF
     &END RESTART_HISTORY
-    &TRAJECTORY OFF
+    &TRAJECTORY 
+      ADD_LAST NUMERIC
+      &EACH
+        GEO_OPT -1
+        MD -1
+      &END EACH
     &END TRAJECTORY
   &END PRINT
 
@@ -97,20 +102,27 @@ def gen_glbopt_input(size, Emin, run):
     STEPS 100
     TIMESTEP 1.0
     TEMPERATURE 10.0
-    &PRINT   ! IO is expensive, turning everything off
+    &PRINT
       &ENERGY OFF
       &END ENERGY
+      &PROGRAM_RUN_INFO SILENT
+      &END PROGRAM_RUN_INFO
     &END PRINT
   &END MD
 
   &GEO_OPT
-    OPTIMIZER BFGS
+    OPTIMIZER LBFGS
     MAX_ITER 300
     &BFGS
+     TRUST_RADIUS [angstrom] 0.1
      USE_RAT_FUN_OPT  ! otherwise LJ particle sth. get too close.
-     &RESTART OFF     ! IO is expensive, turning everything off
+     &RESTART OFF
      &END RESTART
     &END BFGS
+    &PRINT
+      &PROGRAM_RUN_INFO SILENT
+      &END PROGRAM_RUN_INFO
+    &END PRINT
   &END GEO_OPT
 
 &END MOTION
