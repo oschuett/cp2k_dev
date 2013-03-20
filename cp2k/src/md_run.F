@@ -461,10 +461,6 @@ CONTAINS
        ! Free Energy calculation
        CALL free_energy_evaluate(md_env,should_stop,free_energy_section,error)
 
-       ! call external hook e.g. from global optimization
-       IF (PRESENT(mdctrl)) &
-          CALL mdctrl_callback(mdctrl, md_env, should_stop, error)
-
        IF (should_stop) EXIT
 
        ! Test for <PROJECT_NAME>.EXIT_MD or for WALL_TIME to exit
@@ -477,6 +473,11 @@ CONTAINS
        ! to compute energy and forces is not SCF based) activating the print_key
        ! MOTION%MD%PRINT%FORCE_LAST.
        CALL external_control(should_stop,"MD",globenv=globenv,error=error)
+
+       ! call external hook e.g. from global optimization
+       IF (PRESENT(mdctrl)) &
+          CALL mdctrl_callback(mdctrl, md_env, should_stop, error)
+
        IF (should_stop) THEN
           CALL cp_iterate(logger%iter_info,last=.TRUE.,iter_nr=itimes,error=error)
           CALL md_output(md_env,md_section,force_env%root_section,should_stop,error=error)

@@ -224,7 +224,7 @@ MODULE glbopt_walker
       CALL section_vals_val_set(root_section, "MOTION%MD%TEMPERATURE", r_val=temperature, error=error)
       CALL section_vals_val_set(root_section, "MOTION%MD%TIMESTEP", r_val=timestep, error=error)
       CALL qs_mol_dyn(force_env, globenv, mdctrl=mdctrl_p, error=error)
-      iframe = mdctrl_data%itimes
+      iframe = mdctrl_data%itimes + 1
       IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| md ended after ", iframe-prev_iframe, " steps."
 
       IF (iw>0) WRITE (iw,'(A,9X,I10)') " GLOBAL_OPT| Starting local optimisation at trajectory frame ", iframe
@@ -234,7 +234,7 @@ MODULE glbopt_walker
       prev_iframe = iframe
       CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%STEP_START_VAL", i_val=iframe, error=error)
       iframe = iframe + 2 ! Compensates for different START_VAL interpretation.
-      IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| gopt ended after ", iframe-prev_iframe, " steps."
+      IF (iw>0) WRITE (iw,'(A,I4,A)') " GLOBAL_OPT| gopt ended after ", iframe-prev_iframe-1, " steps."
       ! Stop if cluster starts to splits into multiple fragments.
       IF(.NOT. particles_connected(force_env, glbopt_cfg%gopt_max_dist, error)) THEN
          IF(iw > 0) WRITE (iw,"(A)") " GLOBAL_OPT| Conclusion: rejecting minima because of GOPT_MAX_DIST."
