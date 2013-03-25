@@ -20,7 +20,7 @@ def main():
     run_min, run_max   = 1, 50
 
 
-    dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d_LBFGS"%(size_min, size_max, run_min, run_max)
+    dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d"%(size_min, size_max, run_min, run_max)
     print "Creating dir: "+dirname
     mkdir(dirname)
 
@@ -34,6 +34,7 @@ def main():
             write2file(dirname+"/"+fn, gen_glbopt_input(size=s, Emin=Emin, run=r))
 
     write2file(dirname+"/"+dirname+".inp", gen_framing_input(jobs))
+    write2file(dirname+"/"+dirname+".job", gen_jobfile(dirname))
 
 #===============================================================================
 def write2file(fn, content):
@@ -41,6 +42,25 @@ def write2file(fn, content):
     f = open(fn, "w")
     f.write(content)
     f.close()
+
+
+#===============================================================================
+def gen_jobfile(name):
+   output =  "#! /bin/bash\n"
+   output += "#SBATCH --job-name=LJ002-050_RUN001-050\n"
+   output += "#SBATCH --ntasks=1024\n"
+   output += "#SBATCH --partition=day\n"
+#   output += "#SBATCH --partition=night\n"
+   output += "#SBATCH --time=0:59:00\n"
+   output += "#SBATCH --account=h05\n\n"
+
+   output += "cd $SLURM_SUBMIT_DIR\n"
+   output += "export OMP_NUM_THREADS=1\n\n"
+
+   output += "aprun -n 1024  -d 1  -N 16 -cc cpu  ../../../../exe/todi/cp2k.popt -i %s.inp -o %s.out\n"%(name,name)
+   return(output)  
+
+
 
 #===============================================================================
 def gen_framing_input(jobs):
@@ -74,6 +94,9 @@ def gen_glbopt_input(size, Emin, run):
     output += "   RUN_TYPE NONE\n"
     output += "   PROJECT_NAME LJ%.3d_RUN%.3d\n"%(size, run)
     output += "   SEED %d\n"%(100*run)
+    output += "   &TIMINGS\n"
+    output += "      THRESHOLD 0.0\n"
+    output += "   &END TIMINGS\n"
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
@@ -88,7 +111,7 @@ def gen_glbopt_input(size, Emin, run):
     &END RESTART
     &RESTART_HISTORY OFF
     &END RESTART_HISTORY
-    &TRAJECTORY 
+    &TRAJECTORY
       ADD_LAST NUMERIC
       &EACH
         GEO_OPT -1
@@ -102,16 +125,30 @@ def gen_glbopt_input(size, Emin, run):
     STEPS 100
     TIMESTEP 1.0
     TEMPERATURE 10.0
+
     &PRINT
+      &CENTER_OF_MASS OFF
+      &END CENTER_OF_MASS
+      &COEFFICIENTS OFF
+      &END COEFFICIENTS
       &ENERGY OFF
       &END ENERGY
-      &PROGRAM_RUN_INFO SILENT
+      &PROGRAM_RUN_INFO OFF
       &END PROGRAM_RUN_INFO
+      &ROTATIONAL_INFO OFF
+      &END ROTATIONAL_INFO
+      &SHELL_ENERGY OFF
+      &END SHELL_ENERGY
+      &TEMP_KIND OFF
+      &END TEMP_KIND
+      &TEMP_SHELL_KIND OFF
+      &END TEMP_SHELL_KIND
+      FORCE_LAST .TRUE.
     &END PRINT
   &END MD
 
   &GEO_OPT
-    OPTIMIZER LBFGS
+    OPTIMIZER BFGS
     MAX_ITER 300
     &BFGS
      TRUST_RADIUS [angstrom] 0.1
@@ -128,6 +165,26 @@ def gen_glbopt_input(size, Emin, run):
 &END MOTION
 
 &FORCE_EVAL
+  &PRINT
+    &DISTRIBUTION OFF
+    &END DISTRIBUTION
+    &DISTRIBUTION1D OFF
+    &END DISTRIBUTION1D
+    &DISTRIBUTION2D OFF
+    &END DISTRIBUTION2D
+    &FORCES OFF
+    &END FORCES
+    &GRID_INFORMATION OFF
+    &END GRID_INFORMATION
+    &PROGRAM_RUN_INFO OFF
+    &END PROGRAM_RUN_INFO
+    &STRESS_TENSOR OFF
+    &END STRESS_TENSOR
+    &TOTAL_NUMBERS OFF
+    &END TOTAL_NUMBERS
+  &END PRINT
+
+
   METHOD FIST
   &MM
     &FORCEFIELD
@@ -156,8 +213,26 @@ def gen_glbopt_input(size, Emin, run):
       &END EWALD
     &END POISSON
     &PRINT
-      &FF_INFO
+      &DERIVATIVES OFF
+      &END DERIVATIVES
+      &DIPOLE OFF
+      &END DIPOLE
+      &EWALD_INFO OFF
+      &END EWALD_INFO
+      &FF_INFO OFF
       &END FF_INFO
+      &FF_PARAMETER_FILE OFF
+      &END FF_PARAMETER_FILE
+      &ITER_INFO OFF
+      &END ITER_INFO
+      &NEIGHBOR_LISTS OFF
+      &END NEIGHBOR_LISTS
+      &PROGRAM_BANNER OFF
+      &END PROGRAM_BANNER
+      &PROGRAM_RUN_INFO OFF
+      &END PROGRAM_RUN_INFO
+      &SUBCELL OFF
+      &END SUBCELL
     &END PRINT
   &END MM
   &SUBSYS
@@ -195,7 +270,6 @@ def gen_glbopt_input(size, Emin, run):
         MASS 1.0
      &END KIND
   &END SUBSYS
-  STRESS_TENSOR ANALYTICAL
 &END FORCE_EVAL
 """
     return output
