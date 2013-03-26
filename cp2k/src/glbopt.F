@@ -11,9 +11,20 @@
 MODULE glbopt
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE f77_interface,                   ONLY: create_force_env
-  USE glbopt_master,                   ONLY: glbopt_drive_master
-  USE glbopt_types,                    ONLY: glbopt_config_type
-  USE glbopt_walker,                   ONLY: glbopt_drive_walker
+  USE glbopt_master,                   ONLY: glbopt_drive_master,&
+                                             glbopt_master_init,&
+                                             glbopt_master_give_command,&
+                                             glbopt_master_receive_report,&
+                                             glbopt_master_finalize
+  USE glbopt_types,                    ONLY: glbopt_config_type,&
+                                             glbopt_command_type,&
+                                             glbopt_report_type,&
+                                             glbopt_master_type,&
+                                             glbopt_walker_type
+  USE glbopt_walker,                   ONLY: glbopt_walker_init,&
+                                             glbopt_walker_finalize,&
+                                             glbopt_walker_execute_command,&
+                                             glbopt_walker_assemble_report
   USE input_section_types,             ONLY: section_vals_get,&
                                              section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -88,7 +99,7 @@ MODULE glbopt
     CALL section_vals_get(colvar_section,n_repetition=glbopt_cfg%n_colvars,error=error)
     IF(glbopt_cfg%n_colvars == 0) STOP "No colvars found. Aborting."
 
-    CALL glbopt_driver(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
+    CALL glbopt_driver(glbopt_cfg, root_section, input_path, output_unit, para_env, error)
 
   END SUBROUTINE run_global_opt
 
@@ -97,12 +108,12 @@ MODULE glbopt
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE glbopt_driver(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
+   SUBROUTINE glbopt_driver(glbopt_cfg, root_section, input_path, output_unit, para_env, error)
     TYPE(glbopt_config_type)                 :: glbopt_cfg
     TYPE(section_vals_type), POINTER         :: root_section
-    TYPE(cp_para_env_type), POINTER          :: para_env
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     INTEGER, INTENT(IN)                      :: output_unit
+    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER :: f_env_id, handle
@@ -114,10 +125,11 @@ MODULE glbopt
 
     IF(glbopt_cfg%n_walkers == 1) THEN
        IF(output_unit > 0) WRITE(output_unit,"(A)") " GLOBAL_OPT| Running in single walker mode."
-       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, para_env%group, 0, error)
+       CALL glbopt_serial_driver(glbopt_cfg, root_section, input_path, output_unit, para_env, error)
     ELSE
        IF(output_unit > 0) WRITE(output_unit,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
-       CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
+       STOP "not implemented yet"
+       !CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
     ENDIF
 
     CALL timestop(handle)
@@ -125,69 +137,104 @@ MODULE glbopt
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
-    TYPE(glbopt_config_type)                 :: glbopt_cfg
-    TYPE(section_vals_type), POINTER         :: root_section
-    TYPE(cp_para_env_type), POINTER          :: para_env
-    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-    INTEGER, INTENT(IN)                      :: output_unit
-    TYPE(cp_error_type), INTENT(inout)       :: error
+   SUBROUTINE glbopt_serial_driver(glbopt_cfg, root_section, input_path, output_unit, para_env, error)
+       TYPE(glbopt_config_type)                 :: glbopt_cfg
+       TYPE(section_vals_type), POINTER         :: root_section
+       CHARACTER(LEN=*), INTENT(IN)             :: input_path
+       INTEGER, INTENT(IN)                      :: output_unit
+       TYPE(cp_para_env_type), POINTER          :: para_env
+       TYPE(cp_error_type), INTENT(inout)       :: error
 
-    INTEGER :: f_env_id, my_walker_id, n_groups_created, &
-      pe_per_walker, subgroup, subgroup_rank, subgroup_size, walker_group
-    LOGICAL                                  :: im_the_master
-    INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
-    INTEGER, &
-      DIMENSION(0:para_env%num_pe-2), TARGET :: group_distribution
+       TYPE(glbopt_master_type)                 :: master
+       TYPE(glbopt_walker_type)                 :: walker
+       TYPE(glbopt_command_type)                :: cmd
+       TYPE(glbopt_report_type)                 :: report
+       INTEGER                                  :: i
+       LOGICAL                                  :: should_stop
 
+       CALL glbopt_master_init(master, glbopt_cfg, root_section, input_path, output_unit, para_env, error)
+       CALL glbopt_walker_init(walker, glbopt_cfg, root_section, input_path, output_unit, para_env, para_env%group, 0, error)
 
-    ! ====== Setup of MPI-Groups ======
-    IF (MOD(para_env%num_pe-1, glbopt_cfg%n_walkers) /= 0) &
-       STOP "number of processors-1 is not divisible by n_walkers."
-    IF (para_env%num_pe < glbopt_cfg%n_walkers + 1) &
-       STOP "There are not enough processes for n_walkers + 1. Aborting."
+       should_stop = .FALSE.
+       DO i = 1, HUGE(1)  !infinite loop
+          CALL glbopt_master_give_command(master, cmd)
+          CALL glbopt_walker_execute_command(walker, cmd, should_stop)
+          IF(should_stop) EXIT
+          CALL glbopt_walker_assemble_report(walker, report)
+          CALL glbopt_master_receive_report(master, report)
+       END DO
 
-    pe_per_walker = (para_env%num_pe-1)/glbopt_cfg%n_walkers
+       CALL glbopt_walker_finalize(walker)
+       CALL glbopt_master_finalize(master)
 
-    WRITE(*,*) "!!! Number of mpi ranks: ",para_env%num_pe
-    WRITE(*,*) "!!! Number of walkers: ", glbopt_cfg%n_walkers
-    WRITE(*,*) "!!! Number of colvars: ", glbopt_cfg%n_colvars
+    END SUBROUTINE glbopt_serial_driver
 
-    ! the last task becomes the master. Keeps node-alignment of other tasks.
-    im_the_master = (para_env%mepos == para_env%num_pe-1)
-
-    ! First split split para_env%group into a master- and a walkers-groups...
-    IF (im_the_master) THEN
-       CALL mp_comm_split_direct(para_env%group, subgroup, 1)
-       CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       !WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
-       IF(subgroup_size/=1) STOP "glbopt: mp_comm_split_direct failed (master)"
-    ELSE
-       CALL mp_comm_split_direct(para_env%group, subgroup, 2)
-       CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       !WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
-       IF(subgroup_size/=para_env%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
-    ENDIF
-
-
-    IF (im_the_master) THEN
-       CALL glbopt_drive_master(glbopt_cfg, root_section, para_env, error)
-    ELSE
-       ! ...then split walkers-group into n_walkers groups - one for each walker.
-       group_distribution_p => group_distribution
-       CALL mp_comm_split(subgroup, walker_group, n_groups_created, group_distribution_p, n_subgroups=glbopt_cfg%n_walkers)
-       my_walker_id = group_distribution(subgroup_rank)
-       IF(n_groups_created/=glbopt_cfg%n_walkers) STOP "glbopt: mp_comm_split failed."
-       ! f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
-       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, walker_group, my_walker_id, error)
-       CALL mp_comm_free(walker_group)
-    ENDIF
-
-    CALL mp_comm_free(subgroup)
-
-  END SUBROUTINE driver_master_walkers
-
-
+!
+!! *****************************************************************************
+!! *****************************************************************************
+!   SUBROUTINE driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
+!    TYPE(glbopt_config_type)                 :: glbopt_cfg
+!    TYPE(section_vals_type), POINTER         :: root_section
+!    TYPE(cp_para_env_type), POINTER          :: para_env
+!    CHARACTER(LEN=*), INTENT(IN)             :: input_path
+!    INTEGER, INTENT(IN)                      :: output_unit
+!    TYPE(cp_error_type), INTENT(inout)       :: error
+!
+!    INTEGER :: f_env_id, my_walker_id, n_groups_created, &
+!      pe_per_walker, subgroup, subgroup_rank, subgroup_size, walker_group
+!    LOGICAL                                  :: im_the_master
+!    INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
+!    INTEGER, &
+!      DIMENSION(0:para_env%num_pe-2), TARGET :: group_distribution
+!
+!
+!    ! ====== Setup of MPI-Groups ======
+!    IF (MOD(para_env%num_pe-1, glbopt_cfg%n_walkers) /= 0) &
+!       STOP "number of processors-1 is not divisible by n_walkers."
+!    IF (para_env%num_pe < glbopt_cfg%n_walkers + 1) &
+!       STOP "There are not enough processes for n_walkers + 1. Aborting."
+!
+!    pe_per_walker = (para_env%num_pe-1)/glbopt_cfg%n_walkers
+!
+!    WRITE(*,*) "!!! Number of mpi ranks: ",para_env%num_pe
+!    WRITE(*,*) "!!! Number of walkers: ", glbopt_cfg%n_walkers
+!    WRITE(*,*) "!!! Number of colvars: ", glbopt_cfg%n_colvars
+!
+!    ! the last task becomes the master. Keeps node-alignment of other tasks.
+!    im_the_master = (para_env%mepos == para_env%num_pe-1)
+!
+!    ! First split split para_env%group into a master- and a walkers-groups...
+!    IF (im_the_master) THEN
+!       CALL mp_comm_split_direct(para_env%group, subgroup, 1)
+!       CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
+!       !WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
+!       IF(subgroup_size/=1) STOP "glbopt: mp_comm_split_direct failed (master)"
+!    ELSE
+!       CALL mp_comm_split_direct(para_env%group, subgroup, 2)
+!       CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
+!       !WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
+!       IF(subgroup_size/=para_env%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
+!    ENDIF
+!
+!
+!    IF (im_the_master) THEN
+!       CALL glbopt_drive_master(glbopt_cfg, root_section, para_env, error)
+!    ELSE
+!       ! ...then split walkers-group into n_walkers groups - one for each walker.
+!       group_distribution_p => group_distribution
+!       CALL mp_comm_split(subgroup, walker_group, n_groups_created, group_distribution_p, n_subgroups=glbopt_cfg%n_walkers)
+!       my_walker_id = group_distribution(subgroup_rank)
+!       IF(n_groups_created/=glbopt_cfg%n_walkers) STOP "glbopt: mp_comm_split failed."
+!       ! f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
+!       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, walker_group, my_walker_id, error)
+!       CALL mp_comm_free(walker_group)
+!    ENDIF
+!
+!    CALL mp_comm_free(subgroup)
+!
+!  END SUBROUTINE driver_master_walkers
+!
+!
 !! *****************************************************************************
 !  FUNCTION walker_create_f_env(root_section, input_path, mpi_comm, walker_id, error) RESULT(f_env_id)
 !    TYPE(section_vals_type), POINTER         :: root_section

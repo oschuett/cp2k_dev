@@ -66,9 +66,26 @@ MODULE glbopt_types
    INTEGER                                    :: itimes
  END TYPE glbopt_mdctrl_data_type
 
- INTEGER, PARAMETER  :: glbopt_msg_sync          = 333
- INTEGER, PARAMETER  :: glbopt_msg_report        = 444
- INTEGER, PARAMETER  :: glbopt_msg_shutdown      = 999
+ TYPE glbopt_command_type
+   INTEGER :: id = -1
+ END TYPE glbopt_command_type
+
+ TYPE glbopt_report_type
+   INTEGER :: id = -1
+ END TYPE glbopt_report_type
+
+ TYPE glbopt_master_type
+   INTEGER :: foo = 42
+ END TYPE glbopt_master_type
+
+ TYPE glbopt_walker_type
+   INTEGER :: iw
+ END TYPE glbopt_walker_type
+
+
+ INTEGER, PARAMETER  :: glbopt_cmd_sync          = 333
+ INTEGER, PARAMETER  :: glbopt_cmd_report        = 444
+ INTEGER, PARAMETER  :: glbopt_cmd_shutdown      = 999
 
 
 !  TYPE glbopt_env_type
@@ -98,8 +115,10 @@ MODULE glbopt_types
 !  END TYPE glbopt_env_type
 
  PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
- PUBLIC :: glbopt_msg_sync, glbopt_msg_report, glbopt_msg_shutdown
-  
+ PUBLIC :: glbopt_cmd_sync, glbopt_cmd_report, glbopt_cmd_shutdown
+ PUBLIC :: glbopt_master_type, glbopt_walker_type
+ PUBLIC :: glbopt_report_type, glbopt_command_type
+
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_types' 
 CONTAINS
         

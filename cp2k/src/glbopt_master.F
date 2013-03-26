@@ -11,9 +11,12 @@
 MODULE glbopt_master
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE glbopt_types,                    ONLY: glbopt_config_type,&
-                                             glbopt_msg_shutdown,&
-                                             glbopt_msg_sync,&
-                                             glbopt_msg_report
+                                             glbopt_cmd_shutdown,&
+                                             glbopt_cmd_sync,&
+                                             glbopt_cmd_report,&
+                                             glbopt_command_type,&
+                                             glbopt_report_type,&
+                                             glbopt_master_type
   USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
   USE kinds,                           ONLY: dp,&
                                              int_4
@@ -34,9 +37,47 @@ MODULE glbopt_master
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_master'
 
  PUBLIC :: glbopt_drive_master
+ PUBLIC :: glbopt_master_init, glbopt_master_give_command
+ PUBLIC :: glbopt_master_receive_report, glbopt_master_finalize
+
 
  CONTAINS
 
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE glbopt_master_give_command(master, cmd)
+    TYPE(glbopt_master_type)   :: master
+    TYPE(glbopt_command_type)  :: cmd
+
+    cmd%id = glbopt_cmd_shutdown
+ END SUBROUTINE
+
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE glbopt_master_init(master, cfg, root_section, input_path, output_unit, para_env, error)
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(glbopt_config_type)                 :: cfg
+    TYPE(section_vals_type), POINTER         :: root_section
+    CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    INTEGER, INTENT(IN)                      :: output_unit
+    TYPE(cp_para_env_type), POINTER          :: para_env
+    TYPE(cp_error_type), INTENT(inout)       :: error
+ END SUBROUTINE glbopt_master_init
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE glbopt_master_receive_report(master, report)
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(glbopt_report_type)                 :: report
+ END SUBROUTINE glbopt_master_receive_report
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE glbopt_master_finalize(master)
+    TYPE(glbopt_master_type)                 :: master
+ END SUBROUTINE glbopt_master_finalize
 
 ! *****************************************************************************
 !> \brief Main driver to perform global optimization
@@ -85,12 +126,12 @@ MODULE glbopt_master
       shared_bitfield = IOR(shared_bitfield, recv_bitfield)
 
       SELECT CASE (tag)
-        CASE (glbopt_msg_sync)
+        CASE (glbopt_cmd_sync)
           ! walker wants to sync - send shared bitfield
-          CALL mp_send(shared_bitfield, calling_walker, glbopt_msg_sync, para_env%group)
+          CALL mp_send(shared_bitfield, calling_walker, glbopt_cmd_sync, para_env%group)
           !IF (iw>0)  WRITE (iw,'(A, I10)') " GLOBAL_OPT Master| synced with walker ", calling_walker\
 
-        CASE (glbopt_msg_report)
+        CASE (glbopt_cmd_report)
           ! walker reports a minimum
           CALL mp_recv(Epot, calling_walker, tag, para_env%group)
           Elowest = MIN(Elowest, Epot)
@@ -137,11 +178,11 @@ MODULE glbopt_master
 !        DO i=1, glbopt_cfg%n_hashes
 !          was_set = bitfield_set(hashes(i), bloomfilter)
 !          match = match .AND. was_set
-!        END DO
+!        END DO                                                                                     
 !        
 !        IF(match) THEN
 !          msg = glbopt_msg_minima_old
-!        ELSE
+!        ELSE                                                                                                                   
 !          msg = glbopt_msg_minima_new
 !          minima_counter = minima_counter + 1 
 !        END IF
