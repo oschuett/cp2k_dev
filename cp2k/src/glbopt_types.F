@@ -12,6 +12,12 @@ MODULE glbopt_types
 
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE kinds,                           ONLY: dp
+  USE f77_interface,                   ONLY: f_env_type
+  USE force_env_types,                 ONLY: force_env_type
+  USE cp_subsys_types,                 ONLY: cp_subsys_type
+  USE input_section_types,             ONLY: section_vals_type
+  USE global_types,                    ONLY: global_environment_type
+
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -68,6 +74,7 @@ MODULE glbopt_types
 
  TYPE glbopt_command_type
    INTEGER :: id = -1
+   REAL(KIND=dp) :: temperature = 0.0
  END TYPE glbopt_command_type
 
  TYPE glbopt_report_type
@@ -79,13 +86,24 @@ MODULE glbopt_types
  END TYPE glbopt_master_type
 
  TYPE glbopt_walker_type
-   INTEGER :: iw
+   INTEGER             :: iw
+   TYPE(cp_error_type)                      :: error
+   INTEGER                                  :: f_env_id
+   TYPE(f_env_type), POINTER                :: f_env
+   TYPE(force_env_type), POINTER            :: force_env
+   TYPE(cp_subsys_type), POINTER            :: subsys
+   INTEGER                                  :: iframe !indicates the NEXT frame to be written
+   TYPE(section_vals_type), POINTER         :: root_section
+   TYPE(global_environment_type), POINTER   :: globenv
+   TYPE(glbopt_config_type)                 :: cfg
+   INTEGER                                  :: gopt_max_iter
  END TYPE glbopt_walker_type
 
 
  INTEGER, PARAMETER  :: glbopt_cmd_sync          = 333
  INTEGER, PARAMETER  :: glbopt_cmd_report        = 444
  INTEGER, PARAMETER  :: glbopt_cmd_shutdown      = 999
+ INTEGER, PARAMETER  :: glbopt_cmd_mdgopt        = 888
 
 
 !  TYPE glbopt_env_type
@@ -115,7 +133,7 @@ MODULE glbopt_types
 !  END TYPE glbopt_env_type
 
  PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
- PUBLIC :: glbopt_cmd_sync, glbopt_cmd_report, glbopt_cmd_shutdown
+ PUBLIC :: glbopt_cmd_sync, glbopt_cmd_report, glbopt_cmd_shutdown, glbopt_cmd_mdgopt
  PUBLIC :: glbopt_master_type, glbopt_walker_type
  PUBLIC :: glbopt_report_type, glbopt_command_type
 

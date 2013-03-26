@@ -153,11 +153,12 @@ MODULE glbopt
        LOGICAL                                  :: should_stop
 
        CALL glbopt_master_init(master, glbopt_cfg, root_section, input_path, output_unit, para_env, error)
-       CALL glbopt_walker_init(walker, glbopt_cfg, root_section, input_path, output_unit, para_env, para_env%group, 0, error)
+       CALL glbopt_walker_init(walker, glbopt_cfg, root_section, input_path, output_unit, para_env,&
+                                  walker_group=para_env%group, walker_id=1, error=error)
 
        should_stop = .FALSE.
        DO i = 1, HUGE(1)  !infinite loop
-          CALL glbopt_master_give_command(master, cmd)
+          CALL glbopt_master_give_command(master, cmd, walker_id=1)
           CALL glbopt_walker_execute_command(walker, cmd, should_stop)
           IF(should_stop) EXIT
           CALL glbopt_walker_assemble_report(walker, report)

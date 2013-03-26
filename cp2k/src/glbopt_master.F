@@ -14,6 +14,7 @@ MODULE glbopt_master
                                              glbopt_cmd_shutdown,&
                                              glbopt_cmd_sync,&
                                              glbopt_cmd_report,&
+                                             glbopt_cmd_mdgopt,&
                                              glbopt_command_type,&
                                              glbopt_report_type,&
                                              glbopt_master_type
@@ -37,8 +38,8 @@ MODULE glbopt_master
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_master'
 
  PUBLIC :: glbopt_drive_master
- PUBLIC :: glbopt_master_init, glbopt_master_give_command
- PUBLIC :: glbopt_master_receive_report, glbopt_master_finalize
+ PUBLIC :: glbopt_master_init, glbopt_master_finalize
+ PUBLIC :: glbopt_master_give_command, glbopt_master_receive_report
 
 
  CONTAINS
@@ -46,11 +47,14 @@ MODULE glbopt_master
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_master_give_command(master, cmd)
+ SUBROUTINE glbopt_master_give_command(master, cmd, walker_id)
     TYPE(glbopt_master_type)   :: master
     TYPE(glbopt_command_type)  :: cmd
+    INTEGER                    :: walker_id
 
-    cmd%id = glbopt_cmd_shutdown
+    !cmd%id = glbopt_cmd_shutdown
+    cmd%id = glbopt_cmd_mdgopt
+    cmd%temperature = 100.0
  END SUBROUTINE
 
 
@@ -68,16 +72,18 @@ MODULE glbopt_master
 
 ! *****************************************************************************
 ! *****************************************************************************
+ SUBROUTINE glbopt_master_finalize(master)
+    TYPE(glbopt_master_type)                 :: master
+ END SUBROUTINE glbopt_master_finalize
+
+! *****************************************************************************
+! *****************************************************************************
  SUBROUTINE glbopt_master_receive_report(master, report)
     TYPE(glbopt_master_type)                 :: master
     TYPE(glbopt_report_type)                 :: report
  END SUBROUTINE glbopt_master_receive_report
 
-! *****************************************************************************
-! *****************************************************************************
- SUBROUTINE glbopt_master_finalize(master)
-    TYPE(glbopt_master_type)                 :: master
- END SUBROUTINE glbopt_master_finalize
+
 
 ! *****************************************************************************
 !> \brief Main driver to perform global optimization
