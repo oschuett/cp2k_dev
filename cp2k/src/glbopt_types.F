@@ -26,23 +26,26 @@ MODULE glbopt_types
 
  TYPE glbopt_config_type
    INTEGER                                    :: n_walkers
+
+   !history
    INTEGER                                    :: n_hashes
    INTEGER                                    :: n_colvars
    INTEGER                                    :: bloom_size
+   REAL(KIND=dp)                              :: colvar_precision
+
+   !walker
    INTEGER                                    :: epot_ndown
    INTEGER                                    :: epot_nup
    INTEGER                                    :: md_mincount_max
    INTEGER                                    :: hop_count_max
-   REAL                                       :: beta1
-   REAL                                       :: beta2
-   REAL                                       :: beta3
-   REAL                                       :: Eaccept0
-   REAL                                       :: alpha1
-   REAL                                       :: alpha2
-   REAL(KIND=dp)                              :: Emin
    REAL(KIND=dp)                              :: md_max_dist
+
+   ! strategie
+  
+   REAL(KIND=dp)                              :: Emin
+
    REAL(KIND=dp)                              :: gopt_max_dist
-   REAL(KIND=dp)                              :: colvar_precision
+
 
 
 !19	    _default_settings = {
@@ -75,18 +78,20 @@ MODULE glbopt_types
  TYPE glbopt_command_type
    INTEGER :: id = -1
    REAL(KIND=dp) :: temperature = 0.0
+   REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)  :: positions
  END TYPE glbopt_command_type
 
  TYPE glbopt_report_type
-   INTEGER :: id = -1
+   INTEGER                                   :: walker_id = -1
+   REAL(KIND=dp)                             :: Epot = 0.0
+   REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)  :: positions
  END TYPE glbopt_report_type
 
- TYPE glbopt_master_type
-   INTEGER :: foo = 42
- END TYPE glbopt_master_type
+
 
  TYPE glbopt_walker_type
-   INTEGER             :: iw
+   INTEGER                                  :: id
+   INTEGER                                  :: iw
    TYPE(cp_error_type)                      :: error
    INTEGER                                  :: f_env_id
    TYPE(f_env_type), POINTER                :: f_env
@@ -134,7 +139,7 @@ MODULE glbopt_types
 
  PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
  PUBLIC :: glbopt_cmd_sync, glbopt_cmd_report, glbopt_cmd_shutdown, glbopt_cmd_mdgopt
- PUBLIC :: glbopt_master_type, glbopt_walker_type
+ PUBLIC :: glbopt_walker_type
  PUBLIC :: glbopt_report_type, glbopt_command_type
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_types' 

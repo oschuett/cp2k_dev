@@ -11,15 +11,13 @@
 MODULE glbopt
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE f77_interface,                   ONLY: create_force_env
-  USE glbopt_master,                   ONLY: glbopt_drive_master,&
+  USE glbopt_master,                   ONLY: glbopt_master_type,&
                                              glbopt_master_init,&
                                              glbopt_master_give_command,&
-                                             glbopt_master_receive_report,&
                                              glbopt_master_finalize
   USE glbopt_types,                    ONLY: glbopt_config_type,&
                                              glbopt_command_type,&
                                              glbopt_report_type,&
-                                             glbopt_master_type,&
                                              glbopt_walker_type
   USE glbopt_walker,                   ONLY: glbopt_walker_init,&
                                              glbopt_walker_finalize,&
@@ -84,12 +82,7 @@ MODULE glbopt
     glbopt_cfg%epot_nup = 2
     glbopt_cfg%md_mincount_max = 3
     glbopt_cfg%hop_count_max = 100
-    glbopt_cfg%beta1  = 1.1
-    ! glbopt_cfg%beta2  = 1.1 !we do not differentiate for this case
-    glbopt_cfg%beta3  = 1.0 / 1.1
-    glbopt_cfg%Eaccept0 = 0.005
-    glbopt_cfg%alpha1 = 0.98
-    glbopt_cfg%alpha2 = 1 / 0.98
+ 
     glbopt_cfg%md_max_dist   = 3.0/angstrom
     glbopt_cfg%gopt_max_dist = 3.0/angstrom
     glbopt_cfg%colvar_precision = 1.0e-6
@@ -157,12 +150,10 @@ MODULE glbopt
                                   walker_group=para_env%group, walker_id=1, error=error)
 
        should_stop = .FALSE.
-       DO i = 1, HUGE(1)  !infinite loop
-          CALL glbopt_master_give_command(master, cmd, walker_id=1)
-          CALL glbopt_walker_execute_command(walker, cmd, should_stop)
-          IF(should_stop) EXIT
+       DO WHILE(.NOT. should_stop)
           CALL glbopt_walker_assemble_report(walker, report)
-          CALL glbopt_master_receive_report(master, report)
+          CALL glbopt_master_give_command(master, report, cmd)
+          CALL glbopt_walker_execute_command(walker, cmd, should_stop)
        END DO
 
        CALL glbopt_walker_finalize(walker)
