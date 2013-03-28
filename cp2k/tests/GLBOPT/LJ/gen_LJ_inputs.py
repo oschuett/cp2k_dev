@@ -157,7 +157,7 @@ def gen_glbopt_input(size, Emin, run):
      &END RESTART
     &END BFGS
     &PRINT
-      &PROGRAM_RUN_INFO SILENT
+      &PROGRAM_RUN_INFO OFF
       &END PROGRAM_RUN_INFO
     &END PRINT
   &END GEO_OPT
