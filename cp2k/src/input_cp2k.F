@@ -41,7 +41,7 @@ MODULE input_cp2k
   USE input_cp2k_motion,               ONLY: create_motion_section
   USE input_cp2k_rsgrid,               ONLY: create_rsgrid_section
   USE input_cp2k_vib,                  ONLY: create_vib_section
-  USE input_global_opt,                ONLY: create_global_opt_section
+  USE glbopt_input,                    ONLY: create_global_opt_section
   USE input_keyword_types,             ONLY: keyword_create,&
                                              keyword_release,&
                                              keyword_type
@@ -173,11 +173,11 @@ CONTAINS
        CALL create_optimize_input_section(section,error=error)
        CALL section_add_subsection(root_section,section,error=error)
        CALL section_release(section,error=error)
-       
+
        CALL create_global_opt_section(section,error=error)
        CALL section_add_subsection(root_section,section,error=error)
        CALL section_release(section,error=error)
-       
+
        CALL create_ext_restart_section(section,error=error)
        CALL section_add_subsection(root_section,section,error=error)
        CALL section_release(section,error=error)

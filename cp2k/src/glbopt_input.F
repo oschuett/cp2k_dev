@@ -4,13 +4,19 @@
 !-----------------------------------------------------------------------------!
 
 ! *****************************************************************************
-!> \brief builds the input structure for global optimization
+!> \brief performs global geometry optimization
 !> \par History
-!>      11.2012 created [Ole]
 !> \author Ole
 ! *****************************************************************************
-MODULE input_global_opt
-  USE f77_blas
+MODULE glbopt_input
+  USE glbopt_minhop_input,             ONLY: glbopt_create_minhop_section
+  USE input_section_types,             ONLY: section_vals_get,&
+                                             section_vals_get_subs_vals,&
+                                             section_vals_type,&
+                                             section_vals_val_get,&
+                                             section_vals_val_set
+  USE kinds,                           ONLY: default_path_length,&
+                                             default_string_length
   USE cp_output_handling,              ONLY: cp_print_key_section_create
   USE input_keyword_types,             ONLY: keyword_create,&
                                              keyword_release,&
@@ -21,75 +27,79 @@ MODULE input_global_opt
                                              section_release,&
                                              section_type
   USE input_val_types,                 ONLY: integer_t, real_t
-  USE input_constants
+  USE input_constants,                 ONLY: low_print_level, add_last_numeric
+
+
 #include "cp_common_uses.h"
 
-  IMPLICIT NONE
-  PRIVATE
+ IMPLICIT NONE
+ PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'input_global_opt'
-  PUBLIC :: create_global_opt_section
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_input'
 
-CONTAINS
+ PUBLIC :: create_global_opt_section
+ 
+  CONTAINS 
+ 
+ 
 
-! *****************************************************************************
-! *****************************************************************************
-  SUBROUTINE create_global_opt_section(section,error)
-    TYPE(section_type), POINTER              :: section, subsection, print_key
+!! *****************************************************************************
+!! *****************************************************************************
+  SUBROUTINE create_global_opt_section(glbopt_section,error)
+    TYPE(section_type), POINTER              :: glbopt_section
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'create_global_opt_section', &
-      routineP = moduleN//':'//routineN
-
-    LOGICAL                                  :: failure
+    TYPE(section_type), POINTER              :: subsection, printkey
     TYPE(keyword_type), POINTER              :: keyword
 
-    failure=.FALSE.
+    NULLIFY(glbopt_section, subsection, printkey, keyword)
 
-    CPPrecondition(.NOT.ASSOCIATED(section),cp_failure_level,routineP,error,failure)
-    CALL section_create(section,name="GLOBAL_OPT",&
+    CALL section_create(glbopt_section,name="GLOBAL_OPT",&
          description="blah TODO.",&
          repeats=.FALSE., required=.TRUE., supported_feature=.TRUE.,error=error)
-    NULLIFY(keyword)
+
     CALL keyword_create(keyword, name="NUMBER_OF_WALKERS",&
         description="balba TODO.",&
         usage="NUMBER_OF_WALKERS <INTEGER>", &
         type_of_var=integer_t,required=.TRUE.,error=error)
-    CALL section_add_keyword(section, keyword, error=error)
+    CALL section_add_keyword(glbopt_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
     CALL keyword_create(keyword, name="EMIN",&
         description="balba TODO.",&
         usage="EMIN <REAL>", &
         type_of_var=real_t,unit_str="hartree",required=.TRUE.,error=error)
-    CALL section_add_keyword(section, keyword, error=error)
+    CALL section_add_keyword(glbopt_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
-
-    NULLIFY(subsection)
     CALL section_create(subsection,name="PRINT",&
                description="Controls the printing properties during a global optimization run",&
                n_keywords=0, n_subsections=1, repeats=.TRUE., required=.FALSE.,&
                error=error)
-    NULLIFY(print_key)
-    CALL cp_print_key_section_create(print_key,"WALKER_RUN_INFO",&
+
+    CALL cp_print_key_section_create(printkey,"WALKER_RUN_INFO",&
                description="Controls the printing of the walker's basic information during the global optimization", &
                print_level=low_print_level,add_last=add_last_numeric,filename="__STD_OUT__",&
                error=error)
-    CALL section_add_subsection(subsection,print_key,error=error)
-    CALL section_release(print_key,error=error)
+    CALL section_add_subsection(subsection,printkey,error=error)
+    CALL section_release(printkey,error=error)
 
-    CALL cp_print_key_section_create(print_key,"MASTER_RUN_INFO",&
+    CALL cp_print_key_section_create(printkey,"MASTER_RUN_INFO",&
                description="Controls the printing of the masters's basic information during the global optimization", &
                print_level=low_print_level,add_last=add_last_numeric,filename="__STD_OUT__",&
                error=error)
-    CALL section_add_subsection(subsection,print_key,error=error)
-    CALL section_release(print_key,error=error)
+    CALL section_add_subsection(subsection,printkey,error=error)
+    CALL section_release(printkey,error=error)
 
-    CALL section_add_subsection(section,subsection,error=error)
+    CALL section_add_subsection(glbopt_section,subsection,error=error)
     CALL section_release(subsection,error=error)
 
+    CALL glbopt_create_minhop_section(subsection, error)
+    CALL section_add_subsection(glbopt_section,subsection,error=error)
+    CALL section_release(subsection,error=error)
+
+    !CALL glbopt_walker_register_input(glbopt_section, error)
   END SUBROUTINE create_global_opt_section
 
-END MODULE input_global_opt
+END MODULE glbopt_input
 

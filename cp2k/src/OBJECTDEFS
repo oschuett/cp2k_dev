@@ -798,7 +798,9 @@ OBJECTS_GENERIC =\
  glbopt_callback.o\
  glbopt_utils.o\
  glbopt_history.o\
+ glbopt_input.o\
+ glbopt_minhop.o\
+ glbopt_minhop_input.o\
  mdctrl_types.o\
  mdctrl_methods.o\
- input_global_opt.o\
  hash_functions.o

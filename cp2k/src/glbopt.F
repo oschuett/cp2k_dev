@@ -13,7 +13,7 @@ MODULE glbopt
   USE f77_interface,                   ONLY: create_force_env
   USE glbopt_master,                   ONLY: glbopt_master_type,&
                                              glbopt_master_init,&
-                                             glbopt_master_give_command,&
+                                             glbopt_master_steer,&
                                              glbopt_master_finalize
   USE glbopt_types,                    ONLY: glbopt_config_type,&
                                              glbopt_command_type,&
@@ -38,8 +38,18 @@ MODULE glbopt
                                              timestop
 
   USE physcon,                         ONLY: angstrom
-
-
+  USE cp_output_handling,              ONLY: cp_print_key_section_create
+  USE input_keyword_types,             ONLY: keyword_create,&
+                                             keyword_release,&
+                                             keyword_type
+  USE input_section_types,             ONLY: section_add_keyword,&
+                                             section_add_subsection,&
+                                             section_create,&
+                                             section_release,&
+                                             section_type
+  USE input_val_types,                 ONLY: integer_t, real_t
+  USE input_constants,                 ONLY: low_print_level, add_last_numeric
+  USE glbopt_input
 
 #include "cp_common_uses.h"
 
@@ -152,7 +162,7 @@ MODULE glbopt
        should_stop = .FALSE.
        DO WHILE(.NOT. should_stop)
           CALL glbopt_walker_assemble_report(walker, report)
-          CALL glbopt_master_give_command(master, report, cmd)
+          CALL glbopt_master_steer(master, report, cmd)
           CALL glbopt_walker_execute_command(walker, cmd, should_stop)
        END DO
 
@@ -161,7 +171,7 @@ MODULE glbopt
 
     END SUBROUTINE glbopt_serial_driver
 
-!
+
 !! *****************************************************************************
 !! *****************************************************************************
 !   SUBROUTINE driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)

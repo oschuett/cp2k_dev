@@ -58,7 +58,17 @@ MODULE glbopt_walker
   USE particle_list_types,             ONLY: particle_list_type
   USE kinds,                           ONLY: dp
   USE glbopt_utils,                    ONLY: particles_connected
-
+  USE cp_output_handling,              ONLY: cp_print_key_section_create
+  USE input_keyword_types,             ONLY: keyword_create,&
+                                             keyword_release,&
+                                             keyword_type
+  USE input_section_types,             ONLY: section_add_keyword,&
+                                             section_add_subsection,&
+                                             section_create,&
+                                             section_release,&
+                                             section_type
+  USE input_val_types,                 ONLY: integer_t, real_t
+  !USE input_constants
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -68,7 +78,6 @@ MODULE glbopt_walker
 
  PUBLIC :: glbopt_walker_init, glbopt_walker_finalize
  PUBLIC :: glbopt_walker_execute_command, glbopt_walker_assemble_report
-
 
  CONTAINS
 
@@ -274,6 +283,7 @@ MODULE glbopt_walker
       IF (walker%iw>0) WRITE (walker%iw,'(A,I4,A)') " GLOBAL_OPT| gopt ended after ", walker%iframe-prev_iframe-1, " steps."
 
    END SUBROUTINE run_mdgopt
+
 
 !! *****************************************************************************
 !!> \brief Main driver to perform global optimization
