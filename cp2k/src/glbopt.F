@@ -143,8 +143,7 @@ MODULE glbopt
        CALL glbopt_serial_driver(glbopt_cfg, root_section, input_path, output_unit, para_env, error)
     ELSE
        IF(output_unit > 0) WRITE(output_unit,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
-       STOP "not implemented yet"
-       !CALL driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
+       CALL glbopt_parallel_driver(glbopt_cfg, root_section, input_path, output_unit, para_env, error)
     ENDIF
 
     CALL timestop(handle)
@@ -199,7 +198,7 @@ MODULE glbopt
        TYPE(glbopt_walker_type)                 :: walker
        TYPE(glbopt_command_type)                :: cmd
        TYPE(glbopt_report_type)                 :: report
-       INTEGER                                  :: i_shutdowns
+       INTEGER                                  :: i_shutdowns, walker_id
        LOGICAL                                  :: should_stop
 
        TYPE(glbopt_mpi_type)                    :: glbopt_mpi
@@ -207,11 +206,11 @@ MODULE glbopt
        INTEGER :: n_walkers
        n_walkers = glbopt_cfg%n_walkers
 
-       CALL glbopt_mpi_init(para_env, glbopt_mpi, n_walkers, output_unit, error)
+       CALL glbopt_mpi_init(para_env, glbopt_mpi, n_walkers, walker_id, output_unit, error)
 
        IF(ASSOCIATED(glbopt_mpi%walker)) THEN ! I'm a walker
           CALL glbopt_walker_init(walker, glbopt_cfg, root_section, input_path, output_unit, para_env,&
-                                  walker_group=glbopt_mpi%walker%group, walker_id=1, error=error)
+                                  walker_group=glbopt_mpi%walker%group, walker_id=walker_id, error=error)
           should_stop = .FALSE.
           DO WHILE(.NOT. should_stop)
              CALL glbopt_walker_assemble_report(walker, report)
@@ -228,7 +227,7 @@ MODULE glbopt
           DO WHILE(i_shutdowns < n_walkers)
              CALL glbopt_mpi_recv_report(glbopt_mpi, report)
              CALL glbopt_master_steer(master, report, cmd)
-             CALL glbopt_mpi_send_command(glbopt_mpi, cmd)
+             CALL glbopt_mpi_send_command(glbopt_mpi, report%walker_id, cmd)
              IF(cmd%id == GLBOPT_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
           END DO
           CALL glbopt_master_finalize(master)

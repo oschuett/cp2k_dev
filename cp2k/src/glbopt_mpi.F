@@ -34,7 +34,7 @@ MODULE glbopt_mpi
   USE message_passing,                 ONLY: mp_comm_free,&
                                              mp_comm_split,&
                                              mp_comm_split_direct,&
-                                             mp_environ
+                                             mp_environ, mp_sum
   USE timings,                         ONLY: timeset,&
                                              timestop
 
@@ -50,8 +50,9 @@ MODULE glbopt_mpi
                                              section_type
   USE input_val_types,                 ONLY: integer_t, real_t
   USE input_constants,                 ONLY: low_print_level, add_last_numeric
-  
-
+  USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
+                                             mp_recv,&
+                                             mp_send, mp_abort
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -68,74 +69,80 @@ MODULE glbopt_mpi
     TYPE(cp_para_env_type), POINTER          :: world => Null()
     TYPE(cp_para_env_type), POINTER          :: walker  => Null()
     TYPE(cp_para_env_type), POINTER          :: aux  => Null()
+    INTEGER, DIMENSION(:), ALLOCATABLE       :: wid2group
  END TYPE glbopt_mpi_type
-  CONTAINS
+
+ CONTAINS
 
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_mpi_init(world_para_env, glbopt_mpi, n_walkers, iw, error)
+   SUBROUTINE glbopt_mpi_init(world_para_env, glbopt_mpi, n_walkers, walker_id, iw, error)
     TYPE(cp_para_env_type), POINTER          :: world_para_env
     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
     INTEGER, INTENT(IN)                      :: n_walkers
+    INTEGER, INTENT(OUT)                     :: walker_id
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    INTEGER :: my_walker_id, n_groups_created, &
+    INTEGER :: n_groups_created, &
       pe_per_walker, subgroup, subgroup_rank, subgroup_size, walker_group
     LOGICAL                                  :: im_the_master
     INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
     INTEGER, DIMENSION(0:world_para_env%num_pe-2), TARGET :: group_distribution
 
-
+    walker_id = -1
     glbopt_mpi%world => world_para_env
 
     ! ====== Setup of MPI-Groups ======
-    IF (MOD(world_para_env%num_pe-1, n_walkers) /= 0) &
+    IF (MOD(glbopt_mpi%world%num_pe-1, n_walkers) /= 0) &
        STOP "number of processors-1 is not divisible by n_walkers."
-    IF (world_para_env%num_pe < n_walkers + 1) &
+    IF (glbopt_mpi%world%num_pe < n_walkers + 1) &
        STOP "There are not enough processes for n_walkers + 1. Aborting."
 
-    pe_per_walker = (world_para_env%num_pe-1)/n_walkers
+    pe_per_walker = (glbopt_mpi%world%num_pe-1)/n_walkers
 
-    WRITE(*,*) "!!! Number of mpi ranks: ",world_para_env%num_pe
+    WRITE(*,*) "!!! Number of mpi ranks: ", glbopt_mpi%world%num_pe
     WRITE(*,*) "!!! Number of walkers: ", n_walkers
 
 
-    ! the last task becomes the master. Keeps node-alignment of other tasks.
-    im_the_master = (world_para_env%mepos == world_para_env%num_pe-1)
+    ! the last task becomes the master. Preseves node-alignment of other tasks.
+    im_the_master = (glbopt_mpi%world%mepos == glbopt_mpi%world%num_pe-1)
 
     ! First split split para_env%group into a master- and a walkers-groups...
     IF (im_the_master) THEN
-       CALL mp_comm_split_direct(world_para_env%group, subgroup, 1)
+       CALL mp_comm_split_direct(glbopt_mpi%world%group, subgroup, 1)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
        WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
        IF(subgroup_size/=1) STOP "glbopt: mp_comm_split_direct failed (master)"
     ELSE
-       CALL mp_comm_split_direct(world_para_env%group, subgroup, 2)
+       CALL mp_comm_split_direct(glbopt_mpi%world%group, subgroup, 2)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
        WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
-       IF(subgroup_size/=world_para_env%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
+       IF(subgroup_size/=glbopt_mpi%world%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
     ENDIF
 
     CALL cp_para_env_create(glbopt_mpi%aux, group=subgroup, error=error)
 
-    IF (im_the_master) THEN
-       !CALL glbopt_drive_master(glbopt_cfg, root_section, para_env, error)
-    ELSE
+    ALLOCATE(glbopt_mpi%wid2group(n_walkers))
+    glbopt_mpi%wid2group = 0
+
+    IF(.NOT. im_the_master) THEN
        ! ...then split walkers-group into n_walkers groups - one for each walker.
        group_distribution_p => group_distribution
        CALL mp_comm_split(subgroup, walker_group, n_groups_created, group_distribution_p, n_subgroups=n_walkers)
-       my_walker_id = group_distribution(subgroup_rank)
+       walker_id = group_distribution(subgroup_rank) + 1 ! shall start by 1
        IF(n_groups_created/=n_walkers) STOP "glbopt: mp_comm_split failed."
        CALL cp_para_env_create(glbopt_mpi%walker, group=walker_group, error=error)
 
-       ! f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
-       !CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, walker_group, my_walker_id, error)
-       !CALL mp_comm_free(walker_group)
+       ! collect world-ranks of each walker groups rank-0 node
+       IF(glbopt_mpi%walker%mepos == 0) &
+          glbopt_mpi%wid2group(walker_id) = glbopt_mpi%world%mepos
+
     ENDIF
 
-    !CALL mp_comm_free(subgroup)
+    CALL mp_sum(glbopt_mpi%wid2group, glbopt_mpi%world%group)
+    WRITe (*,*), "wid2group table: ",glbopt_mpi%wid2group
 
   END SUBROUTINE glbopt_mpi_init
 
@@ -151,7 +158,7 @@ MODULE glbopt_mpi
     If(ASSOCIATED(glbopt_mpi%walker)) CALL mp_comm_free(glbopt_mpi%walker%group)
     CALL mp_comm_free(glbopt_mpi%aux%group)
     NULLIFY(glbopt_mpi%walker, glbopt_mpi%aux)
-
+    DEALLOCATE(glbopt_mpi%wid2group)
   END SUBROUTINE glbopt_mpi_finalize
 
 
@@ -161,6 +168,15 @@ MODULE glbopt_mpi
      TYPE(glbopt_mpi_type)                    :: glbopt_mpi
      TYPE(glbopt_report_type)                 :: report
 
+     INTEGER :: tag, dest
+     dest = glbopt_mpi%world%num_pe-1
+     tag = 42
+
+     !TODO: this is inefficient - could pack everything into one buffer
+     CALL mp_send(report%walker_id,       dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(report%Epot,            dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(SIZE(report%positions), dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(report%positions,       dest, tag, glbopt_mpi%world%group)
   END SUBROUTINE glbopt_mpi_send_report
 
 ! *****************************************************************************
@@ -168,15 +184,40 @@ MODULE glbopt_mpi
   SUBROUTINE glbopt_mpi_recv_report(glbopt_mpi, report)
      TYPE(glbopt_mpi_type)                    :: glbopt_mpi
      TYPE(glbopt_report_type)                 :: report
+     INTEGER :: src, tag, s
 
+     tag=42
+     src=mp_any_source
+
+     CALL mp_recv(report%walker_id, src, tag, glbopt_mpi%world%group)
+
+     IF(src /= glbopt_mpi%wid2group(report%walker_id)) &
+        CALL mp_abort("wid2group table corrupted")
+
+     CALL mp_recv(report%Epot,      src, tag, glbopt_mpi%world%group)
+     CALL mp_recv(s,                src, tag, glbopt_mpi%world%group)
+     ! TODO atom numbers do not change, make this more efficient
+     IF(ALLOCATED(report%positions)) DEALLOCATE(report%positions)
+     ALLOCATE(report%positions(s))
+     CALL mp_recv(report%positions, src, tag, glbopt_mpi%world%group)
   END SUBROUTINE glbopt_mpi_recv_report
 
 ! *****************************************************************************
 ! *****************************************************************************
-  SUBROUTINE glbopt_mpi_send_command(glbopt_mpi, cmd)
+  SUBROUTINE glbopt_mpi_send_command(glbopt_mpi, walker_id, cmd)
      TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+     INTEGER       :: walker_id
      TYPE(glbopt_command_type)                 :: cmd
 
+     INTEGER :: tag, dest
+     tag = 42
+     dest = glbopt_mpi%wid2group(walker_id)
+
+     !TODO: this is inefficient - could pack everything into one buffer
+     CALL mp_send(cmd%id,              dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(cmd%temperature,     dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(SIZE(cmd%positions), dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(cmd%positions,       dest, tag, glbopt_mpi%world%group)
   END SUBROUTINE glbopt_mpi_send_command
 
 ! *****************************************************************************
@@ -185,6 +226,17 @@ MODULE glbopt_mpi
      TYPE(glbopt_mpi_type)                    :: glbopt_mpi
      TYPE(glbopt_command_type)                :: cmd
 
+     INTEGER :: tag, src, s
+     tag = 42
+     src = glbopt_mpi%world%num_pe-1
+
+     CALL mp_recv(cmd%id,          src, tag, glbopt_mpi%world%group)
+     CALL mp_recv(cmd%temperature, src, tag, glbopt_mpi%world%group)
+     CALL mp_recv(s,               src, tag, glbopt_mpi%world%group)
+     ! TODO atom numbers do not change, make this more efficient
+     IF(ALLOCATED(cmd%positions)) DEALLOCATE(cmd%positions)
+     ALLOCATE(cmd%positions(s))
+     CALL mp_recv(cmd%positions,   src, tag, glbopt_mpi%world%group)
   END SUBROUTINE glbopt_mpi_recv_command
 
   
