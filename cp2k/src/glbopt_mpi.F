@@ -67,7 +67,7 @@ MODULE glbopt_mpi
  TYPE glbopt_mpi_type
     TYPE(cp_para_env_type), POINTER          :: world => Null()
     TYPE(cp_para_env_type), POINTER          :: walker  => Null()
-    TYPE(cp_para_env_type), POINTER          :: aux  => Null()
+    TYPE(cp_para_env_type), POINTER          :: master  => Null()
     INTEGER, DIMENSION(:), ALLOCATABLE       :: wid2group
  END TYPE glbopt_mpi_type
 
@@ -121,7 +121,7 @@ MODULE glbopt_mpi
        IF(subgroup_size/=glbopt_mpi%world%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
     ENDIF
 
-    CALL cp_para_env_create(glbopt_mpi%aux, group=subgroup, error=error)
+    CALL cp_para_env_create(glbopt_mpi%master, group=subgroup, error=error)
 
     ALLOCATE(glbopt_mpi%wid2group(n_walkers))
     glbopt_mpi%wid2group = 0
@@ -141,7 +141,7 @@ MODULE glbopt_mpi
     ENDIF
 
     CALL mp_sum(glbopt_mpi%wid2group, glbopt_mpi%world%group)
-    WRITe (*,*), "wid2group table: ",glbopt_mpi%wid2group
+    WRITE (*,*), "wid2group table: ",glbopt_mpi%wid2group
 
   END SUBROUTINE glbopt_mpi_init
 
@@ -149,14 +149,13 @@ MODULE glbopt_mpi
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_mpi_finalize(glbopt_mpi, iw, error)
+   SUBROUTINE glbopt_mpi_finalize(glbopt_mpi, error)
     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-    INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     If(ASSOCIATED(glbopt_mpi%walker)) CALL mp_comm_free(glbopt_mpi%walker%group)
-    CALL mp_comm_free(glbopt_mpi%aux%group)
-    NULLIFY(glbopt_mpi%walker, glbopt_mpi%aux)
+    CALL mp_comm_free(glbopt_mpi%master%group)
+    NULLIFY(glbopt_mpi%walker, glbopt_mpi%master)
     DEALLOCATE(glbopt_mpi%wid2group)
   END SUBROUTINE glbopt_mpi_finalize
 

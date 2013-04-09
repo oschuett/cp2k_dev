@@ -90,10 +90,6 @@ MODULE glbopt_minhop
     INTEGER :: wid, hid
     LOGICAL :: minima_known
 
-    IF(minhop%iterations > 30) THEN
-       cmd%id = GLBOPT_CMD_SHUTDOWN
-       RETURN
-    ENDIF
 
     wid = report%walker_id
 
@@ -135,13 +131,11 @@ MODULE glbopt_minhop
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_minhop_init(minhop, cfg, root_section, input_path, output_unit, para_env, error)
+ SUBROUTINE glbopt_minhop_init(minhop, cfg, root_section, iw, error)
     TYPE(glbopt_minhop_type)                 :: minhop
     TYPE(glbopt_config_type)                 :: cfg
     TYPE(section_vals_type), POINTER         :: root_section
-    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-    INTEGER, INTENT(IN)                      :: output_unit
-    TYPE(cp_para_env_type), POINTER          :: para_env
+    INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER                                  :: i, n_histories
@@ -162,10 +156,7 @@ MODULE glbopt_minhop
     minhop%temperature(:) = 100/kelvin !TODO: make input parameter
     minhop%Eaccept(:)     = minhop%Eaccept0
 
-    ! getting an output unit for logging
-    logger => cp_error_get_logger(error)
-    minhop%iw = cp_print_key_unit_nr(logger,root_section,&
-          "GLOBAL_OPT%PRINT%WALKER_RUN_INFO",extension=".minhopLog",error=error)
+    minhop%iw = iw
 
     !DO i=1, cfg%n_walkers
     !  minhop%walkers(i)%temperature = 100*kelvin
@@ -193,6 +184,7 @@ MODULE glbopt_minhop
       CHARACTER(LEN=*)                         :: message
       IF (minhop%iw>0) &
         WRITE (minhop%iw,*) "GLOBAL_OPT| "//TRIM(message)
+     WRITE (*,*) "GLOBAL_OPT| "//TRIM(message)
    END SUBROUTINE print
 
 

@@ -105,26 +105,25 @@ MODULE glbopt_master
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_master_init(master, cfg, root_section, input_path, output_unit, para_env, error)
+ SUBROUTINE glbopt_master_init(master, para_env, cfg, root_section, error)
     TYPE(glbopt_master_type)                 :: master
+    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(glbopt_config_type)                 :: cfg
     TYPE(section_vals_type), POINTER         :: root_section
-    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-    INTEGER, INTENT(IN)                      :: output_unit
-    TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     TYPE(cp_logger_type), POINTER            :: logger
+    NULLIFY(logger)
 
-    ! getting an output unit for logging
-    logger => cp_error_get_logger(error)
-    master%iw = cp_print_key_unit_nr(logger,root_section,&
+    ! create a new logger for the given para_env
+    CALL cp_logger_create(logger, para_env, template_logger=cp_error_get_logger(error))
+    master%iw = cp_print_key_unit_nr(logger, root_section,&
           "GLOBAL_OPT%PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
 
     ALLOCATE(master%minhop)
-    CALL glbopt_minhop_init(master%minhop, cfg, root_section, input_path, output_unit, para_env, error)
+    CALL glbopt_minhop_init(master%minhop, cfg, root_section, master%iw, error)
     master%Emin = cfg%Emin !TODO: read directly from glbopt_section
-    master%max_iteration = 3
+    master%max_iteration = 3000
  END SUBROUTINE glbopt_master_init
 
 ! *****************************************************************************

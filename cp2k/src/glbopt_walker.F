@@ -101,15 +101,14 @@ MODULE glbopt_walker
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_walker_init(walker, glbopt_cfg, root_section, input_path,&
-                output_unit, para_env, walker_group, walker_id, error)
-       TYPE(glbopt_walker_type), INTENT(INOUT)         :: walker
+   SUBROUTINE glbopt_walker_init(walker, para_env, glbopt_cfg, root_section,&
+                 input_path, walker_id, error)
+       TYPE(glbopt_walker_type), INTENT(INOUT)  :: walker
+       TYPE(cp_para_env_type), POINTER          :: para_env
        TYPE(glbopt_config_type), INTENT(IN)     :: glbopt_cfg
        TYPE(section_vals_type), POINTER         :: root_section
        CHARACTER(LEN=*), INTENT(IN)             :: input_path
-       INTEGER, INTENT(IN)                      :: output_unit
-       TYPE(cp_para_env_type), POINTER          :: para_env
-       INTEGER, INTENT(in)                      :: walker_group, walker_id
+       INTEGER, INTENT(in)                      :: walker_id
        TYPE(cp_error_type), INTENT(inout)       :: error
 
        CHARACTER(len=default_path_length)       :: output_path
@@ -145,32 +144,31 @@ MODULE glbopt_walker
                             input_path=input_path, &
                             input=root_section, &
                             output_path=output_path, &
-                            output_unit=output_unit,&
-                            mpi_comm=walker_group)
+                            mpi_comm=para_env%group)
 
 
       ! ======= More setup stuff =======
       CALL f_env_add_defaults(walker%f_env_id, walker%f_env, walker%error, failure)
       if(failure) stop "glbopt_drive_walker: f_env_add_defaults failed"
       walker%force_env => walker%f_env%force_env
-      CALL force_env_get(walker%force_env, globenv=walker%globenv, subsys=walker%subsys, error=error)
+      CALL force_env_get(walker%force_env, globenv=walker%globenv, subsys=walker%subsys, error=walker%error)
       !CALL cp_subsys_get(subsys, natom=n_atoms, error=error)
       !ALLOCATE(prev_positions(1:3*n_atoms))
       !prev_positions = 0.0_dp
 
       ! We want different random-number-streams for each walker
       DO i = 1, walker_id
-         CALL reset_to_next_rng_substream(walker%globenv%gaussian_rng_stream, error)
+         CALL reset_to_next_rng_substream(walker%globenv%gaussian_rng_stream, walker%error)
       END DO
 
       ! getting an output unit for logging
-      logger => cp_error_get_logger(error)
+      logger => cp_error_get_logger(walker%error)
       walker%iw = cp_print_key_unit_nr(logger,root_section,&
-          "GLOBAL_OPT%PRINT%WALKER_RUN_INFO",extension=".walkerLog",error=error)
+          "GLOBAL_OPT%PRINT%WALKER_RUN_INFO",extension=".walkerLog", error=walker%error)
 
 
      ! fetch original value from input
-     CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=walker%gopt_max_iter, error=error)
+     CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=walker%gopt_max_iter, error=walker%error)
 
   END SUBROUTINE glbopt_walker_init
 
@@ -268,6 +266,7 @@ MODULE glbopt_walker
         !WRITE (iw,'(A,11X,E20.10)') ' GLOBAL_OPT| Lowest minima found so far [Hartree]',Elowest
         !WRITE (iw,'(A,32X,I10)')    ' GLOBAL_OPT| Number of accepted minima', n_accepted
         !WRITE (iw,'(A,20X,E20.10)') ' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
+        !WRITE (walker%iw,'(A,35X,I3)')  ' GLOBAL_OPT| Walker ID', walker%id
         WRITE (walker%iw,'(A,29X,F20.3)')  ' GLOBAL_OPT| MD temperature [K]',temperature*kelvin
         WRITE (walker%iw,'(A,31X,F20.3)')  ' GLOBAL_OPT| MD timestep [fs]',timestep*femtoseconds
         WRITE (walker%iw,'(A,25X,I10)') " GLOBAL_OPT| Starting MD at trajectory frame ", walker%iframe
