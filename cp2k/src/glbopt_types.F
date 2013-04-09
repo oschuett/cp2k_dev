@@ -91,26 +91,11 @@ MODULE glbopt_types
 
 
 
- TYPE glbopt_walker_type
-   INTEGER                                  :: id
-   INTEGER                                  :: iw
-   TYPE(cp_error_type)                      :: error
-   INTEGER                                  :: f_env_id
-   TYPE(f_env_type), POINTER                :: f_env
-   TYPE(force_env_type), POINTER            :: force_env
-   TYPE(cp_subsys_type), POINTER            :: subsys
-   INTEGER                                  :: iframe !indicates the NEXT frame to be written
-   TYPE(section_vals_type), POINTER         :: root_section
-   TYPE(global_environment_type), POINTER   :: globenv
-   TYPE(glbopt_config_type)                 :: cfg
-   INTEGER                                  :: gopt_max_iter
- END TYPE glbopt_walker_type
 
 
- INTEGER, PARAMETER  :: glbopt_cmd_sync          = 333
- INTEGER, PARAMETER  :: glbopt_cmd_report        = 444
- INTEGER, PARAMETER  :: glbopt_cmd_shutdown      = 999
- INTEGER, PARAMETER  :: glbopt_cmd_mdgopt        = 888
+
+ INTEGER, PARAMETER  :: GLBOPT_CMD_SHUTDOWN      = 999
+ INTEGER, PARAMETER  :: GLBOPT_CMD_MDGOPT        = 888
 
 
 !  TYPE glbopt_env_type
@@ -140,8 +125,7 @@ MODULE glbopt_types
 !  END TYPE glbopt_env_type
 
  PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
- PUBLIC :: glbopt_cmd_sync, glbopt_cmd_report, glbopt_cmd_shutdown, glbopt_cmd_mdgopt
- PUBLIC :: glbopt_walker_type
+ PUBLIC :: GLBOPT_CMD_SHUTDOWN, GLBOPT_CMD_MDGOPT
  PUBLIC :: glbopt_report_type, glbopt_command_type
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_types' 

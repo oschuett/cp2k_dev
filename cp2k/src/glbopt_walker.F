@@ -24,13 +24,10 @@ MODULE glbopt_walker
   USE geo_opt,                         ONLY: cp_geo_opt
   USE glbopt_types,                    ONLY: glbopt_config_type,&
                                              glbopt_mdctrl_data_type,&
-                                             glbopt_cmd_sync,&
-                                             glbopt_cmd_report,&
                                              glbopt_cmd_shutdown,&
                                              glbopt_cmd_mdgopt,&
                                              glbopt_command_type,&
-                                             glbopt_report_type,&
-                                             glbopt_walker_type
+                                             glbopt_report_type
   USE global_types,                    ONLY: global_environment_type
   USE kinds,                           ONLY: dp, sp, int_4, int_8
   USE md_run,                          ONLY: qs_mol_dyn
@@ -78,7 +75,25 @@ MODULE glbopt_walker
 
  PUBLIC :: glbopt_walker_init, glbopt_walker_finalize
  PUBLIC :: glbopt_walker_execute_command, glbopt_walker_assemble_report
+ PUBLIC :: glbopt_walker_type
 
+  TYPE glbopt_walker_type
+   PRIVATE
+   INTEGER                                  :: id
+   INTEGER                                  :: iw
+   TYPE(cp_error_type)                      :: error
+   INTEGER                                  :: f_env_id
+   TYPE(f_env_type), POINTER                :: f_env
+   TYPE(force_env_type), POINTER            :: force_env
+   TYPE(cp_subsys_type), POINTER            :: subsys
+   INTEGER                                  :: iframe !indicates the NEXT frame to be written
+   TYPE(section_vals_type), POINTER         :: root_section
+   TYPE(global_environment_type), POINTER   :: globenv
+   TYPE(glbopt_config_type)                 :: cfg
+   INTEGER                                  :: gopt_max_iter
+ END TYPE glbopt_walker_type
+ 
+ 
  CONTAINS
 
 

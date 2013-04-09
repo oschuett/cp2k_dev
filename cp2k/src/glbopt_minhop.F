@@ -12,8 +12,6 @@ MODULE glbopt_minhop
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE glbopt_types,                    ONLY: glbopt_config_type,&
                                              glbopt_cmd_shutdown,&
-                                             glbopt_cmd_sync,&
-                                             glbopt_cmd_report,&
                                              glbopt_cmd_mdgopt,&
                                              glbopt_command_type,&
                                              glbopt_report_type

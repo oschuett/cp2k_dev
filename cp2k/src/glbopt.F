@@ -17,12 +17,12 @@ MODULE glbopt
                                              glbopt_master_finalize
   USE glbopt_types,                    ONLY: glbopt_config_type,&
                                              glbopt_command_type,&
-                                             glbopt_report_type,&
-                                             glbopt_walker_type
+                                             glbopt_report_type
   USE glbopt_walker,                   ONLY: glbopt_walker_init,&
                                              glbopt_walker_finalize,&
                                              glbopt_walker_execute_command,&
-                                             glbopt_walker_assemble_report
+                                             glbopt_walker_assemble_report,&
+                                             glbopt_walker_type
   USE glbopt_mpi,                      ONLY: glbopt_mpi_init,&
                                              glbopt_mpi_finalize,&
                                              glbopt_mpi_type
