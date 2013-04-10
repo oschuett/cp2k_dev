@@ -301,7 +301,7 @@ CONTAINS
           CASE (do_optimize_input)
              CALL run_optimize_input(root_section, para_env, suberror)
           CASE (do_global_opt)
-             CALL run_global_opt(root_section, para_env, input_file_name, output_unit, suberror)
+             CALL run_global_opt(root_section, para_env, input_file_name, suberror)
           CASE (do_farming)
              CALL farming_run ( root_section, para_env, suberror )
           CASE(do_cp2k)

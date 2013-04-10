@@ -81,12 +81,12 @@ MODULE glbopt_callback
 
     ! check if we passed a minimum
     passed_minimum = .TRUE.
-    DO i=1, mdctrl_data%cfg%epot_nup
+    DO i=1, mdctrl_data%epot_nup
       IF(mdctrl_data%epot_history(i) <= mdctrl_data%epot_history(i+1)) &
          passed_minimum = .FALSE.
     END DO
 
-    DO i=mdctrl_data%cfg%epot_nup+1, mdctrl_data%cfg%epot_nup+mdctrl_data%cfg%epot_ndown
+    DO i=mdctrl_data%epot_nup+1, mdctrl_data%epot_nup+mdctrl_data%epot_ndown
       IF(mdctrl_data%epot_history(i) >= mdctrl_data%epot_history(i+1)) &
          passed_minimum = .FALSE.
     END DO
@@ -97,13 +97,13 @@ MODULE glbopt_callback
     IF(passed_minimum) &
        mdctrl_data%md_mincounter = mdctrl_data%md_mincounter + 1
 
-    IF(mdctrl_data%md_mincounter >= mdctrl_data%cfg%md_mincount_max) THEN
+    IF(mdctrl_data%md_mincounter >= mdctrl_data%md_mincount_max) THEN
        should_stop = .TRUE.
        IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MINCOUNTER."
     END IF
 
     ! Stop if cluster starts to splits into multiple fragments.
-    IF(.NOT. particles_connected(force_env, mdctrl_data%cfg%md_max_dist, error)) THEN
+    IF(.NOT. particles_connected(force_env, mdctrl_data%md_max_dist, error)) THEN
        IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MAX_DIST."
        should_stop = .TRUE.
     END IF

@@ -15,8 +15,7 @@ MODULE glbopt
                                              glbopt_master_init,&
                                              glbopt_master_steer,&
                                              glbopt_master_finalize
-  USE glbopt_types,                    ONLY: glbopt_config_type,&
-                                             glbopt_command_type,&
+  USE glbopt_types,                    ONLY: glbopt_command_type,&
                                              glbopt_report_type
   USE glbopt_walker,                   ONLY: glbopt_walker_init,&
                                              glbopt_walker_finalize,&
@@ -66,6 +65,8 @@ MODULE glbopt
                                              cp_print_key_finished_output,&
                                              cp_print_key_should_output,&
                                              cp_print_key_unit_nr
+
+
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -73,7 +74,7 @@ MODULE glbopt
 
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt'
 
- PUBLIC :: run_global_opt, glbopt_config_type
+ PUBLIC :: run_global_opt
  
   CONTAINS 
  
@@ -84,90 +85,72 @@ MODULE glbopt
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE run_global_opt(root_section, para_env, input_path, output_unit, error)
+   SUBROUTINE run_global_opt(root_section, para_env, input_path, error)
     TYPE(section_vals_type), POINTER         :: root_section
     TYPE(cp_para_env_type), POINTER          :: para_env
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
-    INTEGER, INTENT(IN)                      :: output_unit
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    TYPE(glbopt_config_type)                 :: glbopt_cfg
-
-    TYPE(section_vals_type), POINTER         :: colvar_section
-
-    CALL section_vals_val_get(root_section,"GLOBAL_OPT%NUMBER_OF_WALKERS",&
-       i_val=glbopt_cfg%n_walkers,error=error)
-    CALL section_vals_val_get(root_section,"GLOBAL_OPT%EMIN",&
-       r_val=glbopt_cfg%Emin,error=error)
-    !TODO: read from input or make educated guess
-    ! TODO: more hierarchic naming scheme eg. bloom_* md_* ...
-    glbopt_cfg%n_hashes = 10
-    glbopt_cfg%bloom_size = 2**10
-    glbopt_cfg%epot_ndown = 2
-    glbopt_cfg%epot_nup = 2
-    glbopt_cfg%md_mincount_max = 3
-    glbopt_cfg%hop_count_max = 100
- 
-    glbopt_cfg%md_max_dist   = 3.0/angstrom
-    glbopt_cfg%gopt_max_dist = 3.0/angstrom
-    glbopt_cfg%colvar_precision = 1.0e-6
-
-    ! make sure there are colvars
-    colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)
-    CALL section_vals_get(colvar_section,n_repetition=glbopt_cfg%n_colvars,error=error)
-    IF(glbopt_cfg%n_colvars == 0) STOP "No colvars found. Aborting."
-
-   
-    
-    CALL glbopt_driver(glbopt_cfg, root_section, input_path, para_env, error)
-
-  END SUBROUTINE run_global_opt
-
-! *****************************************************************************
-!> \brief Main driver to perform global optimization
-!> \param error variable to control error logging, stopping,...
-!>        see module cp_error_handling
-! *****************************************************************************
-   SUBROUTINE glbopt_driver(glbopt_cfg, root_section, input_path, para_env, error)
-    TYPE(glbopt_config_type)                 :: glbopt_cfg
-    TYPE(section_vals_type), POINTER         :: root_section
-    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-    TYPE(cp_para_env_type), POINTER          :: para_env
-    TYPE(cp_error_type), INTENT(inout)       :: error
     TYPE(cp_logger_type), POINTER            :: logger
 
-    INTEGER ::  handle, iw
-    CHARACTER(len=*), PARAMETER :: routineN = 'glbopt_driver', &
+    INTEGER ::  handle, iw, n_walkers
+    CHARACTER(len=*), PARAMETER :: routineN = 'run_global_opt', &
       routineP = moduleN//':'//routineN
     CALL timeset(routineN,handle)
 
-    ! getting an output unit for logging of master
+!   TYPE(glbopt_config_type)                 :: glbopt_cfg
+!    TYPE(section_vals_type), POINTER         :: colvar_section
+   ! CALL section_vals_val_get(root_section,"GLOBAL_OPT%EMIN",&
+   !    r_val=glbopt_cfg%Emin,error=error)
+   ! !TODO: read from input or make educated guess
+   ! ! TODO: more hierarchic naming scheme eg. bloom_* md_* ...
+   ! glbopt_cfg%n_hashes = 10
+   ! glbopt_cfg%bloom_size = 2**10
+   ! glbopt_cfg%epot_ndown = 2
+   ! glbopt_cfg%epot_nup = 2
+   ! glbopt_cfg%md_mincount_max = 3
+   ! glbopt_cfg%hop_count_max = 100
+   !
+   ! glbopt_cfg%md_max_dist   = 3.0/angstrom
+   ! glbopt_cfg%gopt_max_dist = 3.0/angstrom
+   ! glbopt_cfg%colvar_precision = 1.0e-6
+   !
+   ! ! make sure there are colvars
+   ! colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)
+   ! CALL section_vals_get(colvar_section,n_repetition=glbopt_cfg%n_colvars,error=error)
+   ! IF(glbopt_cfg%n_colvars == 0) STOP "No colvars found. Aborting."
+   !
+   !
+   !
+
     logger => cp_error_get_logger(error)
     iw = cp_print_key_unit_nr(logger,root_section,&
           "GLOBAL_OPT%PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
 
 
-    IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Reporting for duty :-)"
+    IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Ready to roll :-)"
 
-    IF(glbopt_cfg%n_walkers == 1) THEN
+    CALL section_vals_val_get(root_section,"GLOBAL_OPT%NUMBER_OF_WALKERS",&
+       i_val=n_walkers,error=error)
+
+    IF(n_walkers == 1) THEN
        IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Running in single walker mode."
-       CALL glbopt_serial_driver(glbopt_cfg, root_section, input_path, para_env, iw, error)
+       CALL glbopt_serial_driver(root_section, input_path, para_env, error)
     ELSE
        IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
-       CALL glbopt_parallel_driver(glbopt_cfg, root_section, input_path, para_env, iw, error)
+       !printkey iw passed on for output from glbopt_mpi_init()
+       CALL glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, iw, error)
     ENDIF
 
     CALL timestop(handle)
-   END SUBROUTINE glbopt_driver
+   END SUBROUTINE run_global_opt
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_serial_driver(glbopt_cfg, root_section, input_path, para_env, iw, error)
-       TYPE(glbopt_config_type)                 :: glbopt_cfg
+   SUBROUTINE glbopt_serial_driver(root_section, input_path, para_env, error)
        TYPE(section_vals_type), POINTER         :: root_section
        CHARACTER(LEN=*), INTENT(IN)             :: input_path
        TYPE(cp_para_env_type), POINTER          :: para_env
-       INTEGER, INTENT(IN)                      :: iw
        TYPE(cp_error_type), INTENT(inout)       :: error
 
        TYPE(glbopt_master_type)                 :: master
@@ -177,8 +160,8 @@ MODULE glbopt
        INTEGER                                  :: i
        LOGICAL                                  :: should_stop
 
-       CALL glbopt_master_init(master, para_env, glbopt_cfg, root_section, error)
-       CALL glbopt_walker_init(walker, para_env, glbopt_cfg, root_section, input_path, &
+       CALL glbopt_master_init(master, para_env, root_section, n_walkers=1, error=error)
+       CALL glbopt_walker_init(walker, para_env, root_section, input_path, &
                                    walker_id=1, error=error)
 
        should_stop = .FALSE.
@@ -196,8 +179,8 @@ MODULE glbopt
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_parallel_driver(glbopt_cfg, root_section, input_path, para_env, iw, error)
-       TYPE(glbopt_config_type)                 :: glbopt_cfg
+   SUBROUTINE glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, iw, error)
+       INTEGER, INTENT(IN)                      :: n_walkers
        TYPE(section_vals_type), POINTER         :: root_section
        CHARACTER(LEN=*), INTENT(IN)             :: input_path
        TYPE(cp_para_env_type), POINTER          :: para_env
@@ -213,14 +196,12 @@ MODULE glbopt
        LOGICAL                                  :: should_stop
 
        TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-       INTEGER :: n_walkers
 
-       n_walkers = glbopt_cfg%n_walkers
 
        CALL glbopt_mpi_init(para_env, glbopt_mpi, n_walkers, walker_id, iw, error=error)
 
        IF(ASSOCIATED(glbopt_mpi%walker)) THEN ! I'm a walker
-          CALL glbopt_walker_init(walker, glbopt_mpi%walker, glbopt_cfg,&
+          CALL glbopt_walker_init(walker, glbopt_mpi%walker,&
                      root_section, input_path, walker_id=walker_id, error=error)
 
           should_stop = .FALSE.
@@ -234,7 +215,8 @@ MODULE glbopt
 
        !------------------------------------------------------------------------
        ELSE  ! I'm the master
-          CALL glbopt_master_init(master, glbopt_mpi%master, glbopt_cfg, root_section, error)
+          CALL glbopt_master_init(master, glbopt_mpi%master, root_section,&
+                 n_walkers, error)
           i_shutdowns = 0
           DO WHILE(i_shutdowns < n_walkers)
              CALL glbopt_mpi_recv_report(glbopt_mpi, report)

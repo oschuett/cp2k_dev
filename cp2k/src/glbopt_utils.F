@@ -16,8 +16,6 @@ MODULE glbopt_utils
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
   USE geo_opt,                         ONLY: cp_geo_opt
-  USE glbopt_types,                    ONLY: glbopt_config_type,&
-                                             glbopt_mdctrl_data_type
   USE global_types,                    ONLY: global_environment_type
   USE kinds,                           ONLY: dp, sp, int_4, int_8
   USE physcon,                         ONLY: kelvin

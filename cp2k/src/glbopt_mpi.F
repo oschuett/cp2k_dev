@@ -16,8 +16,7 @@ MODULE glbopt_mpi
                                              glbopt_master_init,&
                                              glbopt_master_steer,&
                                              glbopt_master_finalize
-  USE glbopt_types,                    ONLY: glbopt_config_type,&
-                                             glbopt_command_type,&
+  USE glbopt_types,                    ONLY: glbopt_command_type,&
                                              glbopt_report_type
   USE glbopt_walker,                   ONLY: glbopt_walker_init,&
                                              glbopt_walker_finalize,&
@@ -52,6 +51,10 @@ MODULE glbopt_mpi
   USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
                                              mp_recv,&
                                              mp_send, mp_abort
+  USE machine,                         ONLY: default_output_unit
+  USE message_passing,                 ONLY: mp_bcast, mp_sync
+  USE cp_files,                        ONLY: close_file,&
+                                             open_file
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -84,16 +87,20 @@ MODULE glbopt_mpi
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
+    TYPE(cp_logger_type), POINTER            :: logger
+    CHARACTER(LEN=default_path_length)       :: output_path
+    INTEGER                                  :: output_unit
     INTEGER :: n_groups_created, &
       pe_per_walker, subgroup, subgroup_rank, subgroup_size, walker_group
     LOGICAL                                  :: im_the_master
     INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
     INTEGER, DIMENSION(0:world_para_env%num_pe-2), TARGET :: group_distribution
 
+
+    ! ====== Setup of MPI-Groups ======
     walker_id = -1
     glbopt_mpi%world => world_para_env
 
-    ! ====== Setup of MPI-Groups ======
     IF (MOD(glbopt_mpi%world%num_pe-1, n_walkers) /= 0) &
        STOP "number of processors-1 is not divisible by n_walkers."
     IF (glbopt_mpi%world%num_pe < n_walkers + 1) &
@@ -101,9 +108,10 @@ MODULE glbopt_mpi
 
     pe_per_walker = (glbopt_mpi%world%num_pe-1)/n_walkers
 
-    WRITE(*,*) "!!! Number of mpi ranks: ", glbopt_mpi%world%num_pe
-    WRITE(*,*) "!!! Number of walkers: ", n_walkers
-
+    IF(iw>0) THEN
+       WRITE(iw,*) "GLOBAL_OPT| Number of mpi ranks: ", glbopt_mpi%world%num_pe
+       WRITE(iw,*) "GLOBAL_OPT| Number of walkers: ", n_walkers
+    ENDIF
 
     ! the last task becomes the master. Preseves node-alignment of other tasks.
     im_the_master = (glbopt_mpi%world%mepos == glbopt_mpi%world%num_pe-1)
@@ -112,12 +120,12 @@ MODULE glbopt_mpi
     IF (im_the_master) THEN
        CALL mp_comm_split_direct(glbopt_mpi%world%group, subgroup, 1)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
+       !WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
        IF(subgroup_size/=1) STOP "glbopt: mp_comm_split_direct failed (master)"
     ELSE
        CALL mp_comm_split_direct(glbopt_mpi%world%group, subgroup, 2)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
+       !WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
        IF(subgroup_size/=glbopt_mpi%world%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
     ENDIF
 
@@ -141,10 +149,75 @@ MODULE glbopt_mpi
     ENDIF
 
     CALL mp_sum(glbopt_mpi%wid2group, glbopt_mpi%world%group)
-    WRITE (*,*), "wid2group table: ",glbopt_mpi%wid2group
+    !WRITE (*,*), "wid2group table: ",glbopt_mpi%wid2group
+
+
+    CALL logger_init(glbopt_mpi, error)
 
   END SUBROUTINE glbopt_mpi_init
 
+ ! *****************************************************************************
+ ! *****************************************************************************
+  SUBROUTINE logger_init(glbopt_mpi, error)
+    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+    TYPE(cp_error_type), INTENT(inout)       :: error
+
+    TYPE(cp_logger_type), POINTER            :: logger, new_logger
+    CHARACTER(LEN=default_path_length)       :: output_path
+    INTEGER                                  :: output_unit
+
+    ! broadcast output_path to all ranks
+    logger => cp_error_get_logger(error)
+    output_unit = logger%default_local_unit_nr
+    output_path = ""
+    IF(glbopt_mpi%world%mepos == glbopt_mpi%world%source) THEN
+       output_path = "__STD_OUT__"
+       IF(output_unit /= default_output_unit)&
+          INQUIRE(unit=output_unit, name=output_path)
+       CALL FLUSH(output_unit) !TODO: really needed?
+    END IF
+
+    CALL mp_bcast(output_path, glbopt_mpi%world%source, glbopt_mpi%world%group)
+
+    ! restore default logger on master's rank-0
+    IF(.NOT. ASSOCIATED(glbopt_mpi%master)) RETURN
+
+    output_unit = -1
+    IF(glbopt_mpi%master%source == glbopt_mpi%master%mepos) THEN
+      ! open output_unit according to output_path
+       output_unit = default_output_unit
+       IF (output_path /= "__STD_OUT__") &
+          CALL open_file(file_name=output_path,file_status="UNKNOWN",&
+             file_action="WRITE", file_position="APPEND", unit_number=output_unit)
+    ENDIF
+
+    ! create default logger from output_unit
+    NULLIFY(new_logger)
+    CALL cp_logger_create(new_logger, para_env=glbopt_mpi%master,&
+       default_global_unit_nr=output_unit, close_global_unit_on_dealloc=.FALSE.)
+    CALL cp_add_default_logger(new_logger)
+    CALL cp_logger_release(new_logger)
+    CALL cp_error_set(error, logger=new_logger)
+    !TODO also change the loggers of the walkers?
+  END SUBROUTINE logger_init
+
+ ! *****************************************************************************
+ ! *****************************************************************************
+  SUBROUTINE logger_finalize(glbopt_mpi, error)
+    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+    TYPE(cp_error_type), INTENT(inout)       :: error
+    TYPE(cp_logger_type), POINTER            :: logger, old_logger
+    INTEGER                                  :: output_unit
+
+    IF(.NOT.ASSOCIATED(glbopt_mpi%master)) RETURN
+    logger => cp_error_get_logger(error)
+    output_unit = logger%default_local_unit_nr
+    IF(output_unit > 0) CALL FLUSH(output_unit) !TODO: really needed?
+
+    CALL cp_rm_default_logger() !pops the top-most logger
+    old_logger => cp_error_get_logger(error)
+    CALL cp_error_set(error, logger=old_logger)
+  END SUBROUTINE logger_finalize
 
 
 ! *****************************************************************************
@@ -152,6 +225,9 @@ MODULE glbopt_mpi
    SUBROUTINE glbopt_mpi_finalize(glbopt_mpi, error)
     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
     TYPE(cp_error_type), INTENT(inout)       :: error
+
+    CALL mp_sync(glbopt_mpi%world%group)
+    CALL logger_finalize(glbopt_mpi, error)
 
     If(ASSOCIATED(glbopt_mpi%walker)) CALL mp_comm_free(glbopt_mpi%walker%group)
     CALL mp_comm_free(glbopt_mpi%master%group)
@@ -237,106 +313,6 @@ MODULE glbopt_mpi
      CALL mp_recv(cmd%positions,   src, tag, glbopt_mpi%world%group)
   END SUBROUTINE glbopt_mpi_recv_command
 
-  
-!! *****************************************************************************
-!! *****************************************************************************
-!   SUBROUTINE driver_master_walkers(glbopt_cfg, root_section, para_env, input_path, output_unit, error)
-!    TYPE(glbopt_config_type)                 :: glbopt_cfg
-!    TYPE(section_vals_type), POINTER         :: root_section
-!    TYPE(cp_para_env_type), POINTER          :: para_env
-!    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-!    INTEGER, INTENT(IN)                      :: output_unit
-!    TYPE(cp_error_type), INTENT(inout)       :: error
-!
-!    INTEGER :: f_env_id, my_walker_id, n_groups_created, &
-!      pe_per_walker, subgroup, subgroup_rank, subgroup_size, walker_group
-!    LOGICAL                                  :: im_the_master
-!    INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
-!    INTEGER, &
-!      DIMENSION(0:para_env%num_pe-2), TARGET :: group_distribution
-!
-!
-!    ! ====== Setup of MPI-Groups ======
-!    IF (MOD(para_env%num_pe-1, glbopt_cfg%n_walkers) /= 0) &
-!       STOP "number of processors-1 is not divisible by n_walkers."
-!    IF (para_env%num_pe < glbopt_cfg%n_walkers + 1) &
-!       STOP "There are not enough processes for n_walkers + 1. Aborting."
-!
-!    pe_per_walker = (para_env%num_pe-1)/glbopt_cfg%n_walkers
-!
-!    WRITE(*,*) "!!! Number of mpi ranks: ",para_env%num_pe
-!    WRITE(*,*) "!!! Number of walkers: ", glbopt_cfg%n_walkers
-!    WRITE(*,*) "!!! Number of colvars: ", glbopt_cfg%n_colvars
-!
-!    ! the last task becomes the master. Keeps node-alignment of other tasks.
-!    im_the_master = (para_env%mepos == para_env%num_pe-1)
-!
-!    ! First split split para_env%group into a master- and a walkers-groups...
-!    IF (im_the_master) THEN
-!       CALL mp_comm_split_direct(para_env%group, subgroup, 1)
-!       CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-!       !WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
-!       IF(subgroup_size/=1) STOP "glbopt: mp_comm_split_direct failed (master)"
-!    ELSE
-!       CALL mp_comm_split_direct(para_env%group, subgroup, 2)
-!       CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-!       !WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
-!       IF(subgroup_size/=para_env%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
-!    ENDIF
-!
-!
-!    IF (im_the_master) THEN
-!       CALL glbopt_drive_master(glbopt_cfg, root_section, para_env, error)
-!    ELSE
-!       ! ...then split walkers-group into n_walkers groups - one for each walker.
-!       group_distribution_p => group_distribution
-!       CALL mp_comm_split(subgroup, walker_group, n_groups_created, group_distribution_p, n_subgroups=glbopt_cfg%n_walkers)
-!       my_walker_id = group_distribution(subgroup_rank)
-!       IF(n_groups_created/=glbopt_cfg%n_walkers) STOP "glbopt: mp_comm_split failed."
-!       ! f_env_id = walker_create_f_env(root_section, input_path, walker_group, my_walker_id, error)
-!       CALL glbopt_drive_walker(glbopt_cfg, root_section, input_path, output_unit, para_env, walker_group, my_walker_id, error)
-!       CALL mp_comm_free(walker_group)
-!    ENDIF
-!
-!    CALL mp_comm_free(subgroup)
-!
-!  END SUBROUTINE driver_master_walkers
-!
-!
-!! *****************************************************************************
-!  FUNCTION walker_create_f_env(root_section, input_path, mpi_comm, walker_id, error) RESULT(f_env_id)
-!    TYPE(section_vals_type), POINTER         :: root_section
-!    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-!    INTEGER, INTENT(IN)                      :: mpi_comm, walker_id
-!    TYPE(cp_error_type), INTENT(inout)       :: error
-!    INTEGER                                  :: ierr, f_env_id
-!
-!    CHARACTER(len=default_path_length)       :: output_path
-!    CHARACTER(len=default_string_length)     :: new_project_name, &
-!                                                project_name, walker_name
-!
-!! change the PROJECT_NAME to avoid clashes during backup of RESTART-files
-!    IF(walker_id > 999) STOP "walker_create_f_env: Did not expect so many walkers."
-!    CALL section_vals_val_get(root_section, "GLOBAL%PROJECT_NAME", c_val=project_name,error=error)
-!    WRITE(walker_name,"('WALKER',I3.3)"), walker_id
-!    !walker_name = "walker"//ADJUSTL(cp_to_string(walker_id))
-!    new_project_name = TRIM(project_name)//"-"//walker_name
-!    CALL section_vals_val_set(root_section, "GLOBAL%PROJECT_NAME", c_val=new_project_name,error=error)
-!
-!    output_path = TRIM(new_project_name)//".out"
-!    WRITE (*,*) output_path
-!
-!    CALL create_force_env(f_env_id, &
-!                          input_path=input_path, &
-!                          input=root_section, &
-!                          output_path=output_path, &
-!                          mpi_comm=mpi_comm,&
-!                          ierr=ierr)
-!
-!    IF(ierr/=0) STOP "glbopt: failed to create force_env"
-!
-!  END FUNCTION walker_create_f_env
-!
-!
+
 END MODULE glbopt_mpi
 

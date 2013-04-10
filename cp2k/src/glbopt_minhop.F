@@ -10,8 +10,7 @@
 ! *****************************************************************************
 MODULE glbopt_minhop
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE glbopt_types,                    ONLY: glbopt_config_type,&
-                                             glbopt_cmd_shutdown,&
+  USE glbopt_types,                    ONLY: glbopt_cmd_shutdown,&
                                              glbopt_cmd_mdgopt,&
                                              glbopt_command_type,&
                                              glbopt_report_type
@@ -74,6 +73,7 @@ MODULE glbopt_minhop
    INTEGER                                             :: iterations = 0
    INTEGER                                             :: n_accepted = 0
    INTEGER                                             :: iw
+   INTEGER                                             :: n_walkers
    LOGICAL                                             :: share_history = .TRUE.
  END TYPE glbopt_minhop_type
 
@@ -123,18 +123,20 @@ MODULE glbopt_minhop
 
     minhop%iterations = minhop%iterations + 1
     IF(minhop%iw > 0) &
-    WRITE (minhop%iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
-         minhop%iterations,'. Minima Hopping Iteration ',REPEAT("*", 15)
+    WRITE(minhop%iw,*) "GLOBAL_OPT| Minima Hopping Interation ", minhop%iterations
+    !IF(minhop%iw > 0) &
+    !WRITE (minhop%iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
+    !     minhop%iterations,'. Minima Hopping Iteration ',REPEAT("*", 15)
 
- END SUBROUTINE
+ END SUBROUTINE glbopt_minhop_steer
 
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_minhop_init(minhop, cfg, root_section, iw, error)
+ SUBROUTINE glbopt_minhop_init(minhop, root_section, n_walkers, iw, error)
     TYPE(glbopt_minhop_type)                 :: minhop
-    TYPE(glbopt_config_type)                 :: cfg
     TYPE(section_vals_type), POINTER         :: root_section
+    INTEGER, INTENT(IN)                      :: n_walkers
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
@@ -142,20 +144,21 @@ MODULE glbopt_minhop
     TYPE(cp_logger_type), POINTER            :: logger
 
     ! allocate history / histories
-    n_histories = cfg%n_walkers
+    n_histories = n_walkers
     IF(minhop%share_history) n_histories = 1
     ALLOCATE(minhop%history(n_histories))
     DO i=1, n_histories
       CALL glbopt_history_init(minhop%history(i))
     END DO
 
-    ALLOCATE(minhop%prev_report(cfg%n_walkers))
-    ALLOCATE(minhop%temperature(cfg%n_walkers))
-    ALLOCATE(minhop%Eaccept(cfg%n_walkers))
+    ALLOCATE(minhop%prev_report(n_walkers))
+    ALLOCATE(minhop%temperature(n_walkers))
+    ALLOCATE(minhop%Eaccept(n_walkers))
 
     minhop%temperature(:) = 100/kelvin !TODO: make input parameter
+    minhop%share_history = .TRUE.
     minhop%Eaccept(:)     = minhop%Eaccept0
-
+    minhop%n_walkers = n_walkers
     minhop%iw = iw
 
     !DO i=1, cfg%n_walkers
@@ -184,7 +187,6 @@ MODULE glbopt_minhop
       CHARACTER(LEN=*)                         :: message
       IF (minhop%iw>0) &
         WRITE (minhop%iw,*) "GLOBAL_OPT| "//TRIM(message)
-     WRITE (*,*) "GLOBAL_OPT| "//TRIM(message)
    END SUBROUTINE print
 
 

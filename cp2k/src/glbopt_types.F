@@ -24,56 +24,17 @@ MODULE glbopt_types
  PRIVATE
 
 
- TYPE glbopt_config_type
-   INTEGER                                    :: n_walkers
-
-   !history
-   INTEGER                                    :: n_hashes
-   INTEGER                                    :: n_colvars
-   INTEGER                                    :: bloom_size
-   REAL(KIND=dp)                              :: colvar_precision
-
-   !walker
-   INTEGER                                    :: epot_ndown
-   INTEGER                                    :: epot_nup
-   INTEGER                                    :: md_mincount_max
-   INTEGER                                    :: hop_count_max
-   REAL(KIND=dp)                              :: md_max_dist
-
-   ! strategie
-  
-   REAL(KIND=dp)                              :: Emin
-
-   REAL(KIND=dp)                              :: gopt_max_dist
-
-
-
-!19	    _default_settings = {
-!20	        'T0': 1000.,  # K, initial MD 'temperature'
-!21	        'beta1': 1.1,  # temperature adjustment parameter
-!22	        'beta2': 1.1,  # temperature adjustment parameter
-!23	        'beta3': 1. / 1.1,  # temperature adjustment parameter
-!24	        'Ediff0': 0.5,  # eV, initial energy acceptance threshold
-!25	        'alpha1': 0.98,  # energy threshold adjustment parameter
-!26	        'alpha2': 1. / 0.98,  # energy threshold adjustment parameter
-!27	        'mdmin': 2,  # criteria to stop MD simulation (no. of minima)
-!28	        'logfile': 'hop.log',  # text log
-!29	        'minima_threshold': 0.5,  # A, threshold for identical configs
-!30	        'timestep': 1.0,  # fs, timestep for MD simulations
-!31	        'optimizer': QuasiNewton,  # local optimizer to use
-!32	        'minima_traj': 'minima.traj',  # storage file for minima list
-!33	        'fmax' : 0.05, # eV/A, max force for optimizations
-!34	                          }
-
- END TYPE glbopt_config_type
-
  TYPE glbopt_mdctrl_data_type
    INTEGER                                    :: md_mincounter
-   REAL(KIND=dp), DIMENSION(:), POINTER       :: epot_history
-   TYPE(glbopt_config_type)                   :: cfg
+   REAL(KIND=dp), DIMENSION(:), ALLOCATABLE   :: epot_history
    INTEGER                                    :: output_unit
    INTEGER                                    :: itimes
+   INTEGER                                    :: epot_nup
+   INTEGER                                    :: epot_ndown
+   INTEGER                                    :: md_mincount_max
+   REAL(KIND=dp)                              :: md_max_dist
  END TYPE glbopt_mdctrl_data_type
+
 
  TYPE glbopt_command_type
    INTEGER :: walker_id = -1
@@ -90,47 +51,13 @@ MODULE glbopt_types
  END TYPE glbopt_report_type
 
 
-
-
-
-
  INTEGER, PARAMETER  :: GLBOPT_CMD_SHUTDOWN      = 999
  INTEGER, PARAMETER  :: GLBOPT_CMD_MDGOPT        = 888
 
 
-!  TYPE glbopt_env_type
-!      TYPE(glbopt_config_type)                   :: cfg
-!      INTEGER                                    :: n_colvars
-!     !PRIVATE  !TODO: make this private with getters & setters
-!     INTEGER                                    :: ref_count
-!     ! config parameters
-!     INTEGER                                    :: n_masters
-!     INTEGER                                    :: n_walkers
-!     INTEGER                                    :: n_hashes
-!     INTEGER                                    :: n_colvars
-!     INTEGER                                    :: bloom_size
-!     INTEGER                                    :: epot_ndown
-!     INTEGER                                    :: epot_nup
-!     INTEGER                                    :: md_mincount_max
-!     INTEGER                                    :: hop_count_max
-!     ! stuff passed on for master/slave communication
-!     TYPE(cp_para_env_type), POINTER            :: full_para_env
-!     INTEGER                                    :: my_walker_id
-!     INTEGER                                    :: my_master_id
-!     ! stuff needed for md_callback
-!     INTEGER                                    :: md_mincounter
-!     REAL(KIND=dp), DIMENSION(:), POINTER       :: epot_history
-!     !mixed
-!
-!  END TYPE glbopt_env_type
-
- PUBLIC :: glbopt_config_type, glbopt_mdctrl_data_type
  PUBLIC :: GLBOPT_CMD_SHUTDOWN, GLBOPT_CMD_MDGOPT
- PUBLIC :: glbopt_report_type, glbopt_command_type
+ PUBLIC :: glbopt_report_type, glbopt_command_type, glbopt_mdctrl_data_type
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_types' 
-CONTAINS
-        
- 
 END MODULE glbopt_types
+
 
