@@ -35,8 +35,7 @@ MODULE glbopt_master
   USE glbopt_minhop,                   ONLY: glbopt_minhop_type,&
                                              glbopt_minhop_init,&
                                              glbopt_minhop_finalize,&
-                                             glbopt_minhop_steer,&
-                                             glbopt_minhop_register_input
+                                             glbopt_minhop_steer
   USE cp_output_handling,              ONLY: cp_print_key_section_create
   USE input_keyword_types,             ONLY: keyword_create,&
                                              keyword_release,&
@@ -79,12 +78,48 @@ MODULE glbopt_master
    REAL(KIND=dp)                                       :: Emin = Tiny(1.0_dp)
    INTEGER                                             :: iw = 0
    INTEGER                                             :: i_iteration = 0
-   INTEGER                                             :: max_iteration = 0
+   INTEGER                                             :: max_iter = 0
    LOGICAL                                             :: should_stop = .FALSE.
    INTEGER                                             :: n_walkers = -1
  END TYPE glbopt_master_type
 
  CONTAINS
+
+
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE glbopt_master_init(master, para_env, root_section, n_walkers, error)
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(cp_para_env_type), POINTER          :: para_env
+    TYPE(section_vals_type), POINTER         :: root_section
+    INTEGER, INTENT(IN)                      :: n_walkers
+    TYPE(cp_error_type), INTENT(inout)       :: error
+
+    INTEGER                                  :: output_unit
+    TYPE(cp_logger_type), POINTER            :: logger
+    TYPE(timer_env_type), POINTER            :: timer_env
+    TYPE(section_vals_type), POINTER         :: glbopt_section
+
+    NULLIFY(timer_env)
+    CALL timer_env_create(timer_env)
+    CALL add_timer_env(timer_env)
+    !CALL add_mp_perf_env(f_env%mp_perf_env) TODO: this as well?
+
+    glbopt_section => section_vals_get_subs_vals(root_section, "GLOBAL_OPT", error=error)
+
+    logger => cp_error_get_logger(error)
+    master%n_walkers = n_walkers
+    master%iw = cp_print_key_unit_nr(logger, glbopt_section,&
+          "PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
+
+    CALL section_vals_val_get(glbopt_section,"E_MIN", r_val=master%Emin, error=error)
+    CALL section_vals_val_get(glbopt_section,"MAX_ITER", i_val=master%max_iter, error=error)
+
+    ALLOCATE(master%minhop)
+    CALL glbopt_minhop_init(master%minhop, glbopt_section, n_walkers, master%iw, error)
+
+ END SUBROUTINE glbopt_master_init
 
 
 ! *****************************************************************************
@@ -105,8 +140,8 @@ MODULE glbopt_master
        master%should_stop = .TRUE.
     ENDIF
 
-    IF(master%i_iteration>=master%max_iteration .AND. .NOT. master%should_stop) THEN
-       CALL print(master, "Reached max iterations. Quitting.")
+    IF(master%i_iteration>=master%max_iter .AND. .NOT. master%should_stop) THEN
+       CALL print(master, "Reached MAX_ITER. Quitting.")
        master%should_stop = .TRUE.
     ENDIF
 
@@ -119,41 +154,6 @@ MODULE glbopt_master
 
  END SUBROUTINE
 
-
-! *****************************************************************************
-! *****************************************************************************
- SUBROUTINE glbopt_master_init(master, para_env, root_section, n_walkers, error)
-    TYPE(glbopt_master_type)                 :: master
-    TYPE(cp_para_env_type), POINTER          :: para_env
-    TYPE(section_vals_type), POINTER         :: root_section
-    INTEGER, INTENT(IN)                      :: n_walkers
-    TYPE(cp_error_type), INTENT(inout)       :: error
-
-    INTEGER                                  :: output_unit
-    TYPE(cp_logger_type), POINTER            :: logger
-    TYPE(timer_env_type), POINTER            :: timer_env
-
-    NULLIFY(timer_env)
-    CALL timer_env_create(timer_env)
-    CALL add_timer_env(timer_env)
-    !CALL add_mp_perf_env(f_env%mp_perf_env) TODO: this as well?
-
-    logger => cp_error_get_logger(error)
-    master%iw = cp_print_key_unit_nr(logger, root_section,&
-          "GLOBAL_OPT%PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
-
-
-    CALL section_vals_val_get(root_section,"GLOBAL_OPT%EMIN", r_val=master%Emin, error=error)
-
-    ALLOCATE(master%minhop)
-    CALL glbopt_minhop_init(master%minhop, root_section, n_walkers, master%iw, error)
-
-    master%max_iteration = HUGE(1)
-    master%n_walkers = n_walkers
-
-
-
- END SUBROUTINE glbopt_master_init
 
 ! *****************************************************************************
 ! *****************************************************************************

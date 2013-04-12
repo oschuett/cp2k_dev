@@ -43,7 +43,24 @@ MODULE glbopt_minhop
   USE input_val_types,                 ONLY: integer_t, real_t
   !USE input_constants
 
-
+  USE input_keyword_types,             ONLY: keyword_create,&
+                                             keyword_release,&
+                                             keyword_type
+  USE input_section_types,             ONLY: section_add_keyword,&
+                                             section_add_subsection,&
+                                             section_create,&
+                                             section_release,&
+                                             section_type
+  USE input_section_types,             ONLY: section_add_keyword,&
+                                             section_add_subsection,&
+                                             section_create,&
+                                             section_release,&
+                                             section_type
+  USE input_section_types,             ONLY: section_vals_get,&
+                                             section_vals_get_subs_vals,&
+                                             section_vals_type,&
+                                             section_vals_val_get,&
+                                             section_vals_val_set
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -54,7 +71,7 @@ MODULE glbopt_minhop
 
  PUBLIC :: glbopt_minhop_type
  PUBLIC :: glbopt_minhop_init, glbopt_minhop_finalize
- PUBLIC :: glbopt_minhop_steer, glbopt_minhop_register_input
+ PUBLIC :: glbopt_minhop_steer
 
 
  TYPE glbopt_minhop_type
@@ -63,18 +80,18 @@ MODULE glbopt_minhop
    TYPE(glbopt_report_type), DIMENSION(:), ALLOCATABLE :: prev_report
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: temperature
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: Eaccept
-   REAL(KIND=dp)                                       :: beta1 = 1.1
-   !REAL(KIND=dp)                                      :: beta2 1.1 !we do not differentiate for this case
-   REAL(KIND=dp)                                       :: beta3 = 1.0/1.1
-   REAL(KIND=dp)                                       :: Eaccept0 = 0.005
- !  REAL(KIND=dp)                                       :: temperature0 = 100*kelvin
-   REAL(KIND=dp)                                       :: alpha1 = 0.98
-   REAL(KIND=dp)                                       :: alpha2 = 1/0.98
+   REAL(KIND=dp)                                       :: beta1 = 0
+   REAL(KIND=dp)                                       :: beta2 = 0
+   REAL(KIND=dp)                                       :: beta3 = 0
+   REAL(KIND=dp)                                       :: Eaccept0 = 0
+   REAL(KIND=dp)                                       :: temperature0 = 0
+   REAL(KIND=dp)                                       :: alpha1 = -0
+   REAL(KIND=dp)                                       :: alpha2 = 0
    INTEGER                                             :: iterations = 0
    INTEGER                                             :: n_accepted = 0
-   INTEGER                                             :: iw
-   INTEGER                                             :: n_walkers
-   LOGICAL                                             :: share_history = .TRUE.
+   INTEGER                                             :: iw = 0
+   INTEGER                                             :: n_walkers =0
+   LOGICAL                                             :: share_history = .FALSE.
  END TYPE glbopt_minhop_type
 
  CONTAINS
@@ -93,6 +110,8 @@ MODULE glbopt_minhop
 
     wid = report%walker_id
 
+    IF(minhop%prev_report(wid)%walker_id<0) minhop%prev_report(wid)=report !init
+
     hid = wid ! history_id = walker_id unless ....
     IF(minhop%share_history) hid = 1 !...there is ONE shared history.
 
@@ -100,8 +119,7 @@ MODULE glbopt_minhop
 
     IF(minima_known) THEN ! known minima restart MD
        CALL print(minhop,"Conclusion: old minima")
-       minhop%temperature(wid) = minhop%temperature(wid)*1.1
-       cmd%positions   = minhop%prev_report(wid)%positions
+       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta1
 
     ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
        CALL print(minhop, "Conclusion: new minima, but got rejected due to Eaccept")
@@ -113,7 +131,7 @@ MODULE glbopt_minhop
       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
       minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1
       CALL glbopt_history_add(minhop%history(hid), report)
-      minhop%prev_report = report
+      minhop%prev_report(wid) = report
       minhop%n_accepted = minhop%n_accepted + 1
     END IF
 
@@ -123,7 +141,9 @@ MODULE glbopt_minhop
 
     minhop%iterations = minhop%iterations + 1
     IF(minhop%iw > 0) &
-    WRITE(minhop%iw,*) "GLOBAL_OPT| Minima Hopping Interation ", minhop%iterations
+      WRITE(minhop%iw,'(A,I10,A,I10)') " GLOBAL_OPT| Minima Hopping Interation ",&
+        minhop%iterations, " accepted number of minima: ",minhop%n_accepted
+
     !IF(minhop%iw > 0) &
     !WRITE (minhop%iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
     !     minhop%iterations,'. Minima Hopping Iteration ',REPEAT("*", 15)
@@ -133,15 +153,29 @@ MODULE glbopt_minhop
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_minhop_init(minhop, root_section, n_walkers, iw, error)
+ SUBROUTINE glbopt_minhop_init(minhop, glbopt_section, n_walkers, iw, error)
     TYPE(glbopt_minhop_type)                 :: minhop
-    TYPE(section_vals_type), POINTER         :: root_section
+    TYPE(section_vals_type), POINTER         :: glbopt_section
     INTEGER, INTENT(IN)                      :: n_walkers
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER                                  :: i, n_histories
     TYPE(cp_logger_type), POINTER            :: logger
+    TYPE(section_vals_type), POINTER         :: minhop_section
+    REAL(kind=dp)                            :: temp_in_kelvin
+
+    ! read input
+    minhop_section => section_vals_get_subs_vals(glbopt_section, "MINIMA_HOPPING", error=error)
+    CALL section_vals_val_get(minhop_section,"BETA_1",  r_val=minhop%beta1,error=error)
+    CALL section_vals_val_get(minhop_section,"BETA_2",  r_val=minhop%beta2,error=error)
+    CALL section_vals_val_get(minhop_section,"BETA_3",  r_val=minhop%beta3,error=error)
+    CALL section_vals_val_get(minhop_section,"ALPHA_1", r_val=minhop%alpha1,error=error)
+    CALL section_vals_val_get(minhop_section,"ALPHA_2", r_val=minhop%alpha2,error=error)
+    CALL section_vals_val_get(minhop_section,"E_ACCEPT_INIT", r_val=minhop%Eaccept0,error=error)
+    CALL section_vals_val_get(minhop_section,"TEMPERATURE_INIT", r_val=temp_in_kelvin,error=error)
+    minhop%temperature0 = temp_in_kelvin / kelvin
+    CALL section_vals_val_get(minhop_section,"SHARE_HISTORY", l_val=minhop%share_history,error=error)
 
     ! allocate history / histories
     n_histories = n_walkers
@@ -155,16 +189,12 @@ MODULE glbopt_minhop
     ALLOCATE(minhop%temperature(n_walkers))
     ALLOCATE(minhop%Eaccept(n_walkers))
 
-    minhop%temperature(:) = 100/kelvin !TODO: make input parameter
-    minhop%share_history = .TRUE.
+    minhop%temperature(:) = minhop%temperature0
     minhop%Eaccept(:)     = minhop%Eaccept0
     minhop%n_walkers = n_walkers
     minhop%iw = iw
-
-    !DO i=1, cfg%n_walkers
-    !  minhop%walkers(i)%temperature = 100*kelvin
-    !  minhop%walkers(i)%Eaccept     = cfg%Eaccept0
-    !END DO
+    minhop%iterations = 0
+    minhop%n_accepted = 0
 
  END SUBROUTINE glbopt_minhop_init
 
@@ -189,30 +219,6 @@ MODULE glbopt_minhop
         WRITE (minhop%iw,*) "GLOBAL_OPT| "//TRIM(message)
    END SUBROUTINE print
 
-
-!! *****************************************************************************
-!! *****************************************************************************
-  SUBROUTINE glbopt_minhop_register_input(glbopt_section,error)
-    TYPE(section_type), POINTER              :: glbopt_section
-    TYPE(cp_error_type), INTENT(inout)       :: error
-
-    TYPE(section_type), POINTER              :: section
-    TYPE(keyword_type), POINTER              :: keyword
-
-    NULLIFY(section, keyword)
-    CALL section_create(section,name="MINHOP",&
-         description="blah TODO.",&
-         repeats=.FALSE., required=.TRUE., supported_feature=.TRUE.,error=error)
-    NULLIFY(keyword)
-    CALL keyword_create(keyword, name="EMIN",&
-        description="balba TODO.",&
-        usage="EMIN <REAL>", &
-        type_of_var=real_t,unit_str="hartree",required=.TRUE.,error=error)
-    CALL section_add_keyword(section, keyword, error=error)
-    CALL keyword_release(keyword, error=error)
-    CALL section_add_subsection(glbopt_section,section,error=error)
-    CALL section_release(section,error=error)
-  END SUBROUTINE glbopt_minhop_register_input
 
 !! *****************************************************************************
 !!> \brief Main driver to perform global optimization
