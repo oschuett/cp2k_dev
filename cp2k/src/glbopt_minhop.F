@@ -99,60 +99,6 @@ MODULE glbopt_minhop
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_minhop_steer(minhop, report, cmd)
-    TYPE(glbopt_minhop_type)           :: minhop
-    TYPE(glbopt_report_type)           :: report
-    TYPE(glbopt_command_type)          :: cmd
-
-    INTEGER :: wid, hid
-    LOGICAL :: minima_known
-
-
-    wid = report%walker_id
-
-    IF(minhop%prev_report(wid)%walker_id<0) minhop%prev_report(wid)=report !init
-
-    hid = wid ! history_id = walker_id unless ....
-    IF(minhop%share_history) hid = 1 !...there is ONE shared history.
-
-    CALL glbopt_history_lookup(minhop%history(hid), report, minima_known)
-
-    IF(minima_known) THEN ! known minima restart MD
-       CALL print(minhop,"Conclusion: old minima")
-       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta1
-
-    ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
-       CALL print(minhop, "Conclusion: new minima, but got rejected due to Eaccept")
-       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
-       minhop%Eaccept(wid)     = minhop%Eaccept(wid) * minhop%alpha2
-
-    ELSE ! Hurra, we accept a new minimum
-      CALL print(minhop, "Conclusion: new minima got accepted")
-      minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
-      minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1
-      CALL glbopt_history_add(minhop%history(hid), report)
-      minhop%prev_report(wid) = report
-      minhop%n_accepted = minhop%n_accepted + 1
-    END IF
-
-    cmd%id              = GLBOPT_CMD_MDGOPT
-    cmd%positions       = minhop%prev_report(wid)%positions
-    cmd%temperature     = minhop%temperature(wid)
-
-    minhop%iterations = minhop%iterations + 1
-    IF(minhop%iw > 0) &
-      WRITE(minhop%iw,'(A,I10,A,I10)') " GLOBAL_OPT| Minima Hopping Interation ",&
-        minhop%iterations, " accepted number of minima: ",minhop%n_accepted
-
-    !IF(minhop%iw > 0) &
-    !WRITE (minhop%iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
-    !     minhop%iterations,'. Minima Hopping Iteration ',REPEAT("*", 15)
-
- END SUBROUTINE glbopt_minhop_steer
-
-
-! *****************************************************************************
-! *****************************************************************************
  SUBROUTINE glbopt_minhop_init(minhop, glbopt_section, n_walkers, iw, error)
     TYPE(glbopt_minhop_type)                 :: minhop
     TYPE(section_vals_type), POINTER         :: glbopt_section
@@ -196,7 +142,65 @@ MODULE glbopt_minhop
     minhop%iterations = 0
     minhop%n_accepted = 0
 
+    IF(minhop%iw>0) &
+      WRITE(minhop%iw, '(A,43X,L1)') " GLOBAL_OPT| Using shared histories:", minhop%share_history
  END SUBROUTINE glbopt_minhop_init
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE glbopt_minhop_steer(minhop, report, cmd)
+    TYPE(glbopt_minhop_type)           :: minhop
+    TYPE(glbopt_report_type)           :: report
+    TYPE(glbopt_command_type)          :: cmd
+
+    INTEGER :: wid, hid
+    LOGICAL :: minima_known
+
+
+    wid = report%walker_id
+
+    IF(minhop%prev_report(wid)%walker_id<0) minhop%prev_report(wid)=report !init
+
+    hid = wid ! history_id = walker_id unless ....
+    IF(minhop%share_history) hid = 1 !...there is ONE shared history.
+
+    CALL glbopt_history_lookup(minhop%history(hid), report, minima_known)
+
+    IF(minima_known) THEN ! known minima restart MD
+       IF(minhop%iw>0) WRITE(minhop%iw,*) "GLOBAL_OPT| Conclusion: old minima"
+       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta1
+
+    ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
+       IF(minhop%iw>0) WRITE(minhop%iw,*)&
+          "GLOBAL_OPT| Conclusion: new minima, but got rejected due to Eaccept"
+       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
+       minhop%Eaccept(wid)     = minhop%Eaccept(wid) * minhop%alpha2
+
+    ELSE ! Hurra, we accept a new minimum
+      IF(minhop%iw>0) WRITE(minhop%iw,*) "GLOBAL_OPT| Conclusion: new minima got accepted"
+      minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
+      minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1
+      CALL glbopt_history_add(minhop%history(hid), report)
+      minhop%prev_report(wid) = report
+      minhop%n_accepted = minhop%n_accepted + 1
+    END IF
+
+    cmd%id              = GLBOPT_CMD_MDGOPT
+    cmd%positions       = minhop%prev_report(wid)%positions
+    cmd%temperature     = minhop%temperature(wid)
+
+    minhop%iterations = minhop%iterations + 1
+    IF(minhop%iw > 0) &
+      WRITE(minhop%iw,'(A,I10,A,I10)') " GLOBAL_OPT| Minima Hopping Interation ",&
+        minhop%iterations, " accepted number of minima: ",minhop%n_accepted
+
+    !IF(minhop%iw > 0) &
+    !WRITE (minhop%iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
+    !     minhop%iterations,'. Minima Hopping Iteration ',REPEAT("*", 15)
+
+ END SUBROUTINE glbopt_minhop_steer
+
+
 
 ! *****************************************************************************
 ! *****************************************************************************
@@ -209,15 +213,6 @@ MODULE glbopt_minhop
     END DO
  END SUBROUTINE glbopt_minhop_finalize
 
- 
-! *****************************************************************************
-! *****************************************************************************
-   SUBROUTINE print(minhop, message)
-      TYPE(glbopt_minhop_type), INTENT(INOUT)         :: minhop
-      CHARACTER(LEN=*)                         :: message
-      IF (minhop%iw>0) &
-        WRITE (minhop%iw,*) "GLOBAL_OPT| "//TRIM(message)
-   END SUBROUTINE print
 
 
 !! *****************************************************************************

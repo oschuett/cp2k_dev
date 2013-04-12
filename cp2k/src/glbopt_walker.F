@@ -198,7 +198,7 @@ MODULE glbopt_walker
            CALL run_mdgopt(walker, cmd%temperature)
 
          CASE (glbopt_cmd_shutdown)
-           call print(walker, "Received shutdown command, quitting.")
+           IF(walker%iw>0) WRITE(walker%iw,*) "GLOBAL_OPT| Received shutdown command, quitting."
            should_stop = .TRUE.
          CASE DEFAULT
            STOP "Walker: received unkown command"
@@ -289,16 +289,6 @@ MODULE glbopt_walker
 
    END SUBROUTINE run_mdgopt
 
-
-
-! *****************************************************************************
-! *****************************************************************************
-   SUBROUTINE print(walker, message)
-      TYPE(glbopt_walker_type), INTENT(INOUT)         :: walker
-      CHARACTER(LEN=*)                         :: message
-      IF (walker%iw>0) &
-        WRITE (walker%iw,*) "GLOBAL_OPT| "//TRIM(message)
-   END SUBROUTINE print
 
 END MODULE glbopt_walker
 

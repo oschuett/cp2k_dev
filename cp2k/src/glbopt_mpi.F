@@ -243,9 +243,12 @@ MODULE glbopt_mpi
      TYPE(glbopt_report_type)                 :: report
 
      INTEGER :: tag, dest
+
+     ! Only rank-0 of walker group sends it's report
+     IF(glbopt_mpi%walker%source /= glbopt_mpi%walker%mepos) RETURN
+
      dest = glbopt_mpi%world%num_pe-1
      tag = 42
-
      !TODO: this is inefficient - could pack everything into one buffer
      CALL mp_send(report%walker_id,       dest, tag, glbopt_mpi%world%group)
      CALL mp_send(report%Epot,            dest, tag, glbopt_mpi%world%group)
@@ -301,16 +304,28 @@ MODULE glbopt_mpi
      TYPE(glbopt_command_type)                :: cmd
 
      INTEGER :: tag, src, s
-     tag = 42
-     src = glbopt_mpi%world%num_pe-1
 
-     CALL mp_recv(cmd%id,          src, tag, glbopt_mpi%world%group)
-     CALL mp_recv(cmd%temperature, src, tag, glbopt_mpi%world%group)
-     CALL mp_recv(s,               src, tag, glbopt_mpi%world%group)
-     ! TODO atom numbers do not change, make this more efficient
      IF(ALLOCATED(cmd%positions)) DEALLOCATE(cmd%positions)
-     ALLOCATE(cmd%positions(s))
-     CALL mp_recv(cmd%positions,   src, tag, glbopt_mpi%world%group)
+
+     ! This is a two step communication schema.
+     ! First: The rank-0 of the walker groups receives the command from the master.
+     IF(glbopt_mpi%walker%source == glbopt_mpi%walker%mepos) THEN 
+        tag = 42
+        src = glbopt_mpi%world%num_pe-1
+        CALL mp_recv(cmd%id,          src, tag, glbopt_mpi%world%group)
+        CALL mp_recv(cmd%temperature, src, tag, glbopt_mpi%world%group)
+        CALL mp_recv(s,               src, tag, glbopt_mpi%world%group)
+        ! TODO atom numbers do not change, make this more efficient
+        ALLOCATE(cmd%positions(s))
+        CALL mp_recv(cmd%positions,   src, tag, glbopt_mpi%world%group)
+     ENDIF
+
+     ! Second: The command is broadcasted within the walker group.
+     CALL mp_bcast(cmd%id,          glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     CALL mp_bcast(cmd%temperature, glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     CALL mp_bcast(s,               glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     IF(glbopt_mpi%walker%source /= glbopt_mpi%walker%mepos) ALLOCATE(cmd%positions(s))
+     CALL mp_bcast(cmd%positions,   glbopt_mpi%walker%source, glbopt_mpi%walker%group)
   END SUBROUTINE glbopt_mpi_recv_command
 
 
