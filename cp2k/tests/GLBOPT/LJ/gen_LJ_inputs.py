@@ -71,7 +71,7 @@ def write2file(fn, content):
 #===============================================================================
 def gen_jobfile(name):
    output =  "#! /bin/bash\n"
-   output += "#SBATCH --job-name=LJ002-050_RUN001-050\n"
+   output += "#SBATCH --job-name=cp2k\n"
    output += "#SBATCH --ntasks=1024\n"
    output += "#SBATCH --partition=day\n"
 #   output += "#SBATCH --partition=night\n"
@@ -127,7 +127,7 @@ def gen_glbopt_input(size, Emin, run, method):
 
     output += "&GLOBAL_OPT\n"
     output += "   NUMBER_OF_WALKERS  1\n"
-    output += "   MAX_ITER 1000\n"
+    #output += "   MAX_ITER 1000\n"
     output += "   E_MIN %.10f\n"%Emin
     output += "   &MINIMA_HOPPING\n"
     output += "      SHARE_HISTORY FALSE\n"
