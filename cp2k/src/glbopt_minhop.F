@@ -84,7 +84,8 @@ MODULE glbopt_minhop
    REAL(KIND=dp)                                       :: beta2 = 0
    REAL(KIND=dp)                                       :: beta3 = 0
    REAL(KIND=dp)                                       :: Eaccept0 = 0
-   REAL(KIND=dp)                                       :: temperature0 = 0
+   REAL(KIND=dp)                                       :: temp_init = 0
+   REAL(KIND=dp)                                       :: temp_throttle = 0
    REAL(KIND=dp)                                       :: alpha1 = -0
    REAL(KIND=dp)                                       :: alpha2 = 0
    INTEGER                                             :: iterations = 0
@@ -120,7 +121,9 @@ MODULE glbopt_minhop
     CALL section_vals_val_get(minhop_section,"ALPHA_2", r_val=minhop%alpha2,error=error)
     CALL section_vals_val_get(minhop_section,"E_ACCEPT_INIT", r_val=minhop%Eaccept0,error=error)
     CALL section_vals_val_get(minhop_section,"TEMPERATURE_INIT", r_val=temp_in_kelvin,error=error)
-    minhop%temperature0 = temp_in_kelvin / kelvin
+    minhop%temp_init = temp_in_kelvin / kelvin
+    CALL section_vals_val_get(minhop_section,"TEMPERATURE_THROTTLE", r_val=temp_in_kelvin,error=error)
+    minhop%temp_throttle = temp_in_kelvin / kelvin
     CALL section_vals_val_get(minhop_section,"SHARE_HISTORY", l_val=minhop%share_history,error=error)
 
     ! allocate history / histories
@@ -135,7 +138,7 @@ MODULE glbopt_minhop
     ALLOCATE(minhop%temperature(n_walkers))
     ALLOCATE(minhop%Eaccept(n_walkers))
 
-    minhop%temperature(:) = minhop%temperature0
+    minhop%temperature(:) = minhop%temp_init
     minhop%Eaccept(:)     = minhop%Eaccept0
     minhop%n_walkers = n_walkers
     minhop%iw = iw
@@ -183,6 +186,11 @@ MODULE glbopt_minhop
       CALL glbopt_history_add(minhop%history(hid), report)
       minhop%prev_report(wid) = report
       minhop%n_accepted = minhop%n_accepted + 1
+    END IF
+
+    IF(minhop%temperature(wid) > minhop%temp_throttle) THEN
+       minhop%temperature(wid) = minhop%temp_throttle
+      IF(minhop%iw > 0) WRITE(minhop%iw,*) "GLOBAL_OPT| Throttleing Temperature"
     END IF
 
     cmd%id              = GLBOPT_CMD_MDGOPT

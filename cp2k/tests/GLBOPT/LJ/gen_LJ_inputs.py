@@ -20,7 +20,7 @@ def main():
     run_min, run_max   = 1, 1024
 
     method = "MinhopIndep"
-    dirname = "LJ38_%s_RUN%.3d-%.3d"%(method,run_min, run_max)
+    dirname = "LJ38_%s_RUN%.4d-%.4d"%(method,run_min, run_max)
     print "Creating dir: "+dirname
     mkdir(dirname)
 
@@ -36,29 +36,6 @@ def main():
     write2file(dirname+"/"+dirname+".inp", gen_framing_input(jobs))
     write2file(dirname+"/"+dirname+".job", gen_jobfile(dirname))
 
-
-#===============================================================================
-def main2():
-    size_min, size_max = 38,38
-    run_min, run_max   = 1, 50
-
-
-    #dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d"%(size_min, size_max, run_min, run_max)
-    dirname = "Farming_LJ38_RUN%.3d-%.3d"%(run_min, run_max)
-    print "Creating dir: "+dirname
-    mkdir(dirname)
-
-    jobs = []
-    known_minima = read_references()
-    for r in range(run_min, run_max+1):
-        for s in range(size_min, size_max+1):
-            fn = "LJ%.3d_RUN%.3d.inp"%(s,r)
-            jobs.append(fn)
-            Emin = 0.001*float(known_minima[s]) + 1.0e-6
-            write2file(dirname+"/"+fn, gen_glbopt_input(size=s, Emin=Emin, run=r))
-
-    write2file(dirname+"/"+dirname+".inp", gen_framing_input(jobs))
-    write2file(dirname+"/"+dirname+".job", gen_jobfile(dirname))
 
 #===============================================================================
 def write2file(fn, content):
@@ -118,7 +95,7 @@ def gen_glbopt_input(size, Emin, run, method):
     output += "&GLOBAL\n"
     output += "   PROGRAM_NAME GLOBAL_OPT\n"
     output += "   RUN_TYPE NONE\n"
-    output += "   PROJECT_NAME LJ%.3d_RUN%.3d\n"%(size, run)
+    output += "   PROJECT_NAME LJ%.2d_RUN%.4d\n"%(size, run)
     output += "   SEED %d\n"%(100*run)
     output += "   &TIMINGS\n"
     output += "      THRESHOLD 0.0\n"

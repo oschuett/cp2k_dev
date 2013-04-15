@@ -168,6 +168,12 @@ MODULE glbopt_input
     CALL section_add_keyword(minhop_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
+    CALL keyword_create(keyword, name="TEMPERATURE_THROTTLE",&
+         description="The maximum temperature used in Kelvin",  &
+         default_r_val=100000.0_dp,type_of_var=real_t,error=error)
+    CALL section_add_keyword(minhop_section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
+
     CALL keyword_create(keyword, name="SHARE_HISTORY",&
          description="blab TODO",&
          default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,supported_feature=.TRUE.,error=error)
