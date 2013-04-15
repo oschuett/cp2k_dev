@@ -14,13 +14,37 @@ def read_references():
         known_minima[int(parts[0])] = parts[1]
     return known_minima
 
+
 #===============================================================================
 def main():
-    size_min, size_max = 2, 50
+    run_min, run_max   = 1, 1024
+
+    method = "MinhopIndep"
+    dirname = "LJ38_%s_RUN%.3d-%.3d"%(method,run_min, run_max)
+    print "Creating dir: "+dirname
+    mkdir(dirname)
+
+    jobs = []
+    known_minima = read_references()
+    for r in range(run_min, run_max+1):
+       fn = "LJ38_RUN%.3d.inp"%(r,)
+       jobs.append(fn)
+       Emin = 0.001*float(known_minima[38]) + 1.0e-6
+       inp = gen_glbopt_input(size=38, Emin=Emin, run=r, method=method)
+       write2file(dirname+"/"+fn, inp)
+
+    write2file(dirname+"/"+dirname+".inp", gen_framing_input(jobs))
+    write2file(dirname+"/"+dirname+".job", gen_jobfile(dirname))
+
+
+#===============================================================================
+def main2():
+    size_min, size_max = 38,38
     run_min, run_max   = 1, 50
 
 
-    dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d"%(size_min, size_max, run_min, run_max)
+    #dirname = "Farming_LJ%.3d-%.3d_RUN%.3d-%.3d"%(size_min, size_max, run_min, run_max)
+    dirname = "Farming_LJ38_RUN%.3d-%.3d"%(run_min, run_max)
     print "Creating dir: "+dirname
     mkdir(dirname)
 
@@ -73,7 +97,7 @@ def gen_framing_input(jobs):
 
     output += "&FARMING\n"
     output += "   GROUP_SIZE 1\n"
-    output += "   MASTER_SLAVE .TRUE.\n"
+    output += "   MASTER_SLAVE .FALSE.\n"
 
     for j in jobs:
         output += "   &JOB\n"
@@ -87,7 +111,9 @@ def gen_framing_input(jobs):
     return(output)
 
 #===============================================================================
-def gen_glbopt_input(size, Emin, run):
+def gen_glbopt_input(size, Emin, run, method):
+    assert(method == "MinhopIndep")
+
     output = ""
     output += "&GLOBAL\n"
     output += "   PROGRAM_NAME GLOBAL_OPT\n"
@@ -101,7 +127,11 @@ def gen_glbopt_input(size, Emin, run):
 
     output += "&GLOBAL_OPT\n"
     output += "   NUMBER_OF_WALKERS  1\n"
-    output += "   Emin %.10f\n"%Emin
+    output += "   MAX_ITER 1000\n"
+    output += "   E_MIN %.10f\n"%Emin
+    output += "   &MINIMA_HOPPING\n"
+    output += "      SHARE_HISTORY FALSE\n"
+    output += "   &END MINIMA_HOPPING\n"
     output += "&END GLOBAL_OPT\n"
 
     output += """
@@ -127,12 +157,12 @@ def gen_glbopt_input(size, Emin, run):
     TEMPERATURE 10.0
 
     &PRINT
+      &ENERGY OFF
+      &END ENERGY
       &CENTER_OF_MASS OFF
       &END CENTER_OF_MASS
       &COEFFICIENTS OFF
       &END COEFFICIENTS
-      &ENERGY OFF
-      &END ENERGY
       &PROGRAM_RUN_INFO OFF
       &END PROGRAM_RUN_INFO
       &ROTATIONAL_INFO OFF
