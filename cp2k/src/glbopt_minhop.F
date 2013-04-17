@@ -86,7 +86,7 @@ MODULE glbopt_minhop
    REAL(KIND=dp)                                       :: Eaccept0 = 0
    REAL(KIND=dp)                                       :: temp_init = 0
    REAL(KIND=dp)                                       :: temp_throttle = 0
-   REAL(KIND=dp)                                       :: alpha1 = -0
+   REAL(KIND=dp)                                       :: alpha1 = 0
    REAL(KIND=dp)                                       :: alpha2 = 0
    INTEGER                                             :: iterations = 0
    INTEGER                                             :: n_accepted = 0
@@ -193,7 +193,7 @@ MODULE glbopt_minhop
       IF(minhop%iw > 0) WRITE(minhop%iw,*) "GLOBAL_OPT| Throttleing Temperature"
     END IF
 
-    cmd%id              = GLBOPT_CMD_MDGOPT
+    cmd%cmd_id              = GLBOPT_CMD_MDGOPT
     cmd%positions       = minhop%prev_report(wid)%positions
     cmd%temperature     = minhop%temperature(wid)
 

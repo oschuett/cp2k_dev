@@ -291,7 +291,7 @@ MODULE glbopt_mpi
      dest = glbopt_mpi%wid2group(walker_id)
 
      !TODO: this is inefficient - could pack everything into one buffer
-     CALL mp_send(cmd%id,              dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(cmd%cmd_id,          dest, tag, glbopt_mpi%world%group)
      CALL mp_send(cmd%temperature,     dest, tag, glbopt_mpi%world%group)
      CALL mp_send(SIZE(cmd%positions), dest, tag, glbopt_mpi%world%group)
      CALL mp_send(cmd%positions,       dest, tag, glbopt_mpi%world%group)
@@ -312,7 +312,7 @@ MODULE glbopt_mpi
      IF(glbopt_mpi%walker%source == glbopt_mpi%walker%mepos) THEN 
         tag = 42
         src = glbopt_mpi%world%num_pe-1
-        CALL mp_recv(cmd%id,          src, tag, glbopt_mpi%world%group)
+        CALL mp_recv(cmd%cmd_id,      src, tag, glbopt_mpi%world%group)
         CALL mp_recv(cmd%temperature, src, tag, glbopt_mpi%world%group)
         CALL mp_recv(s,               src, tag, glbopt_mpi%world%group)
         ! TODO atom numbers do not change, make this more efficient
@@ -321,7 +321,7 @@ MODULE glbopt_mpi
      ENDIF
 
      ! Second: The command is broadcasted within the walker group.
-     CALL mp_bcast(cmd%id,          glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     CALL mp_bcast(cmd%cmd_id,      glbopt_mpi%walker%source, glbopt_mpi%walker%group)
      CALL mp_bcast(cmd%temperature, glbopt_mpi%walker%source, glbopt_mpi%walker%group)
      CALL mp_bcast(s,               glbopt_mpi%walker%source, glbopt_mpi%walker%group)
      IF(glbopt_mpi%walker%source /= glbopt_mpi%walker%mepos) ALLOCATE(cmd%positions(s))

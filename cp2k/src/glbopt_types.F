@@ -38,7 +38,7 @@ MODULE glbopt_types
 
  TYPE glbopt_command_type
    INTEGER :: walker_id = -1
-   INTEGER :: id = -1
+   INTEGER :: cmd_id = -1
    REAL(KIND=dp) :: temperature = 0.0
    REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)  :: positions
  END TYPE glbopt_command_type

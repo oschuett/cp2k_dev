@@ -222,7 +222,7 @@ MODULE glbopt
              CALL glbopt_mpi_recv_report(glbopt_mpi, report)
              CALL glbopt_master_steer(master, report, cmd)
              CALL glbopt_mpi_send_command(glbopt_mpi, report%walker_id, cmd)
-             IF(cmd%id == GLBOPT_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
+             IF(cmd%cmd_id == GLBOPT_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
           END DO
           CALL glbopt_master_finalize(master)
        END IF

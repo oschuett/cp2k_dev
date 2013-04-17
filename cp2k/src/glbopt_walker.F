@@ -193,7 +193,7 @@ MODULE glbopt_walker
        TYPE(glbopt_command_type), INTENT(IN)           :: cmd
        LOGICAL, INTENT(INOUT)                          :: should_stop
 
-       SELECT CASE (cmd%id)
+       SELECT CASE (cmd%cmd_id)
          CASE (glbopt_cmd_mdgopt)
            CALL run_mdgopt(walker, cmd%temperature)
 

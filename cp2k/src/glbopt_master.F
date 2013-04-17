@@ -21,7 +21,7 @@ MODULE glbopt_master
                                              glbopt_history_lookup
   USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
   USE kinds,                           ONLY: dp,&
-                                             int_4
+                                             int_4,default_path_length,default_string_length
   USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
                                              mp_recv,&
                                              mp_send
@@ -57,6 +57,14 @@ MODULE glbopt_master
                                              section_vals_val_set
  USE timings_types,                   ONLY: timer_env_type
  USE timings,                         ONLY: add_timer_env, rm_timer_env, timer_env_create
+ USE input_constants,                 ONLY: dump_atomic,&
+                                             dump_dcd,&
+                                             dump_pdb,&
+                                             dump_xmol
+ USE cp_parser_types,                  ONLY: cp_parser_type,&
+                                             parser_create,&
+                                             parser_release
+ USE cp_parser_methods,                ONLY: parser_get_next_line, parser_get_object
 
 #include "cp_common_uses.h"
 
@@ -81,6 +89,10 @@ MODULE glbopt_master
    INTEGER                                             :: max_iter = 0
    LOGICAL                                             :: should_stop = .FALSE.
    INTEGER                                             :: n_walkers = -1
+   INTEGER                                             :: translog_unit
+   TYPE(cp_error_type)                                 :: error
+   TYPE(section_vals_type), POINTER                    :: glbopt_section => Null()
+   TYPE(cp_para_env_type), POINTER                     :: para_env => Null()
  END TYPE glbopt_master_type
 
  CONTAINS
@@ -99,27 +111,41 @@ MODULE glbopt_master
     INTEGER                                  :: output_unit
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(timer_env_type), POINTER            :: timer_env
-    TYPE(section_vals_type), POINTER         :: glbopt_section
+
 
     NULLIFY(timer_env)
     CALL timer_env_create(timer_env)
     CALL add_timer_env(timer_env)
     !CALL add_mp_perf_env(f_env%mp_perf_env) TODO: this as well?
 
-    glbopt_section => section_vals_get_subs_vals(root_section, "GLOBAL_OPT", error=error)
+    master%glbopt_section => section_vals_get_subs_vals(root_section, "GLOBAL_OPT", error=error)
 
     logger => cp_error_get_logger(error)
     master%n_walkers = n_walkers
-    master%iw = cp_print_key_unit_nr(logger, glbopt_section,&
+    master%error = error
+    master%para_env => para_env
+    master%iw = cp_print_key_unit_nr(logger, master%glbopt_section,&
           "PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
 
-    CALL section_vals_val_get(glbopt_section,"E_MIN", r_val=master%Emin, error=error)
-    CALL section_vals_val_get(glbopt_section,"MAX_ITER", i_val=master%max_iter, error=error)
+    master%translog_unit = cp_print_key_unit_nr(logger,master%glbopt_section,"PRINT%TRANSACTION_LOG",&
+            !extension=my_ext, file_position=my_pos, file_action=my_act,&
+            !file_form=my_form, middle_name=TRIM(my_middle), is_new_file=new_file,&
+            extension=".xyz", error=error)
+
+    CALL section_vals_val_get(master%glbopt_section,"E_MIN", r_val=master%Emin, error=error)
+    CALL section_vals_val_get(master%glbopt_section,"MAX_ITER", i_val=master%max_iter, error=error)
 
     ALLOCATE(master%minhop)
-    CALL glbopt_minhop_init(master%minhop, glbopt_section, n_walkers, master%iw, error)
+    CALL glbopt_minhop_init(master%minhop, master%glbopt_section, n_walkers, master%iw, error)
+
+    CALL do_replay(master)
 
  END SUBROUTINE glbopt_master_init
+
+
+
+
+
 
 
 ! *****************************************************************************
@@ -145,11 +171,13 @@ MODULE glbopt_master
        master%should_stop = .TRUE.
     ENDIF
 
+    CALL translog_write_report(master, report)
     CALL glbopt_minhop_steer(master%minhop, report, cmd)
+    CALL translog_write_command(master, cmd)
 
     IF(master%should_stop) THEN
        !CALL print(master, "Sending shutdown command")
-       cmd%id = GLBOPT_CMD_SHUTDOWN  !overwrite command
+       cmd%cmd_id = GLBOPT_CMD_SHUTDOWN  !overwrite command
     ENDIF
 
  END SUBROUTINE
@@ -159,12 +187,184 @@ MODULE glbopt_master
 ! *****************************************************************************
  SUBROUTINE glbopt_master_finalize(master)
     TYPE(glbopt_master_type)                 :: master
+    TYPE(cp_logger_type), POINTER            :: logger
 
     CALL glbopt_minhop_finalize(master%minhop)
     DEALLOCATE(master%minhop)
 
+    logger => cp_error_get_logger(master%error)
+    CALL cp_print_key_finished_output(master%iw, logger,&
+            master%glbopt_section, "PRINT%MASTER_RUN_INFO", error=master%error)
+    CALL cp_print_key_finished_output(master%translog_unit, logger,&
+            master%glbopt_section, "PRINT%TRANSACTION_LOG", error=master%error)
+
     CALL rm_timer_env() !pops the top-most timer
  END SUBROUTINE glbopt_master_finalize
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE do_replay(master)
+    TYPE(glbopt_master_type)                 :: master
+    CHARACTER(LEN=default_path_length)       :: filename
+    TYPE(cp_parser_type), POINTER            :: parser
+    LOGICAL                                  :: explicit
+    TYPE(glbopt_report_type)                 :: report_log
+    TYPE(glbopt_command_type)                :: cmd_log, cmd_now
+    LOGICAL                                  :: at_end
+    NULLIFY(parser)
+
+    ! Initialize parser for trajectory
+    CALL section_vals_val_get(master%glbopt_section,"REPLAY_TRANSACTION_LOG",&
+       c_val=filename, explicit=explicit, error=master%error)
+
+    IF(.NOT. explicit) RETURN
+    IF(master%iw>0) WRITE(master%iw,'(A,A)') &
+       " GLOBAL_OPT| Starting replay of transaction-log: ", TRIM(filename)
+
+    CALL parser_create(parser, filename, para_env=master%para_env, error=master%error)
+
+    at_end = .FALSE.
+    DO
+       CALL translog_read_report(master, parser, report_log, at_end)
+       IF(at_end) EXIT
+       CALL translog_read_command(master, parser, cmd_log, at_end)
+       IF(at_end) EXIT
+       CALL glbopt_minhop_steer(master%minhop, report_log, cmd_now)
+       IF(.NOT. commands_equal(cmd_now, cmd_log)) STOP "wrong behaviour"
+    END DO
+
+    IF(master%iw>0) WRITE(master%iw,'(A,A)') &
+       " GLOBAL_OPT| Replay completed. Starting normal operations."
+
+    !  store last command for each walker
+    !  send out commands for each walker
+    !  evtl wail for 5 sec command (come_back_later)
+    CALL parser_release(parser, error=master%error)
+ END SUBROUTINE do_replay
+
+! *****************************************************************************
+! *****************************************************************************
+ FUNCTION commands_equal(cmd1, cmd2) RESULT(res)
+    TYPE(glbopt_command_type)                :: cmd1, cmd2
+    LOGICAL :: res
+    res =           cmd1%walker_id == cmd2%walker_id
+    res = res .AND. cmd1%cmd_id == cmd2%cmd_id
+    res = res .AND. ABS(cmd1%temperature - cmd2%temperature) < 1e-10
+    res = res .AND. ALL(ABS(cmd1%positions -cmd2%positions) < 1e-10)
+    !WRITE (*,*) cmd1%walker_id, cmd2%walker_id
+    !WRITE (*,*) cmd1%cmd_id, cmd2%cmd_id
+    !WRITE (*,*) ABS(cmd1%temperature - cmd2%temperature)
+ END FUNCTION commands_equal
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE translog_write_report(master, report)
+    TYPE(glbopt_master_type)   :: master
+    TYPE(glbopt_report_type)   :: report
+    INTEGER :: i
+
+    IF(master%translog_unit <= 0) RETURN
+
+    WRITE(master%translog_unit,"(I8)") SIZE(report%positions)/3 ! number of atoms
+    WRITE(master%translog_unit,"(A,A,I8,A,F20.10)") 'type = "glbopt_report"',&
+        ", walker_id = ",report%walker_id,&
+        ", Epot = ",report%Epot! info line, free text
+
+    DO i=1, SIZE(report%positions), 3
+      WRITE(master%translog_unit,"(3F20.10)") report%positions(i:i+2)
+    END DO
+
+
+ END SUBROUTINE
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE translog_read_report(master, parser, report, at_end)
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(cp_parser_type), POINTER            :: parser
+    TYPE(glbopt_report_type), INTENT(OUT)    :: report
+    LOGICAL                                  :: at_end
+
+    INTEGER                                  :: natoms, i
+    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, val1, eq
+
+    CALL parser_get_next_line(parser, 1, at_end, master%error)
+    IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
+    CALL parser_get_object(parser, natoms, error=master%error)
+
+    CALL parser_get_next_line(parser, 1, at_end, master%error)
+    IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
+
+    READ (parser%input_line,*) key1, eq, val1, key2, eq, report%walker_id, key3, eq, report%Epot
+    IF(TRIM(key1)/="type" .OR. TRIM(val1)/="glbopt_report" &
+     .OR. TRIM(key2)/="walker_id"&
+     .OR. TRIM(key3)/="Epot") STOP "translog_read_report failed"
+
+    ALLOCATE(report%positions(3*natoms))
+    report%positions = 0
+    DO i=0, natoms-1
+        CALL parser_get_next_line(parser, 1, at_end, master%error)
+        IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
+        READ (parser%input_line,*) report%positions(3*i + 1),&
+                                   report%positions(3*i + 2),&
+                                   report%positions(3*i + 3)
+     END DO
+ END SUBROUTINE translog_read_report
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE translog_write_command(master, cmd)
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(glbopt_command_type)                :: cmd
+    INTEGER :: i
+
+    IF(master%translog_unit <= 0) RETURN
+
+    WRITE(master%translog_unit,"(I8)") SIZE(cmd%positions)/3 ! number of atoms
+    WRITE(master%translog_unit,"(A,A,I8,A,I3,A,F20.10)") 'type = "glbopt_command"',&
+        ", walker_id = ",cmd%walker_id,&
+        ", cmd_id = ",cmd%cmd_id,&
+        ", temperature = ",cmd%temperature! info line, free text
+
+    DO i=1, SIZE(cmd%positions), 3
+      WRITE(master%translog_unit,"(3F20.10)") cmd%positions(i:i+2)
+    END DO
+
+ END SUBROUTINE
+
+! *****************************************************************************
+! *****************************************************************************
+ SUBROUTINE translog_read_command(master, parser, cmd, at_end)
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(cp_parser_type), POINTER            :: parser
+    TYPE(glbopt_command_type), INTENT(OUT)   :: cmd
+    LOGICAL                                  :: at_end
+
+    INTEGER                                  :: natoms, i
+    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, key4, val1, eq
+
+    CALL parser_get_next_line(parser, 1, at_end, master%error)
+    IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
+    CALL parser_get_object(parser,natoms, error=master%error)
+
+    CALL parser_get_next_line(parser, 1, at_end, master%error)
+    IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
+    READ (parser%input_line,*) key1, eq, val1, key2, eq, cmd%walker_id,&
+         key3, eq, cmd%cmd_id, key4, eq, cmd%temperature
+    IF(TRIM(key1)/="type" .OR. TRIM(val1)/="glbopt_command" &
+     .OR. TRIM(key2)/="walker_id" .OR. TRIM(key3)/="cmd_id" &
+      .OR. TRIM(key4)/="temperature") STOP "translog_read_command failed"
+
+    ALLOCATE(cmd%positions(3*natoms))
+    cmd%positions = 0
+    DO i=0, natoms-1
+        CALL parser_get_next_line(parser, 1, at_end, master%error)
+        IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
+        READ (parser%input_line,*) cmd%positions(3*i + 1),&
+                                   cmd%positions(3*i + 2),&
+                                   cmd%positions(3*i + 3)
+     END DO
+ END SUBROUTINE translog_read_command
 
 ! *****************************************************************************
 ! *****************************************************************************

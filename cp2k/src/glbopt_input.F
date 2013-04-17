@@ -88,6 +88,20 @@ MODULE glbopt_input
     CALL section_add_subsection(print_section,printkey,error=error)
     CALL section_release(printkey,error=error)
 
+    CALL cp_print_key_section_create(printkey,"TRANSACTION_LOG",&
+               description="Log all the communication between walkers and master. Needed for restart.",&
+               print_level=low_print_level,add_last=add_last_numeric,filename="glbopt_translog",&
+               error=error)
+    CALL section_add_subsection(print_section,printkey,error=error)
+    CALL section_release(printkey,error=error)
+
+    CALL keyword_create(keyword, name="REPLAY_TRANSACTION_LOG",&
+           description="TODO",repeats=.FALSE.,&
+           usage="REPLAY_TRANSACTION_LOG <CHARACTER>", default_lc_val="glbopt_translog_replay.xyz", &
+           error=error)
+    CALL section_add_keyword(glbopt_section,keyword,error=error)
+    CALL keyword_release(keyword,error=error)
+
     CALL section_add_subsection(glbopt_section,print_section,error=error)
     CALL section_release(print_section,error=error)
 
