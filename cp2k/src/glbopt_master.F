@@ -229,7 +229,7 @@ MODULE glbopt_master
        IF(at_end) EXIT
        CALL translog_read_command(master, parser, cmd_log, at_end)
        IF(at_end) EXIT
-       CALL glbopt_minhop_steer(master%minhop, report_log, cmd_now)
+       CALL glbopt_master_steer(master, report_log, cmd_now)
        IF(.NOT. commands_equal(cmd_now, cmd_log)) STOP "wrong behaviour"
     END DO
 
@@ -266,7 +266,9 @@ MODULE glbopt_master
     IF(master%translog_unit <= 0) RETURN
 
     WRITE(master%translog_unit,"(I8)") SIZE(report%positions)/3 ! number of atoms
-    WRITE(master%translog_unit,"(A,A,I8,A,F20.10)") 'type = "glbopt_report"',&
+    WRITE(master%translog_unit,"(A,I8,A,A,I8,A,F20.10)")&
+        'i = ',master%i_iteration,&
+        ', type = "glbopt_report"',&
         ", walker_id = ",report%walker_id,&
         ", Epot = ",report%Epot! info line, free text
 
@@ -285,8 +287,8 @@ MODULE glbopt_master
     TYPE(glbopt_report_type), INTENT(OUT)    :: report
     LOGICAL                                  :: at_end
 
-    INTEGER                                  :: natoms, i
-    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, val1, eq
+    INTEGER                                  :: natoms, i, val1
+    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, key4, val2, eq
 
     CALL parser_get_next_line(parser, 1, at_end, master%error)
     IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
@@ -295,10 +297,10 @@ MODULE glbopt_master
     CALL parser_get_next_line(parser, 1, at_end, master%error)
     IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
 
-    READ (parser%input_line,*) key1, eq, val1, key2, eq, report%walker_id, key3, eq, report%Epot
-    IF(TRIM(key1)/="type" .OR. TRIM(val1)/="glbopt_report" &
-     .OR. TRIM(key2)/="walker_id"&
-     .OR. TRIM(key3)/="Epot") STOP "translog_read_report failed"
+    READ (parser%input_line,*) key1, eq, val1, key2, eq, val2, key3, eq, report%walker_id, key4, eq, report%Epot
+    IF(TRIM(key1)/="i" .OR. TRIM(key2)/="type"&
+     .OR. TRIM(val2)/="glbopt_report" .OR. TRIM(key3)/="walker_id"&
+     .OR. TRIM(key4)/="Epot") STOP "translog_read_report failed"
 
     ALLOCATE(report%positions(3*natoms))
     report%positions = 0
@@ -321,7 +323,9 @@ MODULE glbopt_master
     IF(master%translog_unit <= 0) RETURN
 
     WRITE(master%translog_unit,"(I8)") SIZE(cmd%positions)/3 ! number of atoms
-    WRITE(master%translog_unit,"(A,A,I8,A,I3,A,F20.10)") 'type = "glbopt_command"',&
+    WRITE(master%translog_unit,"(A,I8,A,A,I8,A,I3,A,F20.10)")&
+        'i = ',master%i_iteration,&
+        ', type = "glbopt_command"',&
         ", walker_id = ",cmd%walker_id,&
         ", cmd_id = ",cmd%cmd_id,&
         ", temperature = ",cmd%temperature! info line, free text
@@ -340,8 +344,8 @@ MODULE glbopt_master
     TYPE(glbopt_command_type), INTENT(OUT)   :: cmd
     LOGICAL                                  :: at_end
 
-    INTEGER                                  :: natoms, i
-    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, key4, val1, eq
+    INTEGER                                  :: natoms, i, val1
+    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, key4, key5, val2, eq
 
     CALL parser_get_next_line(parser, 1, at_end, master%error)
     IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
@@ -349,11 +353,12 @@ MODULE glbopt_master
 
     CALL parser_get_next_line(parser, 1, at_end, master%error)
     IF(at_end .OR. LEN_TRIM(parser%input_line)==0) RETURN
-    READ (parser%input_line,*) key1, eq, val1, key2, eq, cmd%walker_id,&
-         key3, eq, cmd%cmd_id, key4, eq, cmd%temperature
-    IF(TRIM(key1)/="type" .OR. TRIM(val1)/="glbopt_command" &
-     .OR. TRIM(key2)/="walker_id" .OR. TRIM(key3)/="cmd_id" &
-      .OR. TRIM(key4)/="temperature") STOP "translog_read_command failed"
+    READ (parser%input_line,*) key1, eq, val1, key2, eq, val2,&
+      key3, eq, cmd%walker_id, key4, eq, cmd%cmd_id, key5, eq, cmd%temperature
+
+    IF(TRIM(key1)/="i" .OR. TRIM(key2)/="type" .OR. TRIM(val2)/="glbopt_command" &
+      .OR. TRIM(key3)/="walker_id" .OR. TRIM(key4)/="cmd_id" &
+      .OR. TRIM(key5)/="temperature") STOP "translog_read_command failed"
 
     ALLOCATE(cmd%positions(3*natoms))
     cmd%positions = 0
