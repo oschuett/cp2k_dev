@@ -99,35 +99,9 @@ MODULE glbopt
       routineP = moduleN//':'//routineN
     CALL timeset(routineN,handle)
 
-!   TYPE(glbopt_config_type)                 :: glbopt_cfg
-!    TYPE(section_vals_type), POINTER         :: colvar_section
-   ! CALL section_vals_val_get(root_section,"GLOBAL_OPT%EMIN",&
-   !    r_val=glbopt_cfg%Emin,error=error)
-   ! !TODO: read from input or make educated guess
-   ! ! TODO: more hierarchic naming scheme eg. bloom_* md_* ...
-   ! glbopt_cfg%n_hashes = 10
-   ! glbopt_cfg%bloom_size = 2**10
-   ! glbopt_cfg%epot_ndown = 2
-   ! glbopt_cfg%epot_nup = 2
-   ! glbopt_cfg%md_mincount_max = 3
-   ! glbopt_cfg%hop_count_max = 100
-   !
-   ! glbopt_cfg%md_max_dist   = 3.0/angstrom
-   ! glbopt_cfg%gopt_max_dist = 3.0/angstrom
-   ! glbopt_cfg%colvar_precision = 1.0e-6
-   !
-   ! ! make sure there are colvars
-   ! colvar_section => section_vals_get_subs_vals(root_section,"FORCE_EVAL%SUBSYS%COLVAR",error=error)
-   ! CALL section_vals_get(colvar_section,n_repetition=glbopt_cfg%n_colvars,error=error)
-   ! IF(glbopt_cfg%n_colvars == 0) STOP "No colvars found. Aborting."
-   !
-   !
-   !
-
     logger => cp_error_get_logger(error)
     iw = cp_print_key_unit_nr(logger,root_section,&
           "GLOBAL_OPT%PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
-
 
     IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Ready to roll :-)"
 
@@ -227,6 +201,8 @@ MODULE glbopt
              CALL glbopt_mpi_send_command(glbopt_mpi, report%walker_id, cmd)
              IF(cmd%cmd_id == GLBOPT_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
           END DO
+          !TODO: output doesn't not were here :-(
+          !IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Shutdown command send to all walker. Shutting down the master."
           CALL glbopt_master_finalize(master)
        END IF
 

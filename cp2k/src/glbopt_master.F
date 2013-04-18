@@ -288,8 +288,9 @@ MODULE glbopt_master
     ! First check if there are queued commands for this walker
     cmd = command_queue_pop(master, report%walker_id)
     IF(cmd%cmd_id > 0) THEN
-       IF(master%iw>0) WRITE(master%iw,'(A,21X,I8)') &
-         " GLOBAL_OPT| Sending out queued command to walker: ", cmd%walker_id
+       IF(master%iw>0) WRITE (master%iw,'(A,A,A,I9,X,A)') ' GLOBAL_OPT| ',&
+         REPEAT("*", 9), " Sending out queued command to walker: ",&
+         cmd%walker_id,REPEAT("*", 9)
        RETURN
     END IF
 
