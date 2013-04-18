@@ -341,6 +341,8 @@ MODULE glbopt_master
     TYPE(glbopt_master_type)                 :: master
     TYPE(cp_logger_type), POINTER            :: logger
 
+    IF(master%iw > 0) WRITE(master%iw,"(A)") " GLOBAL_OPT| Shutting down the master."
+
     CALL glbopt_minhop_finalize(master%minhop)
     DEALLOCATE(master%minhop)
 

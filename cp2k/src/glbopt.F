@@ -201,8 +201,6 @@ MODULE glbopt
              CALL glbopt_mpi_send_command(glbopt_mpi, report%walker_id, cmd)
              IF(cmd%cmd_id == GLBOPT_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
           END DO
-          !TODO: output doesn't not were here :-(
-          !IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Shutdown command send to all walker. Shutting down the master."
           CALL glbopt_master_finalize(master)
        END IF
 
