@@ -9,12 +9,7 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_utils
-  USE cp_subsys_types,                 ONLY: cp_subsys_get,&
-                                             cp_subsys_type
-  USE force_env_types,                 ONLY: force_env_get,&
-                                             force_env_type
   USE kinds,                           ONLY: dp
-  USE particle_list_types,             ONLY: particle_list_type
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -31,35 +26,31 @@ MODULE glbopt_utils
 
 ! *****************************************************************************
 ! *****************************************************************************
-  FUNCTION particles_connected(force_env, max_distance, error) RESULT(all_connected)
-    TYPE(force_env_type), POINTER            :: force_env
+  FUNCTION particles_connected(positions, max_distance) RESULT(all_connected)
+    REAL(KIND=dp), DIMENSION(:)              :: positions
     REAL(KIND=dp)                            :: max_distance
-    TYPE(cp_error_type), INTENT(inout)       :: error
     LOGICAL                                  :: all_connected
 
     INTEGER                                  :: iparticle, jparticle, &
-                                                stack_size
+                                                n_particles, stack_size
     INTEGER, ALLOCATABLE, DIMENSION(:)       :: stack
     LOGICAL, ALLOCATABLE, DIMENSION(:)       :: marked
     REAL(KIND=dp)                            :: dr(3), dr_norm
-    TYPE(cp_subsys_type), POINTER            :: subsys
-    TYPE(particle_list_type), POINTER        :: particles
 
-    CALL force_env_get(force_env, subsys=subsys, error=error)
-    CALL cp_subsys_get(subsys,particles=particles,error=error)
-
-    ALLOCATE(stack(SIZE(particles%els)), marked(SIZE(particles%els)))
+    n_particles = SIZE(positions) / 3
+    ALLOCATE(stack(n_particles), marked(n_particles))
     marked = .FALSE.; stack_size = 0
 
     ! First particle taken as root of flooding, mark it and push to stack
     marked(1) = .TRUE.; stack(1) = 1; stack_size = 1
 
+
     !WRITE (*,*) "max dist: ",max_distance
     DO WHILE (stack_size > 0)
        iparticle = stack(stack_size); stack_size=stack_size-1  !pop
        !WRITE (*,*) "working on particle: ",iparticle
-       DO jparticle = 1, SIZE(particles%els)
-         dr = particles%els(iparticle)%r(:) - particles%els(jparticle)%r(:)
+       DO jparticle = 1, n_particles
+         dr = positions(3*iparticle-2:3*iparticle) - positions(3*jparticle-2:3*jparticle)
          dr_norm = SQRT(DOT_PRODUCT(dr,dr))
          !WRITE (*,*) "dist ", iparticle, jparticle, dr_norm, dr_norm < max_distance
          IF(dr_norm < max_distance) THEN ! they are close = they are connected

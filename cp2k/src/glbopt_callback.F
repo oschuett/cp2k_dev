@@ -9,9 +9,14 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_callback
-  USE force_env_types,                 ONLY: force_env_type
+  USE cp_subsys_types,                 ONLY: cp_subsys_get,&
+                                             cp_subsys_type,&
+                                             pack_subsys_particles
+  USE force_env_types,                 ONLY: force_env_get,&
+                                             force_env_type
   USE glbopt_types,                    ONLY: glbopt_mdctrl_data_type
   USE glbopt_utils,                    ONLY: particles_connected
+  USE kinds,                           ONLY: dp
   USE md_ener_types,                   ONLY: md_ener_type
   USE md_environment_types,            ONLY: get_md_env,&
                                              md_environment_type
@@ -43,10 +48,12 @@ MODULE glbopt_callback
     CHARACTER(len=*), PARAMETER :: routineN = 'glbopt_md_callback', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: i, iw
+    INTEGER                                  :: i, iw, n_atoms
     INTEGER, POINTER                         :: itimes
     LOGICAL                                  :: failure = .FALSE., &
                                                 passed_minimum
+    REAL(KIND=dp), ALLOCATABLE, DIMENSION(:) :: positions
+    TYPE(cp_subsys_type), POINTER            :: subsys
     TYPE(force_env_type), POINTER            :: force_env
     TYPE(md_ener_type), POINTER              :: md_ener
 
@@ -94,8 +101,13 @@ MODULE glbopt_callback
        IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MINCOUNTER."
     END IF
 
+    CALL force_env_get(force_env, subsys=subsys, error=error)
+    CALL cp_subsys_get(subsys, natom=n_atoms, error=error)
+    ALLOCATE(positions(3*n_atoms))
+    CALL pack_subsys_particles(subsys, r=positions, error=error)
+
     ! Stop if cluster starts to splits into multiple fragments.
-    IF(.NOT. particles_connected(force_env, mdctrl_data%md_max_dist, error)) THEN
+    IF(.NOT. particles_connected(positions, mdctrl_data%md_max_dist)) THEN
        IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MAX_DIST."
        should_stop = .TRUE.
     END IF

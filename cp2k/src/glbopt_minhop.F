@@ -9,7 +9,6 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_minhop
-!USE input_constants
   USE glbopt_history,                  ONLY: glbopt_history_add,&
                                              glbopt_history_finalize,&
                                              glbopt_history_init,&
@@ -18,11 +17,13 @@ MODULE glbopt_minhop
   USE glbopt_types,                    ONLY: glbopt_cmd_mdgopt,&
                                              glbopt_command_type,&
                                              glbopt_report_type
+  USE glbopt_utils,                    ONLY: particles_connected
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
                                              section_vals_val_get
   USE kinds,                           ONLY: dp
-  USE physcon,                         ONLY: kelvin
+  USE physcon,                         ONLY: angstrom,&
+                                             kelvin
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -42,7 +43,6 @@ MODULE glbopt_minhop
    TYPE(glbopt_report_type), DIMENSION(:), ALLOCATABLE :: prev_report
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: temperature
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: Eaccept
-   REAL(KIND=dp)                                       :: beta1 = 0
    REAL(KIND=dp)                                       :: beta2 = 0
    REAL(KIND=dp)                                       :: beta3 = 0
    REAL(KIND=dp)                                       :: Eaccept0 = 0
@@ -50,10 +50,12 @@ MODULE glbopt_minhop
    REAL(KIND=dp)                                       :: temp_throttle = 0
    REAL(KIND=dp)                                       :: alpha1 = 0
    REAL(KIND=dp)                                       :: alpha2 = 0
+   REAL(KIND=dp)                                       :: max_dist = 0
    INTEGER                                             :: n_accepted = 0
    INTEGER                                             :: iw = 0
    INTEGER                                             :: n_walkers =0
    LOGICAL                                             :: share_history = .FALSE.
+   
  END TYPE glbopt_minhop_type
 
  CONTAINS
@@ -74,7 +76,6 @@ MODULE glbopt_minhop
 ! read input
 
     minhop_section => section_vals_get_subs_vals(glbopt_section, "MINIMA_HOPPING", error=error)
-    CALL section_vals_val_get(minhop_section,"BETA_1",  r_val=minhop%beta1,error=error)
     CALL section_vals_val_get(minhop_section,"BETA_2",  r_val=minhop%beta2,error=error)
     CALL section_vals_val_get(minhop_section,"BETA_3",  r_val=minhop%beta3,error=error)
     CALL section_vals_val_get(minhop_section,"ALPHA_1", r_val=minhop%alpha1,error=error)
@@ -103,7 +104,8 @@ MODULE glbopt_minhop
     minhop%n_walkers = n_walkers
     minhop%iw = iw
     minhop%n_accepted = 0
-
+    minhop%max_dist = 3.0/angstrom !TODO: read from input
+      
     IF(minhop%iw>0) &
       WRITE(minhop%iw, '(A,36X,L1)') " GLOBAL_OPT|MINHOP| Using shared histories:", minhop%share_history
  END SUBROUTINE glbopt_minhop_init
@@ -127,9 +129,14 @@ MODULE glbopt_minhop
 
     CALL glbopt_history_lookup(minhop%history(hid), report, minima_known)
 
-    IF(minima_known) THEN ! known minima restart MD
+    ! Stop if cluster starts to splits into multiple fragments.
+    IF(.NOT. particles_connected(report%positions, minhop%max_dist)) THEN
+       IF(minhop%iw > 0) WRITE (minhop%iw,"(A)") " GLOBAL_OPT|MINHOP| Conclusion: rejecting minima because of MAX_DIST."
+       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3  !decreasing temperature
+
+    ELSE IF(minima_known) THEN ! known minima restart MD
        IF(minhop%iw>0) WRITE(minhop%iw,'(A,40X,A)') " GLOBAL_OPT|MINHOP| Conclusion","old minima"
-       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta1
+       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta2
 
     ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
        IF(minhop%iw>0) WRITE(minhop%iw,'(A,7X,A)')&
@@ -146,8 +153,10 @@ MODULE glbopt_minhop
       minhop%n_accepted = minhop%n_accepted + 1
     END IF
 
+
     IF(minhop%temperature(wid) > minhop%temp_throttle) THEN
        minhop%temperature(wid) = minhop%temp_throttle
+       !TODO: or should we exit???
       IF(minhop%iw > 0) WRITE(minhop%iw,*) " GLOBAL_OPT|MINHOP| Throttleing Temperature"
     END IF
 

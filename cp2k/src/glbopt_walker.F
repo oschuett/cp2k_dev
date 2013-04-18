@@ -141,7 +141,7 @@ MODULE glbopt_walker
       walker%epot_nup = 2
       walker%epot_ndown = 2
       walker%md_mincount_max = 3
-      walker%md_max_dist = 3.0/angstrom
+      walker%md_max_dist = 3.0/angstrom !TODO: read from input
 
   END SUBROUTINE glbopt_walker_init
 

@@ -137,14 +137,8 @@ MODULE glbopt_input
          description="blah TODO.",&
          repeats=.FALSE., supported_feature=.TRUE.,error=error)
 
-    CALL keyword_create(keyword, name="BETA_1",&
-         description="balba TODO.",&
-         default_r_val=1.1_dp,type_of_var=real_t,error=error)
-    CALL section_add_keyword(minhop_section, keyword, error=error)
-    CALL keyword_release(keyword, error=error)
-
     CALL keyword_create(keyword, name="BETA_2",&
-         description="balba TODO.", &
+         description="balba TODO.We do not desctinguis between beta_1 and beta_2 as in the orig paper", &
          default_r_val=1.1_dp, type_of_var=real_t,error=error)
     CALL section_add_keyword(minhop_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
