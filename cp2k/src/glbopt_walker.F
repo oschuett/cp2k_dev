@@ -210,15 +210,13 @@ MODULE glbopt_walker
 ! *****************************************************************************
    SUBROUTINE glbopt_walker_assemble_report(walker, report)
        TYPE(glbopt_walker_type), INTENT(INOUT)     :: walker
-       TYPE(glbopt_report_type), INTENT(INOUT)     :: report
+       TYPE(glbopt_report_type), INTENT(OUT)       :: report
        INTEGER                                     :: n_atoms
        report%walker_id = walker%id
        CALL force_env_get(walker%force_env, potential_energy=report%Epot, error=walker%error)
        IF (walker%iw>0) WRITE (walker%iw,'(A,21X,E20.10)')' GLOBAL_OPT| Potential Energy [Hartree]',report%Epot
-       IF(.NOT. ALLOCATED(report%positions)) THEN
-          CALL cp_subsys_get(walker%subsys, natom=n_atoms, error=walker%error)
-          ALLOCATE(report%positions(3*n_atoms))
-       END IF
+       CALL cp_subsys_get(walker%subsys, natom=n_atoms, error=walker%error)
+       ALLOCATE(report%positions(3*n_atoms))
        CALL pack_subsys_particles(walker%subsys, r=report%positions, error=walker%error)
    END SUBROUTINE glbopt_walker_assemble_report
 

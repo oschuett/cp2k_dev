@@ -260,7 +260,7 @@ MODULE glbopt_mpi
 ! *****************************************************************************
   SUBROUTINE glbopt_mpi_recv_report(glbopt_mpi, report)
      TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-     TYPE(glbopt_report_type)                 :: report
+     TYPE(glbopt_report_type), INTENT(OUT)    :: report
      INTEGER :: src, tag, s
 
      tag=42
@@ -273,8 +273,6 @@ MODULE glbopt_mpi
 
      CALL mp_recv(report%Epot,      src, tag, glbopt_mpi%world%group)
      CALL mp_recv(s,                src, tag, glbopt_mpi%world%group)
-     ! TODO atom numbers do not change, make this more efficient
-     IF(ALLOCATED(report%positions)) DEALLOCATE(report%positions)
      ALLOCATE(report%positions(s))
      CALL mp_recv(report%positions, src, tag, glbopt_mpi%world%group)
   END SUBROUTINE glbopt_mpi_recv_report
@@ -301,11 +299,9 @@ MODULE glbopt_mpi
 ! *****************************************************************************
   SUBROUTINE glbopt_mpi_recv_command(glbopt_mpi, cmd)
      TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-     TYPE(glbopt_command_type)                :: cmd
+     TYPE(glbopt_command_type), INTENT(OUT)   :: cmd
 
      INTEGER :: tag, src, s
-
-     IF(ALLOCATED(cmd%positions)) DEALLOCATE(cmd%positions)
 
      ! This is a two step communication schema.
      ! First: The rank-0 of the walker groups receives the command from the master.
