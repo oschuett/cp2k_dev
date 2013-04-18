@@ -83,9 +83,9 @@ MODULE glbopt_input
     CALL section_release(printkey,error=error)
 
     CALL cp_print_key_section_create(printkey,"COMMUNICATION_LOG",&
-               description="Log all the communication between walkers and master. Needed for restart.",&
-               print_level=low_print_level,add_last=add_last_numeric,filename="glbopt_comlog",&
-               error=error)
+            description="Log all the communication between walkers and master. Needed for restart.",&
+            print_level=low_print_level, common_iter_levels=1,&
+            filename="",unit_str="angstrom",error=error)
     CALL section_add_subsection(print_section,printkey,error=error)
     CALL section_release(printkey,error=error)
 
