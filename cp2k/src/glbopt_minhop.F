@@ -88,7 +88,6 @@ MODULE glbopt_minhop
    REAL(KIND=dp)                                       :: temp_throttle = 0
    REAL(KIND=dp)                                       :: alpha1 = 0
    REAL(KIND=dp)                                       :: alpha2 = 0
-   INTEGER                                             :: iterations = 0
    INTEGER                                             :: n_accepted = 0
    INTEGER                                             :: iw = 0
    INTEGER                                             :: n_walkers =0
@@ -142,11 +141,10 @@ MODULE glbopt_minhop
     minhop%Eaccept(:)     = minhop%Eaccept0
     minhop%n_walkers = n_walkers
     minhop%iw = iw
-    minhop%iterations = 0
     minhop%n_accepted = 0
 
     IF(minhop%iw>0) &
-      WRITE(minhop%iw, '(A,43X,L1)') " GLOBAL_OPT| Using shared histories:", minhop%share_history
+      WRITE(minhop%iw, '(A,36X,L1)') " GLOBAL_OPT|MINHOP| Using shared histories:", minhop%share_history
  END SUBROUTINE glbopt_minhop_init
 
 ! *****************************************************************************
@@ -170,17 +168,17 @@ MODULE glbopt_minhop
     CALL glbopt_history_lookup(minhop%history(hid), report, minima_known)
 
     IF(minima_known) THEN ! known minima restart MD
-       IF(minhop%iw>0) WRITE(minhop%iw,*) "GLOBAL_OPT| Conclusion: old minima"
+       IF(minhop%iw>0) WRITE(minhop%iw,'(A,40X,A)') " GLOBAL_OPT|MINHOP| Conclusion","old minima"
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta1
 
     ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
-       IF(minhop%iw>0) WRITE(minhop%iw,*)&
-          "GLOBAL_OPT| Conclusion: new minima, but got rejected due to Eaccept"
+       IF(minhop%iw>0) WRITE(minhop%iw,'(A,7X,A)')&
+          " GLOBAL_OPT|MINHOP| Conclusion","new minima, but got rejected due to Eaccept"
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
        minhop%Eaccept(wid)     = minhop%Eaccept(wid) * minhop%alpha2
 
     ELSE ! Hurra, we accept a new minimum
-      IF(minhop%iw>0) WRITE(minhop%iw,*) "GLOBAL_OPT| Conclusion: new minima got accepted"
+      IF(minhop%iw>0) WRITE(minhop%iw,'(A,27X,A)') " GLOBAL_OPT|MINHOP| Conclusion","new minima got accepted"
       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
       minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1
       CALL glbopt_history_add(minhop%history(hid), report)
@@ -190,24 +188,25 @@ MODULE glbopt_minhop
 
     IF(minhop%temperature(wid) > minhop%temp_throttle) THEN
        minhop%temperature(wid) = minhop%temp_throttle
-      IF(minhop%iw > 0) WRITE(minhop%iw,*) "GLOBAL_OPT| Throttleing Temperature"
+      IF(minhop%iw > 0) WRITE(minhop%iw,*) " GLOBAL_OPT|MINHOP| Throttleing Temperature"
     END IF
 
-    cmd%cmd_id              = GLBOPT_CMD_MDGOPT
+    IF(minhop%iw>0) THEN
+        WRITE (minhop%iw,'(A,4X,E20.10)')&
+         " GLOBAL_OPT|MINHOP| Walker's acceptance Energy [Hartree]",minhop%Eaccept(wid)
+        WRITE (minhop%iw,'(A,11X,F20.3)')&
+         " GLOBAL_OPT|MINHOP| Walker's temperature [Kelvin]",minhop%temperature(wid)*kelvin
+    END IF
+
+    cmd%cmd_id          = GLBOPT_CMD_MDGOPT
     cmd%positions       = minhop%prev_report(wid)%positions
     cmd%temperature     = minhop%temperature(wid)
 
-    minhop%iterations = minhop%iterations + 1
     IF(minhop%iw > 0) &
-      WRITE(minhop%iw,'(A,I10,A,I10)') " GLOBAL_OPT| Minima Hopping Interation ",&
-        minhop%iterations, " accepted number of minima: ",minhop%n_accepted
-
-    !IF(minhop%iw > 0) &
-    !WRITE (minhop%iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
-    !     minhop%iterations,'. Minima Hopping Iteration ',REPEAT("*", 15)
+      WRITE(minhop%iw,'(A,19X,I10)')&
+       " GLOBAL_OPT|MINHOP| Total number of accepted minima",minhop%n_accepted
 
  END SUBROUTINE glbopt_minhop_steer
-
 
 
 ! *****************************************************************************

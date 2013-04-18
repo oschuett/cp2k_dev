@@ -801,6 +801,7 @@ OBJECTS_GENERIC =\
  glbopt_input.o\
  glbopt_minhop.o\
  glbopt_mpi.o\
+ glbopt_comlog.o\
  mdctrl_types.o\
  mdctrl_methods.o\
  hash_functions.o

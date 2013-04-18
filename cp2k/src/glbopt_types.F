@@ -39,6 +39,7 @@ MODULE glbopt_types
  TYPE glbopt_command_type
    INTEGER :: walker_id = -1
    INTEGER :: cmd_id = -1
+   INTEGER :: iframe = -1
    REAL(KIND=dp) :: temperature = 0.0
    REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)  :: positions
  END TYPE glbopt_command_type
@@ -46,6 +47,7 @@ MODULE glbopt_types
 
  TYPE glbopt_report_type
    INTEGER                                   :: walker_id = -1
+   INTEGER                                   :: iframe = -1
    REAL(KIND=dp)                             :: Epot = 0.0
    REAL(KIND=dp), ALLOCATABLE, DIMENSION(:)  :: positions
  END TYPE glbopt_report_type
@@ -53,9 +55,10 @@ MODULE glbopt_types
 
  INTEGER, PARAMETER  :: GLBOPT_CMD_SHUTDOWN      = 999
  INTEGER, PARAMETER  :: GLBOPT_CMD_MDGOPT        = 888
+ INTEGER, PARAMETER  :: GLBOPT_CMD_SETIFRAME     = 777
 
 
- PUBLIC :: GLBOPT_CMD_SHUTDOWN, GLBOPT_CMD_MDGOPT
+ PUBLIC :: GLBOPT_CMD_SHUTDOWN, GLBOPT_CMD_MDGOPT, GLBOPT_CMD_SETIFRAME
  PUBLIC :: glbopt_report_type, glbopt_command_type, glbopt_mdctrl_data_type
 
 END MODULE glbopt_types

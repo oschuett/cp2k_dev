@@ -65,7 +65,7 @@ MODULE glbopt
                                              cp_print_key_finished_output,&
                                              cp_print_key_should_output,&
                                              cp_print_key_unit_nr
-
+  USE global_types,                    ONLY: global_environment_type
 
 #include "cp_common_uses.h"
 
@@ -85,9 +85,10 @@ MODULE glbopt
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE run_global_opt(root_section, para_env, input_path, error)
+   SUBROUTINE run_global_opt(root_section, para_env, globenv, input_path, error)
     TYPE(section_vals_type), POINTER         :: root_section
     TYPE(cp_para_env_type), POINTER          :: para_env
+    TYPE(global_environment_type), POINTER   :: globenv
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     TYPE(cp_error_type), INTENT(inout)       :: error
 
@@ -135,11 +136,11 @@ MODULE glbopt
 
     IF(n_walkers == 1) THEN
        IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Running in single walker mode."
-       CALL glbopt_serial_driver(root_section, input_path, para_env, error)
+       CALL glbopt_serial_driver(root_section, input_path, para_env, globenv, error)
     ELSE
        IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
        !printkey iw passed on for output from glbopt_mpi_init()
-       CALL glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, iw, error)
+       CALL glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, globenv, iw, error)
     ENDIF
 
     CALL timestop(handle)
@@ -147,10 +148,11 @@ MODULE glbopt
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_serial_driver(root_section, input_path, para_env, error)
+   SUBROUTINE glbopt_serial_driver(root_section, input_path, para_env, globenv, error)
        TYPE(section_vals_type), POINTER         :: root_section
        CHARACTER(LEN=*), INTENT(IN)             :: input_path
        TYPE(cp_para_env_type), POINTER          :: para_env
+       TYPE(global_environment_type), POINTER   :: globenv
        TYPE(cp_error_type), INTENT(inout)       :: error
 
        TYPE(glbopt_master_type)                 :: master
@@ -160,7 +162,7 @@ MODULE glbopt
        INTEGER                                  :: i
        LOGICAL                                  :: should_stop
 
-       CALL glbopt_master_init(master, para_env, root_section, n_walkers=1, error=error)
+       CALL glbopt_master_init(master, para_env, globenv, root_section, n_walkers=1, error=error)
        CALL glbopt_walker_init(walker, para_env, root_section, input_path, &
                                    walker_id=1, error=error)
 
@@ -179,11 +181,12 @@ MODULE glbopt
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, iw, error)
+   SUBROUTINE glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, globenv, iw, error)
        INTEGER, INTENT(IN)                      :: n_walkers
        TYPE(section_vals_type), POINTER         :: root_section
        CHARACTER(LEN=*), INTENT(IN)             :: input_path
        TYPE(cp_para_env_type), POINTER          :: para_env
+       TYPE(global_environment_type), POINTER   :: globenv
        INTEGER, INTENT(IN)                      :: iw
        TYPE(cp_error_type), INTENT(inout)       :: error
 
@@ -215,7 +218,7 @@ MODULE glbopt
 
        !------------------------------------------------------------------------
        ELSE  ! I'm the master
-          CALL glbopt_master_init(master, glbopt_mpi%master, root_section,&
+          CALL glbopt_master_init(master, glbopt_mpi%master, globenv, root_section,&
                  n_walkers, error)
           i_shutdowns = 0
           DO WHILE(i_shutdowns < n_walkers)

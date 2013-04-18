@@ -109,8 +109,8 @@ MODULE glbopt_mpi
     pe_per_walker = (glbopt_mpi%world%num_pe-1)/n_walkers
 
     IF(iw>0) THEN
-       WRITE(iw,*) "GLOBAL_OPT| Number of mpi ranks: ", glbopt_mpi%world%num_pe
-       WRITE(iw,*) "GLOBAL_OPT| Number of walkers: ", n_walkers
+       WRITE(iw,'(A,40X,I8)') " GLOBAL_OPT| Number of mpi ranks", glbopt_mpi%world%num_pe
+       WRITE(iw,'(A,42X,I8)') " GLOBAL_OPT| Number of walkers", n_walkers
     ENDIF
 
     ! the last task becomes the master. Preseves node-alignment of other tasks.
@@ -251,6 +251,7 @@ MODULE glbopt_mpi
      tag = 42
      !TODO: this is inefficient - could pack everything into one buffer
      CALL mp_send(report%walker_id,       dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(report%iframe,          dest, tag, glbopt_mpi%world%group)
      CALL mp_send(report%Epot,            dest, tag, glbopt_mpi%world%group)
      CALL mp_send(SIZE(report%positions), dest, tag, glbopt_mpi%world%group)
      CALL mp_send(report%positions,       dest, tag, glbopt_mpi%world%group)
@@ -271,6 +272,7 @@ MODULE glbopt_mpi
      IF(src /= glbopt_mpi%wid2group(report%walker_id)) &
         CALL mp_abort("wid2group table corrupted")
 
+     CALL mp_recv(report%iframe,    src, tag, glbopt_mpi%world%group)
      CALL mp_recv(report%Epot,      src, tag, glbopt_mpi%world%group)
      CALL mp_recv(s,                src, tag, glbopt_mpi%world%group)
      ALLOCATE(report%positions(s))
@@ -290,9 +292,14 @@ MODULE glbopt_mpi
 
      !TODO: this is inefficient - could pack everything into one buffer
      CALL mp_send(cmd%cmd_id,          dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(cmd%iframe,          dest, tag, glbopt_mpi%world%group)
      CALL mp_send(cmd%temperature,     dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(SIZE(cmd%positions), dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(cmd%positions,       dest, tag, glbopt_mpi%world%group)
+     IF(ALLOCATED(cmd%positions)) THEN
+       CALL mp_send(SIZE(cmd%positions), dest, tag, glbopt_mpi%world%group)
+       CALL mp_send(cmd%positions,       dest, tag, glbopt_mpi%world%group)
+     ELSE
+       CALL mp_send(0,                   dest, tag, glbopt_mpi%world%group)
+     ENDIF
   END SUBROUTINE glbopt_mpi_send_command
 
 ! *****************************************************************************
@@ -309,19 +316,24 @@ MODULE glbopt_mpi
         tag = 42
         src = glbopt_mpi%world%num_pe-1
         CALL mp_recv(cmd%cmd_id,      src, tag, glbopt_mpi%world%group)
+        CALL mp_recv(cmd%iframe,      src, tag, glbopt_mpi%world%group)
         CALL mp_recv(cmd%temperature, src, tag, glbopt_mpi%world%group)
         CALL mp_recv(s,               src, tag, glbopt_mpi%world%group)
-        ! TODO atom numbers do not change, make this more efficient
-        ALLOCATE(cmd%positions(s))
-        CALL mp_recv(cmd%positions,   src, tag, glbopt_mpi%world%group)
+        IF(s > 0) THEN
+          ALLOCATE(cmd%positions(s))
+          CALL mp_recv(cmd%positions,   src, tag, glbopt_mpi%world%group)
+        END IF
      ENDIF
 
      ! Second: The command is broadcasted within the walker group.
      CALL mp_bcast(cmd%cmd_id,      glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     CALL mp_bcast(cmd%iframe,      glbopt_mpi%walker%source, glbopt_mpi%walker%group)
      CALL mp_bcast(cmd%temperature, glbopt_mpi%walker%source, glbopt_mpi%walker%group)
      CALL mp_bcast(s,               glbopt_mpi%walker%source, glbopt_mpi%walker%group)
-     IF(glbopt_mpi%walker%source /= glbopt_mpi%walker%mepos) ALLOCATE(cmd%positions(s))
-     CALL mp_bcast(cmd%positions,   glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     IF(s > 0) THEN
+       IF(glbopt_mpi%walker%source/=glbopt_mpi%walker%mepos) ALLOCATE(cmd%positions(s))
+       CALL mp_bcast(cmd%positions,   glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     ENDIF
   END SUBROUTINE glbopt_mpi_recv_command
 
 

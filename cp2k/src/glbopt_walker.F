@@ -25,6 +25,7 @@ MODULE glbopt_walker
   USE glbopt_types,                    ONLY: glbopt_mdctrl_data_type,&
                                              glbopt_cmd_shutdown,&
                                              glbopt_cmd_mdgopt,&
+                                             glbopt_cmd_setiframe,&
                                              glbopt_command_type,&
                                              glbopt_report_type
   USE global_types,                    ONLY: global_environment_type
@@ -193,11 +194,14 @@ MODULE glbopt_walker
        TYPE(glbopt_command_type), INTENT(IN)           :: cmd
        LOGICAL, INTENT(INOUT)                          :: should_stop
 
+
        SELECT CASE (cmd%cmd_id)
-         CASE (glbopt_cmd_mdgopt)
+         CASE (GLBOPT_CMD_SETIFRAME)
+           walker%iframe = cmd%iframe
+         CASE (GLBOPT_CMD_MDGOPT)
            CALL run_mdgopt(walker, cmd%temperature)
 
-         CASE (glbopt_cmd_shutdown)
+         CASE (GLBOPT_CMD_SHUTDOWN)
            IF(walker%iw>0) WRITE(walker%iw,*) "GLOBAL_OPT| Received shutdown command, quitting."
            should_stop = .TRUE.
          CASE DEFAULT
@@ -213,6 +217,7 @@ MODULE glbopt_walker
        TYPE(glbopt_report_type), INTENT(OUT)       :: report
        INTEGER                                     :: n_atoms
        report%walker_id = walker%id
+       report%iframe = walker%iframe
        CALL force_env_get(walker%force_env, potential_energy=report%Epot, error=walker%error)
        IF (walker%iw>0) WRITE (walker%iw,'(A,21X,E20.10)')' GLOBAL_OPT| Potential Energy [Hartree]',report%Epot
        CALL cp_subsys_get(walker%subsys, natom=n_atoms, error=walker%error)
@@ -233,7 +238,6 @@ MODULE glbopt_walker
       TYPE(mdctrl_type), POINTER               :: mdctrl_p
       TYPE(mdctrl_type), TARGET                :: mdctrl
 
-
       ! setup mdctrl callback
       ALLOCATE(mdctrl_data%epot_history(walker%epot_ndown+walker%epot_nup+1))
       mdctrl_data%output_unit = walker%iw
@@ -250,12 +254,6 @@ MODULE glbopt_walker
       !TODO: 300K is hard encoded
       timestep = SQRT(MIN(1.0, 300.0/(temperature*kelvin))) / femtoseconds
       IF (walker%iw>0) THEN
-        !WRITE (iw,'(A,A,A,I9,A,A)') ' GLOBAL_OPT| ',REPEAT("*", 15),' ',&
-        !  i_mainloop,'. Minima Hopping Iteration ',REPEAT("*", 15)
-        !WRITE (iw,'(A,11X,E20.10)') ' GLOBAL_OPT| Lowest minima found so far [Hartree]',Elowest
-        !WRITE (iw,'(A,32X,I10)')    ' GLOBAL_OPT| Number of accepted minima', n_accepted
-        !WRITE (iw,'(A,20X,E20.10)') ' GLOBAL_OPT| Acceptance Energy [Hartree]',Eaccept
-        !WRITE (walker%iw,'(A,35X,I3)')  ' GLOBAL_OPT| Walker ID', walker%id
         WRITE (walker%iw,'(A,29X,F20.3)')  ' GLOBAL_OPT| MD temperature [K]',temperature*kelvin
         WRITE (walker%iw,'(A,31X,F20.3)')  ' GLOBAL_OPT| MD timestep [fs]',timestep*femtoseconds
         WRITE (walker%iw,'(A,25X,I10)') " GLOBAL_OPT| Starting MD at trajectory frame ", walker%iframe
