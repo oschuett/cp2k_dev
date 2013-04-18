@@ -9,64 +9,33 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt
+  USE cp_output_handling,              ONLY: cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE f77_interface,                   ONLY: create_force_env
-  USE glbopt_master,                   ONLY: glbopt_master_type,&
+  USE glbopt_input
+  USE glbopt_master,                   ONLY: glbopt_master_finalize,&
                                              glbopt_master_init,&
                                              glbopt_master_steer,&
-                                             glbopt_master_finalize
-  USE glbopt_types,                    ONLY: glbopt_command_type,&
-                                             glbopt_report_type
-  USE glbopt_walker,                   ONLY: glbopt_walker_init,&
-                                             glbopt_walker_finalize,&
-                                             glbopt_walker_execute_command,&
-                                             glbopt_walker_assemble_report,&
-                                             glbopt_walker_type
-  USE glbopt_mpi,                      ONLY: glbopt_mpi_init,&
-                                             glbopt_mpi_finalize,&
-                                             glbopt_mpi_type
-  USE input_section_types,             ONLY: section_vals_get,&
-                                             section_vals_get_subs_vals,&
-                                             section_vals_type,&
-                                             section_vals_val_get,&
-                                             section_vals_val_set
-  USE kinds,                           ONLY: default_path_length,&
-                                             default_string_length
-  USE message_passing,                 ONLY: mp_comm_free,&
-                                             mp_comm_split,&
-                                             mp_comm_split_direct,&
-                                             mp_environ
-  USE timings,                         ONLY: timeset,&
-                                             timestop
-
-  USE physcon,                         ONLY: angstrom
-  USE cp_output_handling,              ONLY: cp_print_key_section_create
-  USE input_keyword_types,             ONLY: keyword_create,&
-                                             keyword_release,&
-                                             keyword_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_val_types,                 ONLY: integer_t, real_t
-  USE input_constants,                 ONLY: low_print_level, add_last_numeric
-  USE glbopt_input
-  USE glbopt_types,                    ONLY: GLBOPT_CMD_SHUTDOWN
-  USE glbopt_mpi,                      ONLY: glbopt_mpi_type,&
+                                             glbopt_master_type
+  USE glbopt_mpi,                      ONLY: glbopt_mpi_finalize,&
                                              glbopt_mpi_init,&
-                                             glbopt_mpi_finalize,&
-                                             glbopt_mpi_send_report,&
+                                             glbopt_mpi_recv_command,&
                                              glbopt_mpi_recv_report,&
                                              glbopt_mpi_send_command,&
-                                             glbopt_mpi_recv_command
-
-  USE cp_output_handling,              ONLY: cp_p_file,&
-                                             cp_print_key_finished_output,&
-                                             cp_print_key_should_output,&
-                                             cp_print_key_unit_nr
+                                             glbopt_mpi_send_report,&
+                                             glbopt_mpi_type
+  USE glbopt_types,                    ONLY: GLBOPT_CMD_SHUTDOWN,&
+                                             glbopt_command_type,&
+                                             glbopt_report_type
+  USE glbopt_walker,                   ONLY: glbopt_walker_assemble_report,&
+                                             glbopt_walker_execute_command,&
+                                             glbopt_walker_finalize,&
+                                             glbopt_walker_init,&
+                                             glbopt_walker_type
   USE global_types,                    ONLY: global_environment_type
-
+  USE input_section_types,             ONLY: section_vals_type,&
+                                             section_vals_val_get
+  USE timings,                         ONLY: timeset,&
+                                             timestop
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -92,11 +61,12 @@ MODULE glbopt
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    TYPE(cp_logger_type), POINTER            :: logger
-
-    INTEGER ::  handle, iw, n_walkers
     CHARACTER(len=*), PARAMETER :: routineN = 'run_global_opt', &
       routineP = moduleN//':'//routineN
+
+    INTEGER                                  :: handle, iw, n_walkers
+    TYPE(cp_logger_type), POINTER            :: logger
+
     CALL timeset(routineN,handle)
 
     logger => cp_error_get_logger(error)
@@ -123,18 +93,17 @@ MODULE glbopt
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE glbopt_serial_driver(root_section, input_path, para_env, globenv, error)
-       TYPE(section_vals_type), POINTER         :: root_section
-       CHARACTER(LEN=*), INTENT(IN)             :: input_path
-       TYPE(cp_para_env_type), POINTER          :: para_env
-       TYPE(global_environment_type), POINTER   :: globenv
-       TYPE(cp_error_type), INTENT(inout)       :: error
+    TYPE(section_vals_type), POINTER         :: root_section
+    CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    TYPE(cp_para_env_type), POINTER          :: para_env
+    TYPE(global_environment_type), POINTER   :: globenv
+    TYPE(cp_error_type), INTENT(inout)       :: error
 
-       TYPE(glbopt_master_type)                 :: master
-       TYPE(glbopt_walker_type)                 :: walker
-       TYPE(glbopt_command_type)                :: cmd
-       TYPE(glbopt_report_type)                 :: report
-       INTEGER                                  :: i
-       LOGICAL                                  :: should_stop
+    LOGICAL                                  :: should_stop
+    TYPE(glbopt_command_type)                :: cmd
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(glbopt_report_type)                 :: report
+    TYPE(glbopt_walker_type)                 :: walker
 
        CALL glbopt_master_init(master, para_env, globenv, root_section, n_walkers=1, error=error)
        CALL glbopt_walker_init(walker, para_env, root_section, input_path, &
@@ -156,24 +125,21 @@ MODULE glbopt
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, globenv, iw, error)
-       INTEGER, INTENT(IN)                      :: n_walkers
-       TYPE(section_vals_type), POINTER         :: root_section
-       CHARACTER(LEN=*), INTENT(IN)             :: input_path
-       TYPE(cp_para_env_type), POINTER          :: para_env
-       TYPE(global_environment_type), POINTER   :: globenv
-       INTEGER, INTENT(IN)                      :: iw
-       TYPE(cp_error_type), INTENT(inout)       :: error
+    INTEGER, INTENT(IN)                      :: n_walkers
+    TYPE(section_vals_type), POINTER         :: root_section
+    CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    TYPE(cp_para_env_type), POINTER          :: para_env
+    TYPE(global_environment_type), POINTER   :: globenv
+    INTEGER, INTENT(IN)                      :: iw
+    TYPE(cp_error_type), INTENT(inout)       :: error
 
-       TYPE(cp_para_env_type), POINTER          :: walker_para_env
-       TYPE(glbopt_master_type)                 :: master
-       TYPE(glbopt_walker_type)                 :: walker
-       TYPE(glbopt_command_type)                :: cmd
-       TYPE(glbopt_report_type)                 :: report
-       INTEGER                                  :: i_shutdowns, walker_id
-       LOGICAL                                  :: should_stop
-
-       TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-
+    INTEGER                                  :: i_shutdowns, walker_id
+    LOGICAL                                  :: should_stop
+    TYPE(glbopt_command_type)                :: cmd
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+    TYPE(glbopt_report_type)                 :: report
+    TYPE(glbopt_walker_type)                 :: walker
 
        CALL glbopt_mpi_init(para_env, glbopt_mpi, n_walkers, walker_id, iw, error=error)
 

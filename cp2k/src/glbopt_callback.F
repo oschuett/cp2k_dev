@@ -9,20 +9,12 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_callback
+  USE force_env_types,                 ONLY: force_env_type
   USE glbopt_types,                    ONLY: glbopt_mdctrl_data_type
+  USE glbopt_utils,                    ONLY: particles_connected
   USE md_ener_types,                   ONLY: md_ener_type
   USE md_environment_types,            ONLY: get_md_env,&
                                              md_environment_type
-
-  USE force_env_types,                 ONLY: force_env_get,&
-                                             force_env_type
-  USE cp_subsys_types,                 ONLY: cp_subsys_get,&
-                                             cp_subsys_type
-  USE particle_list_types,             ONLY: particle_list_type
-  USE kinds,                           ONLY: dp
-  USE glbopt_utils,                    ONLY: particles_connected
-
-
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -51,13 +43,13 @@ MODULE glbopt_callback
     CHARACTER(len=*), PARAMETER :: routineN = 'glbopt_md_callback', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: i
+    INTEGER                                  :: i, iw
+    INTEGER, POINTER                         :: itimes
     LOGICAL                                  :: failure = .FALSE., &
                                                 passed_minimum
-    INTEGER, POINTER                         :: itimes
-    TYPE(md_ener_type), POINTER              :: md_ener
     TYPE(force_env_type), POINTER            :: force_env
-    INTEGER                                  :: iw
+    TYPE(md_ener_type), POINTER              :: md_ener
+
 ! ====== Local Variables ======
 
     CPPrecondition(ASSOCIATED(mdctrl_data), cp_failure_level,routineP,error,failure)

@@ -10,24 +10,11 @@
 ! *****************************************************************************
 MODULE glbopt_utils
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
-                                             cp_subsys_type,&
-                                             pack_subsys_particles,&
-                                             unpack_subsys_particles
-  USE force_env_types,                 ONLY: force_env_get,&
-                                             force_env_type
-  USE geo_opt,                         ONLY: cp_geo_opt
-  USE global_types,                    ONLY: global_environment_type
-  USE kinds,                           ONLY: dp, sp, int_4, int_8
-  USE physcon,                         ONLY: kelvin
-  USE kinds,                           ONLY: default_path_length,&
-                                             default_string_length
-  USE force_env_types,                 ONLY: force_env_get,&
-                                             force_env_type
-  USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_type
-  USE particle_list_types,             ONLY: particle_list_type
+  USE force_env_types,                 ONLY: force_env_get,&
+                                             force_env_type
   USE kinds,                           ONLY: dp
-
+  USE particle_list_types,             ONLY: particle_list_type
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -50,13 +37,13 @@ MODULE glbopt_utils
     TYPE(cp_error_type), INTENT(inout)       :: error
     LOGICAL                                  :: all_connected
 
+    INTEGER                                  :: iparticle, jparticle, &
+                                                stack_size
+    INTEGER, ALLOCATABLE, DIMENSION(:)       :: stack
+    LOGICAL, ALLOCATABLE, DIMENSION(:)       :: marked
+    REAL(KIND=dp)                            :: dr(3), dr_norm
     TYPE(cp_subsys_type), POINTER            :: subsys
     TYPE(particle_list_type), POINTER        :: particles
-    REAL(KIND=dp)                            :: dr(3), dr_norm
-    INTEGER                                  :: iparticle, jparticle
-    LOGICAL, DIMENSION(:), ALLOCATABLE       :: marked
-    INTEGER, DIMENSION(:), ALLOCATABLE       :: stack
-    INTEGER                                  :: stack_size
 
     CALL force_env_get(force_env, subsys=subsys, error=error)
     CALL cp_subsys_get(subsys,particles=particles,error=error)

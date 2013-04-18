@@ -9,73 +9,33 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_master
+  USE cp_external_control,             ONLY: external_control
+  USE cp_output_handling,              ONLY: cp_print_key_finished_output,&
+                                             cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE glbopt_types,                    ONLY: GLBOPT_CMD_SHUTDOWN,&
-                                             GLBOPT_CMD_MDGOPT,&
-                                             GLBOPT_CMD_SETIFRAME,&
+  USE cp_parser_types,                 ONLY: cp_parser_type,&
+                                             parser_create,&
+                                             parser_release
+  USE glbopt_comlog,                   ONLY: glbopt_comlog_read,&
+                                             glbopt_comlog_write
+  USE glbopt_minhop,                   ONLY: glbopt_minhop_finalize,&
+                                             glbopt_minhop_init,&
+                                             glbopt_minhop_steer,&
+                                             glbopt_minhop_type
+  USE glbopt_types,                    ONLY: GLBOPT_CMD_SETIFRAME,&
+                                             GLBOPT_CMD_SHUTDOWN,&
                                              glbopt_command_type,&
                                              glbopt_report_type
-  USE glbopt_history,                  ONLY: glbopt_history_type,&
-                                             glbopt_history_init,&
-                                             glbopt_history_finalize,&
-                                             glbopt_history_add,&
-                                             glbopt_history_lookup
-  USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
-  USE kinds,                           ONLY: dp,&
-                                             int_4,default_path_length,default_string_length
-  USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
-                                             mp_recv,&
-                                             mp_send
-  USE cp_output_handling,              ONLY: cp_p_file,&
-                                             cp_print_key_finished_output,&
-                                             cp_print_key_should_output,&
-                                             cp_print_key_unit_nr
-  USE input_section_types,             ONLY: section_vals_type
-  USE physcon,                         ONLY: kelvin, femtoseconds
-
-  USE glbopt_minhop,                   ONLY: glbopt_minhop_type,&
-                                             glbopt_minhop_init,&
-                                             glbopt_minhop_finalize,&
-                                             glbopt_minhop_steer
-  USE cp_output_handling,              ONLY: cp_print_key_section_create
-  USE input_keyword_types,             ONLY: keyword_create,&
-                                             keyword_release,&
-                                             keyword_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_section_types,             ONLY: section_vals_get,&
-                                             section_vals_get_subs_vals,&
+  USE global_types,                    ONLY: global_environment_type
+  USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
-                                             section_vals_val_get,&
-                                             section_vals_val_set
- USE timings_types,                   ONLY: timer_env_type
- USE timings,                         ONLY: add_timer_env, rm_timer_env, timer_env_create
- USE input_constants,                 ONLY: dump_atomic,&
-                                             dump_dcd,&
-                                             dump_pdb,&
-                                             dump_xmol
- USE cp_parser_types,                  ONLY: cp_parser_type,&
-                                             parser_create,&
-                                             parser_release
- USE cp_parser_methods,                ONLY: parser_get_next_line, parser_get_object
-
- USE glbopt_comlog,                    ONLY: glbopt_comlog_write, glbopt_comlog_read
- USE cp_parser_types,                  ONLY: cp_parser_type,&
-                                             parser_create,&
-                                             parser_release
- USE cp_parser_methods,                ONLY: parser_get_next_line, parser_get_object
- USE global_types,                     ONLY: global_environment_type
- USE cp_external_control,              ONLY: external_control
-
-
+                                             section_vals_val_get
+  USE kinds,                           ONLY: default_path_length,&
+                                             dp
+  USE timings,                         ONLY: add_timer_env,&
+                                             rm_timer_env,&
+                                             timer_env_create
+  USE timings_types,                   ONLY: timer_env_type
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -92,8 +52,8 @@ MODULE glbopt_master
  TYPE glbopt_master_type
    PRIVATE
    TYPE(glbopt_minhop_type), ALLOCATABLE :: minhop
-   REAL(KIND=dp)                                       :: Elowest = Huge(1.0_dp)
-   REAL(KIND=dp)                                       :: Emin = Tiny(1.0_dp)
+   REAL(KIND=dp)                                       :: Elowest = HUGE(1.0_dp)
+   REAL(KIND=dp)                                       :: Emin = TINY(1.0_dp)
    INTEGER                                             :: iw = 0
    INTEGER                                             :: i_iteration = 0
    INTEGER                                             :: max_iter = 0
@@ -126,10 +86,8 @@ MODULE glbopt_master
     INTEGER, INTENT(IN)                      :: n_walkers
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    INTEGER                                  :: output_unit
     TYPE(cp_logger_type), POINTER            :: logger
     TYPE(timer_env_type), POINTER            :: timer_env
-
 
     NULLIFY(timer_env)
     CALL timer_env_create(timer_env)
@@ -166,17 +124,18 @@ MODULE glbopt_master
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE replay_comlog(master)
-    TYPE(glbopt_master_type) :: master
-    CHARACTER(LEN=default_path_length) :: filename
-    TYPE(cp_parser_type), POINTER :: parser
-    LOGICAL :: explicit
-    TYPE(glbopt_report_type) :: report_log
-    TYPE(glbopt_command_type) :: cmd_log, cmd_now
-    TYPE(cmd_linked_list_type), POINTER :: cmd_ll
-    LOGICAL :: at_end
-    TYPE(glbopt_command_type), DIMENSION(master%n_walkers) :: last_command
-    INTEGER, DIMENSION(master%n_walkers) :: last_iframe
-    INTEGER                             :: i
+    TYPE(glbopt_master_type)                 :: master
+
+    CHARACTER(LEN=default_path_length)       :: filename
+    INTEGER                                  :: i
+    TYPE(glbopt_command_type), &
+      DIMENSION(master%n_walkers)            :: last_command
+    TYPE(glbopt_command_type)                :: cmd_log, cmd_now
+    TYPE(cp_parser_type), POINTER            :: parser
+    TYPE(cmd_linked_list_type), POINTER      :: cmd_ll
+    LOGICAL                                  :: at_end, explicit
+    INTEGER, DIMENSION(master%n_walkers)     :: last_iframe
+    TYPE(glbopt_report_type)                 :: report_log
 
     last_iframe(:) = 0
     last_command(:)%cmd_id = -1
@@ -234,7 +193,8 @@ MODULE glbopt_master
 ! *****************************************************************************
  FUNCTION commands_equal(cmd1, cmd2) RESULT(res)
     TYPE(glbopt_command_type)                :: cmd1, cmd2
-    LOGICAL :: res
+    LOGICAL                                  :: res
+
     res =           cmd1%walker_id == cmd2%walker_id
     res = res .AND. cmd1%cmd_id == cmd2%cmd_id
     res = res .AND. ABS(cmd1%temperature - cmd2%temperature) < 1e-10
@@ -248,10 +208,11 @@ MODULE glbopt_master
 ! *****************************************************************************
 ! *****************************************************************************
   FUNCTION command_queue_pop(master, walker_id) RESULT(cmd)
-    TYPE(glbopt_master_type)   :: master
-    INTEGER                    :: walker_id
-    TYPE(glbopt_command_type)  :: cmd
-    TYPE(cmd_linked_list_type), POINTER :: cmd_ll, cmd_ll_prev
+    TYPE(glbopt_master_type)                 :: master
+    INTEGER                                  :: walker_id
+    TYPE(glbopt_command_type)                :: cmd
+
+    TYPE(cmd_linked_list_type), POINTER      :: cmd_ll, cmd_ll_prev
 
     cmd%cmd_id = -1 ! default result = nothing found
 
@@ -281,11 +242,12 @@ MODULE glbopt_master
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE glbopt_master_steer(master, report, cmd)
-    TYPE(glbopt_master_type)   :: master
-    TYPE(glbopt_report_type)   :: report
-    TYPE(glbopt_command_type)  :: cmd
+    TYPE(glbopt_master_type)                 :: master
+    TYPE(glbopt_report_type)                 :: report
+    TYPE(glbopt_command_type)                :: cmd
 
-    ! First check if there are queued commands for this walker
+! First check if there are queued commands for this walker
+
     cmd = command_queue_pop(master, report%walker_id)
     IF(cmd%cmd_id > 0) THEN
        IF(master%iw>0) WRITE (master%iw,'(A,A,A,I9,X,A)') ' GLOBAL_OPT| ',&
@@ -339,6 +301,7 @@ MODULE glbopt_master
 ! *****************************************************************************
  SUBROUTINE glbopt_master_finalize(master)
     TYPE(glbopt_master_type)                 :: master
+
     TYPE(cp_logger_type), POINTER            :: logger
 
     IF(master%iw > 0) WRITE(master%iw,"(A)") " GLOBAL_OPT| Shutting down the master."

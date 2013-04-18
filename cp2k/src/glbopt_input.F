@@ -9,14 +9,9 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_input
-  USE input_section_types,             ONLY: section_vals_get,&
-                                             section_vals_get_subs_vals,&
-                                             section_vals_type,&
-                                             section_vals_val_get,&
-                                             section_vals_val_set
-  USE kinds,                           ONLY: default_path_length,&
-                                             default_string_length, dp
   USE cp_output_handling,              ONLY: cp_print_key_section_create
+  USE input_constants,                 ONLY: add_last_numeric,&
+                                             low_print_level
   USE input_keyword_types,             ONLY: keyword_create,&
                                              keyword_release,&
                                              keyword_type
@@ -25,10 +20,9 @@ MODULE glbopt_input
                                              section_create,&
                                              section_release,&
                                              section_type
-  USE input_val_types,                 ONLY: integer_t, real_t
-  USE input_constants,                 ONLY: low_print_level, add_last_numeric
-
-
+  USE input_val_types,                 ONLY: integer_t,&
+                                             real_t
+  USE kinds,                           ONLY: dp
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -49,8 +43,8 @@ MODULE glbopt_input
     TYPE(section_type), POINTER              :: glbopt_section
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    TYPE(section_type), POINTER              :: print_section, printkey
     TYPE(keyword_type), POINTER              :: keyword
+    TYPE(section_type), POINTER              :: print_section, printkey
 
     NULLIFY(glbopt_section, print_section, printkey, keyword)
 
@@ -113,7 +107,9 @@ MODULE glbopt_input
   SUBROUTINE glbopt_master_declare_input(glbopt_section,error)
     TYPE(section_type), POINTER              :: glbopt_section
     TYPE(cp_error_type), INTENT(inout)       :: error
+
     TYPE(keyword_type), POINTER              :: keyword
+
     NULLIFY(keyword)
 
     CALL keyword_create(keyword, name="MAX_ITER",&
@@ -131,8 +127,9 @@ MODULE glbopt_input
   SUBROUTINE glbopt_minhop_declare_input(glbopt_section,error)
     TYPE(section_type), POINTER              :: glbopt_section
     TYPE(cp_error_type), INTENT(inout)       :: error
-    TYPE(section_type), POINTER              :: minhop_section
+
     TYPE(keyword_type), POINTER              :: keyword
+    TYPE(section_type), POINTER              :: minhop_section
 
     NULLIFY(minhop_section, keyword)
 

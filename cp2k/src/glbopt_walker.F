@@ -9,65 +9,38 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_walker
-  USE colvar_methods,                  ONLY: colvar_eval_glob_f
+  USE cp_output_handling,              ONLY: cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_type,&
-                                             pack_subsys_particles,&
-                                             unpack_subsys_particles
-  USE f77_interface,                   ONLY: destroy_force_env,&
+                                             pack_subsys_particles
+  USE f77_interface,                   ONLY: create_force_env,&
+                                             destroy_force_env,&
                                              f_env_add_defaults,&
                                              f_env_rm_defaults,&
                                              f_env_type
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
   USE geo_opt,                         ONLY: cp_geo_opt
-  USE glbopt_types,                    ONLY: glbopt_mdctrl_data_type,&
-                                             glbopt_cmd_shutdown,&
-                                             glbopt_cmd_mdgopt,&
+  USE glbopt_types,                    ONLY: glbopt_cmd_mdgopt,&
                                              glbopt_cmd_setiframe,&
+                                             glbopt_cmd_shutdown,&
                                              glbopt_command_type,&
+                                             glbopt_mdctrl_data_type,&
                                              glbopt_report_type
   USE global_types,                    ONLY: global_environment_type
-  USE kinds,                           ONLY: dp, sp, int_4, int_8
+  USE input_section_types,             ONLY: section_vals_type,&
+                                             section_vals_val_get,&
+                                             section_vals_val_set
+  USE kinds,                           ONLY: default_path_length,&
+                                             default_string_length,&
+                                             dp
   USE md_run,                          ONLY: qs_mol_dyn
   USE mdctrl_types,                    ONLY: mdctrl_type
-  USE message_passing,                 ONLY: mp_recv,&
-                                             mp_send
   USE parallel_rng_types,              ONLY: reset_to_next_rng_substream
-  USE timings,                         ONLY: timeset,&
-                                             timestop
-  USE input_section_types,             ONLY: section_vals_val_set,section_vals_val_get
-  USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
-  USE physcon,                         ONLY: kelvin, femtoseconds
-  USE input_section_types,             ONLY: section_vals_type
-  USE kinds,                           ONLY: default_path_length,&
-                                             default_string_length
-  USE f77_interface,                   ONLY: create_force_env
-  USE cp_output_handling,              ONLY: cp_p_file,&
-                                             cp_print_key_finished_output,&
-                                             cp_print_key_should_output,&
-                                             cp_print_key_unit_nr
-  USE force_env_types,                 ONLY: force_env_get,&
-                                             force_env_type
-  USE cp_subsys_types,                 ONLY: cp_subsys_get,&
-                                             cp_subsys_type
-  USE particle_list_types,             ONLY: particle_list_type
-  USE kinds,                           ONLY: dp
-  USE glbopt_utils,                    ONLY: particles_connected
-  USE cp_output_handling,              ONLY: cp_print_key_section_create
-  USE input_keyword_types,             ONLY: keyword_create,&
-                                             keyword_release,&
-                                             keyword_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_val_types,                 ONLY: integer_t, real_t
-  USE physcon,                         ONLY: angstrom
-
-
+  USE physcon,                         ONLY: angstrom,&
+                                             femtoseconds,&
+                                             kelvin
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -107,21 +80,19 @@ MODULE glbopt_walker
 ! *****************************************************************************
    SUBROUTINE glbopt_walker_init(walker, para_env, root_section,&
                  input_path, walker_id, error)
-       TYPE(glbopt_walker_type), INTENT(INOUT)  :: walker
-       TYPE(cp_para_env_type), POINTER          :: para_env
-       TYPE(section_vals_type), POINTER         :: root_section
-       CHARACTER(LEN=*), INTENT(IN)             :: input_path
-       INTEGER, INTENT(in)                      :: walker_id
-       TYPE(cp_error_type), INTENT(inout)       :: error
+    TYPE(glbopt_walker_type), INTENT(INOUT)  :: walker
+    TYPE(cp_para_env_type), POINTER          :: para_env
+    TYPE(section_vals_type), POINTER         :: root_section
+    CHARACTER(LEN=*), INTENT(IN)             :: input_path
+    INTEGER, INTENT(in)                      :: walker_id
+    TYPE(cp_error_type), INTENT(inout)       :: error
 
-       CHARACTER(len=default_path_length)       :: output_path
-       CHARACTER(len=default_string_length)     :: new_project_name, &
-                                                   project_name, walker_name
-       TYPE(cp_logger_type), POINTER            :: logger
-       TYPE(glbopt_mdctrl_data_type), TARGET    :: mdctrl_data
-
-       INTEGER                                  :: i
-       LOGICAL                                  :: failure
+    CHARACTER(len=default_path_length)       :: output_path
+    CHARACTER(len=default_string_length)     :: new_project_name, &
+                                                project_name, walker_name
+    INTEGER                                  :: i
+    LOGICAL                                  :: failure
+    TYPE(cp_logger_type), POINTER            :: logger
 
        failure = .FALSE.
 
@@ -149,7 +120,7 @@ MODULE glbopt_walker
 
       ! ======= More setup stuff =======
       CALL f_env_add_defaults(walker%f_env_id, walker%f_env, walker%error, failure)
-      if(failure) stop "glbopt_drive_walker: f_env_add_defaults failed"
+      IF(failure) STOP "glbopt_drive_walker: f_env_add_defaults failed"
       walker%force_env => walker%f_env%force_env
       CALL force_env_get(walker%force_env, globenv=walker%globenv, subsys=walker%subsys, error=walker%error)
 
@@ -179,8 +150,10 @@ MODULE glbopt_walker
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE glbopt_walker_finalize(walker)
-     TYPE(glbopt_walker_type), INTENT(INOUT)     :: walker
-     INTEGER                                     :: ierr
+    TYPE(glbopt_walker_type), INTENT(INOUT)  :: walker
+
+    INTEGER                                  :: ierr
+
      CALL f_env_rm_defaults(walker%f_env, walker%error)
      CALL destroy_force_env(walker%f_env_id, ierr)
      IF(ierr /= 0) STOP "glbopt_walker_finalize: destroy_force_env failed"
@@ -190,10 +163,9 @@ MODULE glbopt_walker
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE glbopt_walker_execute_command(walker, cmd, should_stop)
-       TYPE(glbopt_walker_type), INTENT(INOUT)         :: walker
-       TYPE(glbopt_command_type), INTENT(IN)           :: cmd
-       LOGICAL, INTENT(INOUT)                          :: should_stop
-
+    TYPE(glbopt_walker_type), INTENT(INOUT)  :: walker
+    TYPE(glbopt_command_type), INTENT(IN)    :: cmd
+    LOGICAL, INTENT(INOUT)                   :: should_stop
 
        SELECT CASE (cmd%cmd_id)
          CASE (GLBOPT_CMD_SETIFRAME)
@@ -213,9 +185,11 @@ MODULE glbopt_walker
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE glbopt_walker_assemble_report(walker, report)
-       TYPE(glbopt_walker_type), INTENT(INOUT)     :: walker
-       TYPE(glbopt_report_type), INTENT(OUT)       :: report
-       INTEGER                                     :: n_atoms
+    TYPE(glbopt_walker_type), INTENT(INOUT)  :: walker
+    TYPE(glbopt_report_type), INTENT(OUT)    :: report
+
+    INTEGER                                  :: n_atoms
+
        report%walker_id = walker%id
        report%iframe = walker%iframe
        CALL force_env_get(walker%force_env, potential_energy=report%Epot, error=walker%error)
@@ -230,15 +204,17 @@ MODULE glbopt_walker
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE run_mdgopt(walker, temperature)
-      TYPE(glbopt_walker_type), INTENT(INOUT)         :: walker
-      REAL(kind=dp), INTENT(IN)                       :: temperature
-      REAL(kind=dp)                                   :: timestep
-      INTEGER                                         :: prev_iframe
-      TYPE(glbopt_mdctrl_data_type), TARGET    :: mdctrl_data
-      TYPE(mdctrl_type), POINTER               :: mdctrl_p
-      TYPE(mdctrl_type), TARGET                :: mdctrl
+    TYPE(glbopt_walker_type), INTENT(INOUT)  :: walker
+    REAL(kind=dp), INTENT(IN)                :: temperature
 
-      ! setup mdctrl callback
+    INTEGER                                  :: prev_iframe
+    REAL(kind=dp)                            :: timestep
+    TYPE(glbopt_mdctrl_data_type), TARGET    :: mdctrl_data
+    TYPE(mdctrl_type), POINTER               :: mdctrl_p
+    TYPE(mdctrl_type), TARGET                :: mdctrl
+
+! setup mdctrl callback
+
       ALLOCATE(mdctrl_data%epot_history(walker%epot_ndown+walker%epot_nup+1))
       mdctrl_data%output_unit = walker%iw
       mdctrl_data%epot_history = 0.0

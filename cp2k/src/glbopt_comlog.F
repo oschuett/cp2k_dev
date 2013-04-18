@@ -9,63 +9,12 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_comlog
-  USE cp_para_types,                   ONLY: cp_para_env_type
-  USE glbopt_types,                    ONLY: GLBOPT_CMD_SHUTDOWN,&
-                                             GLBOPT_CMD_MDGOPT,&
-                                             glbopt_command_type,&
+  USE cp_parser_methods,               ONLY: parser_get_next_line,&
+                                             parser_get_object
+  USE cp_parser_types,                 ONLY: cp_parser_type
+  USE glbopt_types,                    ONLY: glbopt_command_type,&
                                              glbopt_report_type
-  USE glbopt_history,                  ONLY: glbopt_history_type,&
-                                             glbopt_history_init,&
-                                             glbopt_history_finalize,&
-                                             glbopt_history_add,&
-                                             glbopt_history_lookup
-  USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
-  USE kinds,                           ONLY: dp,&
-                                             int_4,default_path_length,default_string_length
-  USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
-                                             mp_recv,&
-                                             mp_send
-  USE cp_output_handling,              ONLY: cp_p_file,&
-                                             cp_print_key_finished_output,&
-                                             cp_print_key_should_output,&
-                                             cp_print_key_unit_nr
-  USE input_section_types,             ONLY: section_vals_type
-  USE physcon,                         ONLY: kelvin, femtoseconds
-
-  USE glbopt_minhop,                   ONLY: glbopt_minhop_type,&
-                                             glbopt_minhop_init,&
-                                             glbopt_minhop_finalize,&
-                                             glbopt_minhop_steer
-  USE cp_output_handling,              ONLY: cp_print_key_section_create
-  USE input_keyword_types,             ONLY: keyword_create,&
-                                             keyword_release,&
-                                             keyword_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_section_types,             ONLY: section_vals_get,&
-                                             section_vals_get_subs_vals,&
-                                             section_vals_type,&
-                                             section_vals_val_get,&
-                                             section_vals_val_set
- USE timings_types,                   ONLY: timer_env_type
- USE timings,                         ONLY: add_timer_env, rm_timer_env, timer_env_create
- USE input_constants,                 ONLY: dump_atomic,&
-                                             dump_dcd,&
-                                             dump_pdb,&
-                                             dump_xmol
- USE cp_parser_types,                  ONLY: cp_parser_type,&
-                                             parser_create,&
-                                             parser_release
- USE cp_parser_methods,                ONLY: parser_get_next_line, parser_get_object
-
+  USE kinds,                           ONLY: default_string_length
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -89,10 +38,10 @@ MODULE glbopt_comlog
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE write_report(unit, i_iteration, report)
-    INTEGER                    :: unit
-    INTEGER                    :: i_iteration
-    TYPE(glbopt_report_type)   :: report
-    INTEGER :: i
+    INTEGER                                  :: unit, i_iteration
+    TYPE(glbopt_report_type)                 :: report
+
+    INTEGER                                  :: i
 
     IF(unit <= 0) RETURN
 
@@ -117,10 +66,11 @@ MODULE glbopt_comlog
     TYPE(cp_parser_type), POINTER            :: parser
     TYPE(glbopt_report_type), INTENT(OUT)    :: report
     LOGICAL, INTENT(INOUT)                   :: at_end
-    TYPE(cp_error_type)                                 :: error
+    TYPE(cp_error_type)                      :: error
 
-    INTEGER                                  :: natoms, i, val1
-    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, key4, key5, val2, eq
+    CHARACTER(LEN=default_string_length)     :: eq, key1, key2, key3, key4, &
+                                                key5, val2
+    INTEGER                                  :: i, natoms, val1
 
     CALL parser_get_next_line(parser, 1, at_end, error)
     at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
@@ -157,10 +107,10 @@ MODULE glbopt_comlog
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE write_command(unit, i_iteration, cmd)
-    INTEGER                                  :: unit
-    INTEGER                                  :: i_iteration
+    INTEGER                                  :: unit, i_iteration
     TYPE(glbopt_command_type)                :: cmd
-    INTEGER :: i
+
+    INTEGER                                  :: i
 
     IF(unit <= 0) RETURN
 
@@ -187,8 +137,9 @@ MODULE glbopt_comlog
     LOGICAL, INTENT(INOUT)                   :: at_end
     TYPE(cp_error_type)                      :: error
 
-    INTEGER                                  :: natoms, i, val1
-    CHARACTER(LEN=default_string_length)     :: key1, key2, key3, key4, key5, key6, val2, eq
+    CHARACTER(LEN=default_string_length)     :: eq, key1, key2, key3, key4, &
+                                                key5, key6, val2
+    INTEGER                                  :: i, natoms, val1
 
     CALL parser_get_next_line(parser, 1, at_end, error)
     at_end = at_end .OR. LEN_TRIM(parser%input_line)==0

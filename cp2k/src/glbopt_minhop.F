@@ -9,58 +9,20 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_minhop
-  USE cp_para_types,                   ONLY: cp_para_env_type
-  USE glbopt_types,                    ONLY: glbopt_cmd_shutdown,&
-                                             glbopt_cmd_mdgopt,&
+!USE input_constants
+  USE glbopt_history,                  ONLY: glbopt_history_add,&
+                                             glbopt_history_finalize,&
+                                             glbopt_history_init,&
+                                             glbopt_history_lookup,&
+                                             glbopt_history_type
+  USE glbopt_types,                    ONLY: glbopt_cmd_mdgopt,&
                                              glbopt_command_type,&
                                              glbopt_report_type
-  USE glbopt_history,                  ONLY: glbopt_history_type,&
-                                             glbopt_history_init,&
-                                             glbopt_history_finalize,&
-                                             glbopt_history_add,&
-                                             glbopt_history_lookup
-  USE hash_functions,                  ONLY: b3hs_hash_key_jenkins
-  USE kinds,                           ONLY: dp,&
-                                             int_4
-  USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
-                                             mp_recv,&
-                                             mp_send
-  USE cp_output_handling,              ONLY: cp_p_file,&
-                                             cp_print_key_finished_output,&
-                                             cp_print_key_should_output,&
-                                             cp_print_key_unit_nr
-  USE input_section_types,             ONLY: section_vals_type
-  USE physcon,                         ONLY: kelvin, femtoseconds
-  USE cp_output_handling,              ONLY: cp_print_key_section_create
-  USE input_keyword_types,             ONLY: keyword_create,&
-                                             keyword_release,&
-                                             keyword_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_val_types,                 ONLY: integer_t, real_t
-  !USE input_constants
-
-  USE input_keyword_types,             ONLY: keyword_create,&
-                                             keyword_release,&
-                                             keyword_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_section_types,             ONLY: section_vals_get,&
-                                             section_vals_get_subs_vals,&
+  USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
-                                             section_vals_val_get,&
-                                             section_vals_val_set
+                                             section_vals_val_get
+  USE kinds,                           ONLY: dp
+  USE physcon,                         ONLY: kelvin
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -102,16 +64,15 @@ MODULE glbopt_minhop
  SUBROUTINE glbopt_minhop_init(minhop, glbopt_section, n_walkers, iw, error)
     TYPE(glbopt_minhop_type)                 :: minhop
     TYPE(section_vals_type), POINTER         :: glbopt_section
-    INTEGER, INTENT(IN)                      :: n_walkers
-    INTEGER, INTENT(IN)                      :: iw
+    INTEGER, INTENT(IN)                      :: n_walkers, iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER                                  :: i, n_histories
-    TYPE(cp_logger_type), POINTER            :: logger
-    TYPE(section_vals_type), POINTER         :: minhop_section
     REAL(kind=dp)                            :: temp_in_kelvin
+    TYPE(section_vals_type), POINTER         :: minhop_section
 
-    ! read input
+! read input
+
     minhop_section => section_vals_get_subs_vals(glbopt_section, "MINIMA_HOPPING", error=error)
     CALL section_vals_val_get(minhop_section,"BETA_1",  r_val=minhop%beta1,error=error)
     CALL section_vals_val_get(minhop_section,"BETA_2",  r_val=minhop%beta2,error=error)
@@ -150,13 +111,12 @@ MODULE glbopt_minhop
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE glbopt_minhop_steer(minhop, report, cmd)
-    TYPE(glbopt_minhop_type)           :: minhop
-    TYPE(glbopt_report_type)           :: report
-    TYPE(glbopt_command_type)          :: cmd
+    TYPE(glbopt_minhop_type)                 :: minhop
+    TYPE(glbopt_report_type)                 :: report
+    TYPE(glbopt_command_type)                :: cmd
 
-    INTEGER :: wid, hid
-    LOGICAL :: minima_known
-
+    INTEGER                                  :: hid, wid
+    LOGICAL                                  :: minima_known
 
     wid = report%walker_id
 
@@ -213,6 +173,7 @@ MODULE glbopt_minhop
 ! *****************************************************************************
  SUBROUTINE glbopt_minhop_finalize(minhop)
     TYPE(glbopt_minhop_type)                 :: minhop
+
     INTEGER                                  :: i
 
     DO i=1, SIZE(minhop%history)

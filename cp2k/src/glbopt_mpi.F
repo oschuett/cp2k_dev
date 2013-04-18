@@ -9,52 +9,16 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_mpi
-  USE cp_para_types,                   ONLY: cp_para_env_type
+  USE cp_files,                        ONLY: open_file
   USE cp_para_env,                     ONLY: cp_para_env_create
-  USE f77_interface,                   ONLY: create_force_env
-  USE glbopt_master,                   ONLY: glbopt_master_type,&
-                                             glbopt_master_init,&
-                                             glbopt_master_steer,&
-                                             glbopt_master_finalize
+  USE cp_para_types,                   ONLY: cp_para_env_type
   USE glbopt_types,                    ONLY: glbopt_command_type,&
                                              glbopt_report_type
-  USE glbopt_walker,                   ONLY: glbopt_walker_init,&
-                                             glbopt_walker_finalize,&
-                                             glbopt_walker_execute_command,&
-                                             glbopt_walker_assemble_report
-  USE input_section_types,             ONLY: section_vals_get,&
-                                             section_vals_get_subs_vals,&
-                                             section_vals_type,&
-                                             section_vals_val_get,&
-                                             section_vals_val_set
-  USE kinds,                           ONLY: default_path_length,&
-                                             default_string_length
-  USE message_passing,                 ONLY: mp_comm_free,&
-                                             mp_comm_split,&
-                                             mp_comm_split_direct,&
-                                             mp_environ, mp_sum
-  USE timings,                         ONLY: timeset,&
-                                             timestop
-
-  USE physcon,                         ONLY: angstrom
-  USE cp_output_handling,              ONLY: cp_print_key_section_create
-  USE input_keyword_types,             ONLY: keyword_create,&
-                                             keyword_release,&
-                                             keyword_type
-  USE input_section_types,             ONLY: section_add_keyword,&
-                                             section_add_subsection,&
-                                             section_create,&
-                                             section_release,&
-                                             section_type
-  USE input_val_types,                 ONLY: integer_t, real_t
-  USE input_constants,                 ONLY: low_print_level, add_last_numeric
-  USE message_passing,                 ONLY: mp_any_source,mp_any_tag,&
-                                             mp_recv,&
-                                             mp_send, mp_abort
+  USE kinds,                           ONLY: default_path_length
   USE machine,                         ONLY: default_output_unit
-  USE message_passing,                 ONLY: mp_bcast, mp_sync
-  USE cp_files,                        ONLY: close_file,&
-                                             open_file
+  USE message_passing,                 ONLY: &
+       mp_abort, mp_any_source, mp_bcast, mp_comm_free, mp_comm_split, &
+       mp_comm_split_direct, mp_environ, mp_recv, mp_send, mp_sum, mp_sync
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -87,17 +51,18 @@ MODULE glbopt_mpi
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    TYPE(cp_logger_type), POINTER            :: logger
-    CHARACTER(LEN=default_path_length)       :: output_path
-    INTEGER                                  :: output_unit
-    INTEGER :: n_groups_created, &
-      pe_per_walker, subgroup, subgroup_rank, subgroup_size, walker_group
+    INTEGER                                  :: n_groups_created, &
+                                                pe_per_walker, subgroup, &
+                                                subgroup_rank, subgroup_size, &
+                                                walker_group
     LOGICAL                                  :: im_the_master
     INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
-    INTEGER, DIMENSION(0:world_para_env%num_pe-2), TARGET :: group_distribution
+    INTEGER, &
+      DIMENSION(0:world_para_env%num_pe-2), &
+      TARGET                                 :: group_distribution
 
+! ====== Setup of MPI-Groups ======
 
-    ! ====== Setup of MPI-Groups ======
     walker_id = -1
     glbopt_mpi%world => world_para_env
 
@@ -162,11 +127,12 @@ MODULE glbopt_mpi
     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    TYPE(cp_logger_type), POINTER            :: logger, new_logger
     CHARACTER(LEN=default_path_length)       :: output_path
     INTEGER                                  :: output_unit
+    TYPE(cp_logger_type), POINTER            :: logger, new_logger
 
-    ! broadcast output_path to all ranks
+! broadcast output_path to all ranks
+
     logger => cp_error_get_logger(error)
     output_unit = logger%default_local_unit_nr
     output_path = ""
@@ -206,8 +172,9 @@ MODULE glbopt_mpi
   SUBROUTINE logger_finalize(glbopt_mpi, error)
     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
     TYPE(cp_error_type), INTENT(inout)       :: error
-    TYPE(cp_logger_type), POINTER            :: logger, old_logger
+
     INTEGER                                  :: output_unit
+    TYPE(cp_logger_type), POINTER            :: logger, old_logger
 
     IF(.NOT.ASSOCIATED(glbopt_mpi%master)) RETURN
     logger => cp_error_get_logger(error)
@@ -229,7 +196,7 @@ MODULE glbopt_mpi
     CALL mp_sync(glbopt_mpi%world%group)
     CALL logger_finalize(glbopt_mpi, error)
 
-    If(ASSOCIATED(glbopt_mpi%walker)) CALL mp_comm_free(glbopt_mpi%walker%group)
+    IF(ASSOCIATED(glbopt_mpi%walker)) CALL mp_comm_free(glbopt_mpi%walker%group)
     CALL mp_comm_free(glbopt_mpi%master%group)
     NULLIFY(glbopt_mpi%walker, glbopt_mpi%master)
     DEALLOCATE(glbopt_mpi%wid2group)
@@ -239,12 +206,13 @@ MODULE glbopt_mpi
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE glbopt_mpi_send_report(glbopt_mpi, report)
-     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-     TYPE(glbopt_report_type)                 :: report
+    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+    TYPE(glbopt_report_type)                 :: report
 
-     INTEGER :: tag, dest
+    INTEGER                                  :: dest, tag
 
-     ! Only rank-0 of walker group sends it's report
+! Only rank-0 of walker group sends it's report
+
      IF(glbopt_mpi%walker%source /= glbopt_mpi%walker%mepos) RETURN
 
      dest = glbopt_mpi%world%num_pe-1
@@ -260,9 +228,10 @@ MODULE glbopt_mpi
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE glbopt_mpi_recv_report(glbopt_mpi, report)
-     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-     TYPE(glbopt_report_type), INTENT(OUT)    :: report
-     INTEGER :: src, tag, s
+    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+    TYPE(glbopt_report_type), INTENT(OUT)    :: report
+
+    INTEGER                                  :: s, src, tag
 
      tag=42
      src=mp_any_source
@@ -282,11 +251,12 @@ MODULE glbopt_mpi
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE glbopt_mpi_send_command(glbopt_mpi, walker_id, cmd)
-     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-     INTEGER       :: walker_id
-     TYPE(glbopt_command_type)                 :: cmd
+    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+    INTEGER                                  :: walker_id
+    TYPE(glbopt_command_type)                :: cmd
 
-     INTEGER :: tag, dest
+    INTEGER                                  :: dest, tag
+
      tag = 42
      dest = glbopt_mpi%wid2group(walker_id)
 
@@ -305,13 +275,14 @@ MODULE glbopt_mpi
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE glbopt_mpi_recv_command(glbopt_mpi, cmd)
-     TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-     TYPE(glbopt_command_type), INTENT(OUT)   :: cmd
+    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+    TYPE(glbopt_command_type), INTENT(OUT)   :: cmd
 
-     INTEGER :: tag, src, s
+    INTEGER                                  :: s, src, tag
 
-     ! This is a two step communication schema.
-     ! First: The rank-0 of the walker groups receives the command from the master.
+! This is a two step communication schema.
+! First: The rank-0 of the walker groups receives the command from the master.
+
      IF(glbopt_mpi%walker%source == glbopt_mpi%walker%mepos) THEN 
         tag = 42
         src = glbopt_mpi%world%num_pe-1

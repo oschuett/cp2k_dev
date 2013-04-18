@@ -10,14 +10,7 @@
 ! *****************************************************************************
 MODULE glbopt_types
 
-  USE cp_para_types,                   ONLY: cp_para_env_type
   USE kinds,                           ONLY: dp
-  USE f77_interface,                   ONLY: f_env_type
-  USE force_env_types,                 ONLY: force_env_type
-  USE cp_subsys_types,                 ONLY: cp_subsys_type
-  USE input_section_types,             ONLY: section_vals_type
-  USE global_types,                    ONLY: global_environment_type
-
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
