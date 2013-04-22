@@ -272,19 +272,19 @@ MODULE glbopt_master
     END IF
 
     IF(master%Elowest<master%Emin .AND. .NOT. master%should_stop) THEN
-       IF(master%iw>0)  WRITE (master%iw, *)  " GLOBAL_OPT| Reached Emin > Epot. Quitting."
+       IF(master%iw>0)  WRITE (master%iw, *)  "GLOBAL_OPT| Reached Emin > Epot. Quitting."
        master%should_stop = .TRUE.
     ENDIF
 
     IF(master%i_iteration>=master%max_iter .AND. .NOT. master%should_stop) THEN
-       IF(master%iw>0)  WRITE (master%iw, *)  " GLOBAL_OPT| Reached MAX_ITER. Quitting."
+       IF(master%iw>0)  WRITE (master%iw, *)  "GLOBAL_OPT| Reached MAX_ITER. Quitting."
        master%should_stop = .TRUE.
     ENDIF
 
     IF(.NOT. master%should_stop) THEN
       CALL external_control(master%should_stop,"GLBOPT",master%globenv,error=master%error)
       IF(master%should_stop .AND. master%iw>0) &
-         WRITE (master%iw, *)  " GLOBAL_OPT| Received stop from external_control. Quitting."
+         WRITE (master%iw, *)  "GLOBAL_OPT| Received stop from external_control. Quitting."
     END IF
 
     CALL glbopt_comlog_write(master%comlog_unit, master%i_iteration, report)
