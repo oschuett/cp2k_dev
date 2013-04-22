@@ -159,13 +159,9 @@ MODULE glbopt_mpi
 
     ! create default logger from output_unit
     NULLIFY(new_logger)
-    WRITE (*,*) "old name: ", logger%iter_info%project_name
     CALL cp_logger_create(new_logger, para_env=glbopt_mpi%master,&
        default_global_unit_nr=output_unit, close_global_unit_on_dealloc=.FALSE.,&
        template_logger=logger)
-    !circumvent bug in cp_log_handling.F line 400
-    new_logger%iter_info => logger%iter_info
-    WRITE (*,*) "new name: ", new_logger%iter_info%project_name
     CALL cp_add_default_logger(new_logger)
     CALL cp_logger_release(new_logger)
     CALL cp_error_set(error, logger=new_logger)
