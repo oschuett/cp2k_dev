@@ -106,7 +106,8 @@ MODULE glbopt_master
 
     ! uses logger%iter_info%project_name to construct filename
     master%comlog_unit = cp_print_key_unit_nr(logger,master%glbopt_section,"PRINT%COMMUNICATION_LOG",&
-            middle_name="comlog", extension=".xyz", error=error)
+            middle_name="comlog", extension=".xyz", &
+            file_action="WRITE", file_position="REWIND", error=error)
 
     CALL section_vals_val_get(master%glbopt_section,"E_MIN", r_val=master%Emin, error=error)
     CALL section_vals_val_get(master%glbopt_section,"MAX_ITER", i_val=master%max_iter, error=error)

@@ -90,7 +90,6 @@ def gen_framing_input(jobs):
 #===============================================================================
 def gen_glbopt_input(size, Emin, run, method):
     assert(method == "MinhopIndep")
-
     output = ""
     output += "&GLOBAL\n"
     output += "   PROGRAM_NAME GLOBAL_OPT\n"
@@ -100,6 +99,7 @@ def gen_glbopt_input(size, Emin, run, method):
     output += "   &TIMINGS\n"
     output += "      THRESHOLD 0.0\n"
     output += "   &END TIMINGS\n"
+    output += "   WALLTIME %d\n"%(55*60) #55 minuts
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
