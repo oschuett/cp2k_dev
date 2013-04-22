@@ -281,8 +281,11 @@ MODULE glbopt_master
        master%should_stop = .TRUE.
     ENDIF
 
-    IF(.NOT. master%should_stop) &
+    IF(.NOT. master%should_stop) THEN
       CALL external_control(master%should_stop,"GLBOPT",master%globenv,error=master%error)
+      IF(master%should_stop .AND. master%iw>0) &
+         WRITE (master%iw, *)  " GLOBAL_OPT| Received stop from external_control. Quitting."
+    END IF
 
     CALL glbopt_comlog_write(master%comlog_unit, master%i_iteration, report)
     CALL glbopt_minhop_steer(master%minhop, report, cmd)
