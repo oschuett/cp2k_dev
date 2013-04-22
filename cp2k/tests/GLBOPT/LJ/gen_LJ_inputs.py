@@ -27,7 +27,7 @@ def main():
     jobs = []
     known_minima = read_references()
     for r in range(run_min, run_max+1):
-       fn = "LJ38_RUN%.3d.inp"%(r,)
+       fn = "LJ38_RUN%.4d.inp"%(r,)
        jobs.append(fn)
        Emin = 0.001*float(known_minima[38]) + 1.0e-6
        inp = gen_glbopt_input(size=38, Emin=Emin, run=r, method=method)
