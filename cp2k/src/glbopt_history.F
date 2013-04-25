@@ -10,12 +10,16 @@
 ! *****************************************************************************
 MODULE glbopt_history
   USE glbopt_types,                    ONLY: glbopt_report_type
-  USE kinds,                           ONLY: dp
+  USE kinds,                           ONLY: dp, int_8
+
+ IMPLICIT NONE
+ PRIVATE
 
   TYPE glbopt_history_type
     PRIVATE
     TYPE(history_entry_type), POINTER :: root      => Null()
     REAL(KIND=dp)                     :: PRECISION =  1.0e-6
+    INTEGER                           :: iw = -1
     !.. config params
   END TYPE glbopt_history_type
   
@@ -28,14 +32,16 @@ MODULE glbopt_history
 
   PUBLIC :: glbopt_history_type
   PUBLIC :: glbopt_history_init, glbopt_history_finalize
-  PUBLIC :: glbopt_history_add
+  PUBLIC :: glbopt_history_add, glbopt_history_lookup
 
   CONTAINS
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_history_init(history)
+ SUBROUTINE glbopt_history_init(history, iw)
     TYPE(glbopt_history_type)                :: history
+    INTEGER                                  :: iw
+    history%iw = iw
 
 !TYPE(section_vals_type), POINTER         :: history_section
 !TYPE(cp_error_type), INTENT(inout)       :: error
@@ -85,16 +91,23 @@ MODULE glbopt_history
     LOGICAL, INTENT(OUT)                     :: found
 
     TYPE(history_entry_type), POINTER        :: ENTRY
+    INTEGER(kind=int_8)                       :: a, b
+
+    ! discretize accoring to history%precision
+    a = INT(report%Epot / history%precision, kind=int_8)
 
     found = .FALSE.
     ENTRY => history%root
     DO WHILE(ASSOCIATED(ENTRY))
-      IF(ABS(entry%report%Epot - report%Epot) < history%precision) THEN
+      !TODO: could store discretized energies instead of reports in a growing array
+      b = INT(entry%report%Epot / history%precision, kind=int_8)
+      IF(a == b) THEN
          found = .TRUE.
-         EXIT
+         RETURN
       END IF
       ENTRY => entry%next
     END DO
+
  END SUBROUTINE glbopt_history_lookup
 
 

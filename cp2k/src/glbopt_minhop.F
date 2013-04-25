@@ -92,7 +92,7 @@ MODULE glbopt_minhop
     IF(minhop%share_history) n_histories = 1
     ALLOCATE(minhop%history(n_histories))
     DO i=1, n_histories
-      CALL glbopt_history_init(minhop%history(i))
+      CALL glbopt_history_init(minhop%history(i), iw=iw)
     END DO
 
     ALLOCATE(minhop%prev_report(n_walkers))
