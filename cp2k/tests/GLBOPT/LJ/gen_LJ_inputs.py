@@ -57,7 +57,7 @@ def gen_glbopt_input(size, Emin, run, method):
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
-    output += "   REPLAY_COMMUNICATION_LOG LJ%.2d_RUN%.4d-replay.xyz\n"%(size, run)
+    #output += "   REPLAY_COMMUNICATION_LOG LJ%.2d_RUN%.4d-replay.xyz\n"%(size, run)
     output += "   NUMBER_OF_WALKERS  1\n"
     #output += "   MAX_ITER 1000\n"
     output += "   E_MIN %.10f\n"%Emin
