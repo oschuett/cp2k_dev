@@ -160,7 +160,7 @@ MODULE glbopt_master
       IF(at_end) EXIT
       CALL glbopt_master_steer(master, report_log, cmd_now)
       !TODO: maybe we should just exit the loop instead of stopping?
-      IF(.NOT. commands_equal(cmd_now, cmd_log)) STOP "wrong behaviour"
+      IF(.NOT. commands_equal(cmd_now, cmd_log, master%iw)) STOP "wrong behaviour"
 
       last_command(cmd_log%walker_id) = cmd_log
       last_iframe(report_log%walker_id) = report_log%iframe
@@ -191,17 +191,24 @@ MODULE glbopt_master
 
 ! *****************************************************************************
 ! *****************************************************************************
- FUNCTION commands_equal(cmd1, cmd2) RESULT(res)
+ FUNCTION commands_equal(cmd1, cmd2, iw) RESULT(res)
     TYPE(glbopt_command_type)                :: cmd1, cmd2
     LOGICAL                                  :: res
+    INTEGER                                  :: iw
 
     res =           cmd1%walker_id == cmd2%walker_id
     res = res .AND. cmd1%cmd_id == cmd2%cmd_id
     res = res .AND. ABS(cmd1%temperature - cmd2%temperature) < 1e-10
     res = res .AND. ALL(ABS(cmd1%positions -cmd2%positions) < 1e-10)
-    !WRITE (*,*) cmd1%walker_id, cmd2%walker_id
-    !WRITE (*,*) cmd1%cmd_id, cmd2%cmd_id
-    !WRITE (*,*) ABS(cmd1%temperature - cmd2%temperature)
+
+    IF(.NOT.res .AND. iw>0)THEN
+      WRITE (iw,*) "commands_equal failed"
+      WRITE (iw,*) "walker_id",cmd1%walker_id, cmd2%walker_id
+      WRITE (iw,*) "cmd_id", cmd1%cmd_id, cmd2%cmd_id
+      WRITE (iw,*) "temperature", cmd1%temperature, cmd2%temperature
+      WRITE (iw,*) "cmd1%positions: ", cmd1%positions
+      WRITE (iw,*) "cmd2%positions: ", cmd2%positions
+    END IF
  END FUNCTION commands_equal
 
 
