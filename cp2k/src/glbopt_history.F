@@ -91,23 +91,30 @@ MODULE glbopt_history
     LOGICAL, INTENT(OUT)                     :: found
 
     TYPE(history_entry_type), POINTER        :: ENTRY
-    INTEGER(kind=int_8)                       :: a, b
+    INTEGER(kind=int_8)                      :: a, b
+    REAL(kind=dp)                            :: closest
 
+    closest = HUGE(1.0)
     ! discretize accoring to history%precision
-    a = INT(report%Epot / history%precision, kind=int_8)
+    a = FLOOR(report%Epot / history%precision, kind=int_8)
 
     found = .FALSE.
     ENTRY => history%root
     DO WHILE(ASSOCIATED(ENTRY))
+     closest = MIN(closest, ABS(entry%report%Epot -report%Epot))
       !TODO: could store discretized energies instead of reports in a growing array
-      b = INT(entry%report%Epot / history%precision, kind=int_8)
+      b = FLOOR(entry%report%Epot / history%precision, kind=int_8)
       IF(a == b) THEN
          found = .TRUE.
+         IF(history%iw>0) &
+           WRITE(history%iw, *) "glbopt_history: Found: ",report%Epot, "dist: ", closest
          RETURN
       END IF
       ENTRY => entry%next
     END DO
 
+    IF(history%iw>0) &
+      WRITE(history%iw, *) "glbopt_history: Did not find: ",report%Epot, "closest dist: ", closest
  END SUBROUTINE glbopt_history_lookup
 
 
