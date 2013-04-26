@@ -46,7 +46,7 @@ MODULE glbopt_comlog
     IF(unit <= 0) RETURN
 
     WRITE(unit,"(I8)") SIZE(report%positions)/3 ! number of atoms
-    WRITE(unit,"(A,I8,A,A,I8,A,I8A,F20.10)")&
+    WRITE(unit,"(A,I8,A,A,I8,A,I8,A,E30.20)")&
         'i = ',i_iteration,&
         ', type = "glbopt_report"',&
         ", walker_id = ",report%walker_id,&
@@ -54,7 +54,7 @@ MODULE glbopt_comlog
         ", Epot = ",report%Epot! info line, free text
 
     DO i=1, SIZE(report%positions), 3
-      WRITE(unit,"(3F20.10)") report%positions(i:i+2)
+      WRITE(unit,"(3E30.20)") report%positions(i:i+2)
     END DO
 
 
@@ -115,7 +115,7 @@ MODULE glbopt_comlog
     IF(unit <= 0) RETURN
 
     WRITE(unit,"(I8)") SIZE(cmd%positions)/3 ! number of atoms
-    WRITE(unit,"(A,I8,A,A,I8,A,I3,A,I8,A,F20.10)")&
+    WRITE(unit,"(A,I8,A,A,I8,A,I3,A,I8,A,E30.20)")&
         'i = ',i_iteration,&
         ', type = "glbopt_command"',&
         ", walker_id = ",cmd%walker_id,&
@@ -124,7 +124,7 @@ MODULE glbopt_comlog
         ", temperature = ",cmd%temperature! info line, free text
 
     DO i=1, SIZE(cmd%positions), 3
-      WRITE(unit,"(3F20.10)") cmd%positions(i:i+2)
+      WRITE(unit,"(3E30.20)") cmd%positions(i:i+2)
     END DO
 
  END SUBROUTINE write_command
