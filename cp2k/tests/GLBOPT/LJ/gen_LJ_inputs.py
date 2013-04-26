@@ -33,9 +33,6 @@ def main():
        inp = gen_glbopt_input(size=38, Emin=Emin, run=r, method=method)
        write2file(dirname+"/"+fn, inp)
 
-    write2file(dirname+"/"+dirname+".inp", gen_framing_input(jobs))
-    write2file(dirname+"/"+dirname+".job", gen_jobfile(dirname))
-
 
 #===============================================================================
 def write2file(fn, content):
@@ -43,49 +40,6 @@ def write2file(fn, content):
     f = open(fn, "w")
     f.write(content)
     f.close()
-
-
-#===============================================================================
-def gen_jobfile(name):
-   output =  "#! /bin/bash\n"
-   output += "#SBATCH --job-name=cp2k\n"
-   output += "#SBATCH --ntasks=1024\n"
-   output += "#SBATCH --partition=day\n"
-#   output += "#SBATCH --partition=night\n"
-   output += "#SBATCH --time=0:59:00\n"
-   output += "#SBATCH --account=h05\n\n"
-
-   output += "cd $SLURM_SUBMIT_DIR\n"
-   output += "export OMP_NUM_THREADS=1\n\n"
-
-   output += "aprun -n 1024  -d 1  -N 16 -cc cpu  ../../../../exe/todi/cp2k.popt -i %s.inp -o %s.out\n"%(name,name)
-   return(output)  
-
-
-
-#===============================================================================
-def gen_framing_input(jobs):
-    output = ""
-    output += "&GLOBAL\n"
-    output += "   PROGRAM_NAME FARMING\n"
-    output += "   RUN_TYPE NONE\n"
-    output += "   PROJECT_NAME LJ_framing\n"
-    output += "&END GLOBAL\n"
-
-    output += "&FARMING\n"
-    output += "   GROUP_SIZE 1\n"
-    output += "   MASTER_SLAVE .FALSE.\n"
-
-    for j in jobs:
-        output += "   &JOB\n"
-        output += "       INPUT_FILE_NAME  %s\n"%path.basename(j)
-        output += "       OUTPUT_FILE_NAME %s\n"%path.basename(j).replace("inp","out")
-        output += "       DIRECTORY .\n"
-        output += "   &END JOB\n"
-
-    output += "&END FARMING\n"
-
-    return(output)
 
 #===============================================================================
 def gen_glbopt_input(size, Emin, run, method):
@@ -103,6 +57,7 @@ def gen_glbopt_input(size, Emin, run, method):
     output += "&END GLOBAL\n"
 
     output += "&GLOBAL_OPT\n"
+    #output += "   REPLAY_COMMUNICATION_LOG LJ%.2d_RUN%.4d-replay.xyz\n"%(size, run)
     output += "   NUMBER_OF_WALKERS  1\n"
     #output += "   MAX_ITER 1000\n"
     output += "   E_MIN %.10f\n"%Emin
