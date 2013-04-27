@@ -41,6 +41,9 @@ MODULE glbopt_walker
   USE physcon,                         ONLY: angstrom,&
                                              femtoseconds,&
                                              kelvin
+  USE input_section_types,             ONLY: section_vals_get_subs_vals,&
+                                             section_vals_type,&
+                                             section_vals_val_get
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -93,7 +96,8 @@ MODULE glbopt_walker
     INTEGER                                  :: i
     LOGICAL                                  :: failure
     TYPE(cp_logger_type), POINTER            :: logger
-
+    TYPE(section_vals_type), POINTER         :: walker_section
+    REAL(kind=dp)                            :: dist_in_angstrom
        failure = .FALSE.
 
         walker%error = error
@@ -137,12 +141,13 @@ MODULE glbopt_walker
 
       ! fetch original value from input
       CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=walker%gopt_max_iter, error=walker%error)
+      walker_section => section_vals_get_subs_vals(root_section, "GLOBAL_OPT%WALKER", error=error)
 
-      walker%epot_nup = 2
-      walker%epot_ndown = 2
-      walker%md_mincount_max = 3
-      walker%md_max_dist = 3.0/angstrom !TODO: read from input
-
+      CALL section_vals_val_get(walker_section,"MD_EPOT_N_UP", i_val=walker%epot_nup, error=error)
+      CALL section_vals_val_get(walker_section,"MD_EPOT_N_DOWN", i_val=walker%epot_ndown, error=error)
+      CALL section_vals_val_get(walker_section,"MD_MINCOUNT_MAX", i_val=walker%md_mincount_max, error=error)
+      CALL section_vals_val_get(walker_section,"MD_MAX_DIST", r_val=dist_in_angstrom, error=error)
+      walker%md_max_dist = dist_in_angstrom/angstrom
   END SUBROUTINE glbopt_walker_init
 
 

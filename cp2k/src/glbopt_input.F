@@ -99,8 +99,52 @@ MODULE glbopt_input
     CALL section_add_subsection(glbopt_section,print_section,error=error)
     CALL section_release(print_section,error=error)
 
+    CALL glbopt_walker_declare_input(glbopt_section, error)
     CALL glbopt_master_declare_input(glbopt_section, error)
   END SUBROUTINE create_global_opt_section
+
+!! *****************************************************************************
+!! *****************************************************************************
+  SUBROUTINE glbopt_walker_declare_input(glbopt_section,error)
+    TYPE(section_type), POINTER              :: glbopt_section
+    TYPE(cp_error_type), INTENT(inout)       :: error
+
+    TYPE(keyword_type), POINTER              :: keyword
+    TYPE(section_type), POINTER              :: walker_section
+
+    NULLIFY(walker_section, keyword)
+
+    CALL section_create(walker_section,name="WALKER",&
+         description="blah TODO.",&
+         repeats=.FALSE., supported_feature=.TRUE.,error=error)
+
+    CALL keyword_create(keyword, name="MD_EPOT_N_UP",&
+        description="balba TODO.",&
+        type_of_var=integer_t,default_i_val=2,error=error)
+    CALL section_add_keyword(walker_section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
+
+    CALL keyword_create(keyword, name="MD_EPOT_N_DOWN",&
+        description="balba TODO.",&
+        type_of_var=integer_t,default_i_val=2,error=error)
+    CALL section_add_keyword(walker_section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
+
+    CALL keyword_create(keyword, name="MD_MINCOUNT_MAX",&
+        description="balba TODO.",&
+        type_of_var=integer_t,default_i_val=3,error=error)
+    CALL section_add_keyword(walker_section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
+
+    CALL keyword_create(keyword, name="MD_MAX_DIST",&
+         description="balba TODO.", &
+         default_r_val=2.0_dp, unit_str="angstrom",type_of_var=real_t,error=error)
+    CALL section_add_keyword(walker_section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
+
+    CALL section_add_subsection(glbopt_section, walker_section,error=error)
+    CALL section_release(walker_section,error=error)
+  END SUBROUTINE glbopt_walker_declare_input
 
 !! *****************************************************************************
 !! *****************************************************************************
@@ -173,9 +217,15 @@ MODULE glbopt_input
     CALL section_add_keyword(minhop_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
-    CALL keyword_create(keyword, name="TEMPERATURE_THROTTLE",&
+    CALL keyword_create(keyword, name="TEMPERATURE_MAX",&
          description="The maximum temperature used in Kelvin",  &
          default_r_val=100000.0_dp,type_of_var=real_t,error=error)
+    CALL section_add_keyword(minhop_section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
+
+    CALL keyword_create(keyword, name="TEMPERATURE_MIN",&
+         description="The maximum temperature used in Kelvin",  &
+         default_r_val=1.0_dp,type_of_var=real_t,error=error)
     CALL section_add_keyword(minhop_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
@@ -184,6 +234,12 @@ MODULE glbopt_input
          default_l_val=.FALSE.,lone_keyword_l_val=.TRUE.,supported_feature=.TRUE.,error=error)
     CALL section_add_keyword(minhop_section,keyword,error=error)
     CALL keyword_release(keyword,error=error)
+
+    CALL keyword_create(keyword, name="MAX_DIST",&
+         description="balba TODO.", &
+         default_r_val=2.0_dp, unit_str="angstrom",type_of_var=real_t,error=error)
+    CALL section_add_keyword(minhop_section, keyword, error=error)
+    CALL keyword_release(keyword, error=error)
 
     CALL section_add_subsection(glbopt_section,minhop_section,error=error)
     CALL section_release(minhop_section,error=error)

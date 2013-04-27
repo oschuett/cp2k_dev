@@ -47,7 +47,8 @@ MODULE glbopt_minhop
    REAL(KIND=dp)                                       :: beta3 = 0
    REAL(KIND=dp)                                       :: Eaccept0 = 0
    REAL(KIND=dp)                                       :: temp_init = 0
-   REAL(KIND=dp)                                       :: temp_throttle = 0
+   REAL(KIND=dp)                                       :: temp_max = 0
+   REAL(KIND=dp)                                       :: temp_min = 0
    REAL(KIND=dp)                                       :: alpha1 = 0
    REAL(KIND=dp)                                       :: alpha2 = 0
    REAL(KIND=dp)                                       :: max_dist = 0
@@ -70,7 +71,7 @@ MODULE glbopt_minhop
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER                                  :: i, n_histories
-    REAL(kind=dp)                            :: temp_in_kelvin
+    REAL(kind=dp)                            :: temp_in_kelvin, dist_in_angstrom
     TYPE(section_vals_type), POINTER         :: minhop_section
 
 ! read input
@@ -83,9 +84,16 @@ MODULE glbopt_minhop
     CALL section_vals_val_get(minhop_section,"E_ACCEPT_INIT", r_val=minhop%Eaccept0,error=error)
     CALL section_vals_val_get(minhop_section,"TEMPERATURE_INIT", r_val=temp_in_kelvin,error=error)
     minhop%temp_init = temp_in_kelvin / kelvin
-    CALL section_vals_val_get(minhop_section,"TEMPERATURE_THROTTLE", r_val=temp_in_kelvin,error=error)
-    minhop%temp_throttle = temp_in_kelvin / kelvin
+    CALL section_vals_val_get(minhop_section,"TEMPERATURE_MAX", r_val=temp_in_kelvin,error=error)
+    minhop%temp_max = temp_in_kelvin / kelvin
+    CALL section_vals_val_get(minhop_section,"TEMPERATURE_MIN", r_val=temp_in_kelvin,error=error)
+    minhop%temp_min = temp_in_kelvin / kelvin
     CALL section_vals_val_get(minhop_section,"SHARE_HISTORY", l_val=minhop%share_history,error=error)
+    CALL section_vals_val_get(minhop_section,"MAX_DIST", r_val=dist_in_angstrom, error=error)
+    minhop%max_dist = dist_in_angstrom/angstrom
+
+    IF(minhop%temp_max < minhop%temp_init .OR. minhop%temp_init < minhop%temp_min) &
+       STOP "minhop: temp_max < temp_init < temp_min not fulfilled"
 
     ! allocate history / histories
     n_histories = n_walkers
@@ -104,8 +112,7 @@ MODULE glbopt_minhop
     minhop%n_walkers = n_walkers
     minhop%iw = iw
     minhop%n_accepted = 0
-    minhop%max_dist = 3.0/angstrom !TODO: read from input
-      
+
     IF(minhop%iw>0) &
       WRITE(minhop%iw, '(A,36X,L1)') " GLOBAL_OPT|MINHOP| Using shared histories:", minhop%share_history
  END SUBROUTINE glbopt_minhop_init
@@ -136,28 +143,32 @@ MODULE glbopt_minhop
 
     ELSE IF(minima_known) THEN ! known minima restart MD
        IF(minhop%iw>0) WRITE(minhop%iw,'(A,40X,A)') " GLOBAL_OPT|MINHOP| Conclusion","old minima"
-       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta2
+       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta2 !increasing temperature
 
     ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
        IF(minhop%iw>0) WRITE(minhop%iw,'(A,7X,A)')&
           " GLOBAL_OPT|MINHOP| Conclusion","new minima, but got rejected due to Eaccept"
-       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
-       minhop%Eaccept(wid)     = minhop%Eaccept(wid) * minhop%alpha2
+       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
+       minhop%Eaccept(wid)     = minhop%Eaccept(wid) * minhop%alpha2 !increasing temperature
 
     ELSE ! Hurra, we accept a new minimum
       IF(minhop%iw>0) WRITE(minhop%iw,'(A,27X,A)') " GLOBAL_OPT|MINHOP| Conclusion","new minima got accepted"
-      minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3
-      minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1
+      minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
+      minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1 !decreasing temperature
       CALL glbopt_history_add(minhop%history(hid), report)
       minhop%prev_report(wid) = report
       minhop%n_accepted = minhop%n_accepted + 1
     END IF
 
 
-    IF(minhop%temperature(wid) > minhop%temp_throttle) THEN
-       minhop%temperature(wid) = minhop%temp_throttle
-       !TODO: or should we exit???
-      IF(minhop%iw > 0) WRITE(minhop%iw,*) " GLOBAL_OPT|MINHOP| Throttleing Temperature"
+    IF(minhop%temperature(wid) > minhop%temp_max) THEN
+       minhop%temperature(wid) = minhop%temp_max
+      IF(minhop%iw > 0) WRITE(minhop%iw,*) " GLOBAL_OPT|MINHOP| Throttleing to Max Temperature"
+    END IF
+
+    IF(minhop%temperature(wid) < minhop%temp_min) THEN
+       minhop%temperature(wid) = minhop%temp_min
+      IF(minhop%iw > 0) WRITE(minhop%iw,*) " GLOBAL_OPT|MINHOP| Throttleing to Min Temperature"
     END IF
 
     IF(minhop%iw>0) THEN
