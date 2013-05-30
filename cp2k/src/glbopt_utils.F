@@ -15,7 +15,7 @@ MODULE glbopt_utils
  IMPLICIT NONE
  PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_utils'
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'swarm_utils'
 
  PUBLIC :: particles_connected
 
@@ -65,7 +65,7 @@ MODULE glbopt_utils
     all_connected = ALL(marked) !did we visit every particle?
 
     !IF(.NOT. all_connected) THEN
-    !   WRITE (*,*) "GLOBAL_OPT: unconnected particles"
+    !   WRITE (*,*) "SWARM: unconnected particles"
     !   DO iparticle = 1, SIZE(particles%els)
     !     IF(.NOT. marked(iparticle)) WRITE (*,*) "particle ", iparticle
     !   END DO

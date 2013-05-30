@@ -41,7 +41,7 @@ MODULE input_cp2k
   USE input_cp2k_motion,               ONLY: create_motion_section
   USE input_cp2k_rsgrid,               ONLY: create_rsgrid_section
   USE input_cp2k_vib,                  ONLY: create_vib_section
-  USE glbopt_input,                    ONLY: create_global_opt_section
+  USE swarm_input,                     ONLY: create_swarm_section
   USE input_keyword_types,             ONLY: keyword_create,&
                                              keyword_release,&
                                              keyword_type
@@ -174,7 +174,7 @@ CONTAINS
        CALL section_add_subsection(root_section,section,error=error)
        CALL section_release(section,error=error)
 
-       CALL create_global_opt_section(section,error=error)
+       CALL create_swarm_section(section,error=error)
        CALL section_add_subsection(root_section,section,error=error)
        CALL section_release(section,error=error)
 
@@ -383,14 +383,14 @@ CONTAINS
          variants=(/"PROGRAM"/),&
          description="Which program should be run",&
          usage="PROGRAM_NAME <STRING>",&
-         enum_c_vals=s2a("ATOM","FARMING","TEST","CP2K","OPTIMIZE_INPUT","GLOBAL_OPT"),&
+         enum_c_vals=s2a("ATOM","FARMING","TEST","CP2K","OPTIMIZE_INPUT","SWARM"),&
          enum_desc=s2a("Runs single atom calculations",&
                        "Runs N independent jobs in a single run",&
                        "Do some benchmarking and testing",&
                        "Runs one of the CP2K package",&
                        "A tool do optimize parameters in a CP2K input",&
-                       "Runs a global geometrie optimization"),&
-         enum_i_vals=(/do_atom, do_farming, do_test, do_cp2k, do_optimize_input, do_global_opt/),&
+                       "Runs swarm based calculation"),&
+         enum_i_vals=(/do_atom, do_farming, do_test, do_cp2k, do_optimize_input, do_swarm/),&
          default_i_val=do_cp2k, supported_feature=.TRUE., error=error)
     CALL section_add_keyword(section,keyword,error=error)
     CALL keyword_release(keyword,error=error)

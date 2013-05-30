@@ -8,12 +8,12 @@
 !> \par History
 !> \author Ole
 ! *****************************************************************************
-MODULE glbopt_mpi
+MODULE swarm_mpi
   USE cp_files,                        ONLY: open_file
   USE cp_para_env,                     ONLY: cp_para_env_create
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE glbopt_types,                    ONLY: glbopt_command_type,&
-                                             glbopt_report_type
+  USE swarm_types,                     ONLY: swarm_command_type,&
+                                             swarm_report_type
   USE kinds,                           ONLY: default_path_length
   USE machine,                         ONLY: default_output_unit
   USE message_passing,                 ONLY: &
@@ -24,37 +24,37 @@ MODULE glbopt_mpi
  IMPLICIT NONE
  PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_mpi'
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'swarm_mpi'
 
- PUBLIC :: glbopt_mpi_type, glbopt_mpi_init, glbopt_mpi_finalize
- PUBLIC :: glbopt_mpi_send_report, glbopt_mpi_recv_report
- PUBLIC :: glbopt_mpi_send_command, glbopt_mpi_recv_command
+ PUBLIC :: swarm_mpi_type, swarm_mpi_init, swarm_mpi_finalize
+ PUBLIC :: swarm_mpi_send_report, swarm_mpi_recv_report
+ PUBLIC :: swarm_mpi_send_command, swarm_mpi_recv_command
 
 
- TYPE glbopt_mpi_type
+ TYPE swarm_mpi_type
     TYPE(cp_para_env_type), POINTER          :: world => Null()
-    TYPE(cp_para_env_type), POINTER          :: walker  => Null()
+    TYPE(cp_para_env_type), POINTER          :: worker  => Null()
     TYPE(cp_para_env_type), POINTER          :: master  => Null()
     INTEGER, DIMENSION(:), ALLOCATABLE       :: wid2group
- END TYPE glbopt_mpi_type
+ END TYPE swarm_mpi_type
 
  CONTAINS
 
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_mpi_init(world_para_env, glbopt_mpi, n_walkers, walker_id, iw, error)
+   SUBROUTINE swarm_mpi_init(world_para_env, swarm_mpi, n_workers, worker_id, iw, error)
     TYPE(cp_para_env_type), POINTER          :: world_para_env
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-    INTEGER, INTENT(IN)                      :: n_walkers
-    INTEGER, INTENT(OUT)                     :: walker_id
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
+    INTEGER, INTENT(IN)                      :: n_workers
+    INTEGER, INTENT(OUT)                     :: worker_id
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER                                  :: n_groups_created, &
-                                                pe_per_walker, subgroup, &
+                                                pe_per_worker, subgroup, &
                                                 subgroup_rank, subgroup_size, &
-                                                walker_group
+                                                worker_group
     LOGICAL                                  :: im_the_master
     INTEGER, DIMENSION(:), POINTER           :: group_distribution_p
     INTEGER, &
@@ -63,68 +63,68 @@ MODULE glbopt_mpi
 
 ! ====== Setup of MPI-Groups ======
 
-    walker_id = -1
-    glbopt_mpi%world => world_para_env
+    worker_id = -1
+    swarm_mpi%world => world_para_env
 
-    IF (MOD(glbopt_mpi%world%num_pe-1, n_walkers) /= 0) &
-       STOP "number of processors-1 is not divisible by n_walkers."
-    IF (glbopt_mpi%world%num_pe < n_walkers + 1) &
-       STOP "There are not enough processes for n_walkers + 1. Aborting."
+    IF (MOD(swarm_mpi%world%num_pe-1, n_workers) /= 0) &
+       STOP "number of processors-1 is not divisible by n_workers."
+    IF (swarm_mpi%world%num_pe < n_workers + 1) &
+       STOP "There are not enough processes for n_workers + 1. Aborting."
 
-    pe_per_walker = (glbopt_mpi%world%num_pe-1)/n_walkers
+    pe_per_worker = (swarm_mpi%world%num_pe-1)/n_workers
 
     IF(iw>0) THEN
-       WRITE(iw,'(A,40X,I8)') " GLOBAL_OPT| Number of mpi ranks", glbopt_mpi%world%num_pe
-       WRITE(iw,'(A,42X,I8)') " GLOBAL_OPT| Number of walkers", n_walkers
+       WRITE(iw,'(A,40X,I8)') " SWARM| Number of mpi ranks", swarm_mpi%world%num_pe
+       WRITE(iw,'(A,42X,I8)') " SWARM| Number of workers", n_workers
     ENDIF
 
     ! the last task becomes the master. Preseves node-alignment of other tasks.
-    im_the_master = (glbopt_mpi%world%mepos == glbopt_mpi%world%num_pe-1)
+    im_the_master = (swarm_mpi%world%mepos == swarm_mpi%world%num_pe-1)
 
-    ! First split split para_env%group into a master- and a walkers-groups...
+    ! First split split para_env%group into a master- and a workers-groups...
     IF (im_the_master) THEN
-       CALL mp_comm_split_direct(glbopt_mpi%world%group, subgroup, 1)
+       CALL mp_comm_split_direct(swarm_mpi%world%group, subgroup, 1)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
        !WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
-       IF(subgroup_size/=1) STOP "glbopt: mp_comm_split_direct failed (master)"
+       IF(subgroup_size/=1) STOP "swarm: mp_comm_split_direct failed (master)"
     ELSE
-       CALL mp_comm_split_direct(glbopt_mpi%world%group, subgroup, 2)
+       CALL mp_comm_split_direct(swarm_mpi%world%group, subgroup, 2)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       !WRITE (*,*) "Hello, this is a Walker - there are ",subgroup_size, " of us."
-       IF(subgroup_size/=glbopt_mpi%world%num_pe-1) STOP "glbopt: mp_comm_split_direct failed (walker)"
+       !WRITE (*,*) "Hello, this is a Worker - there are ",subgroup_size, " of us."
+       IF(subgroup_size/=swarm_mpi%world%num_pe-1) STOP "swarm: mp_comm_split_direct failed (worker)"
     ENDIF
 
-    CALL cp_para_env_create(glbopt_mpi%master, group=subgroup, error=error)
+    CALL cp_para_env_create(swarm_mpi%master, group=subgroup, error=error)
 
-    ALLOCATE(glbopt_mpi%wid2group(n_walkers))
-    glbopt_mpi%wid2group = 0
+    ALLOCATE(swarm_mpi%wid2group(n_workers))
+    swarm_mpi%wid2group = 0
 
     IF(.NOT. im_the_master) THEN
-       ! ...then split walkers-group into n_walkers groups - one for each walker.
+       ! ...then split workers-group into n_workers groups - one for each worker.
        group_distribution_p => group_distribution
-       CALL mp_comm_split(subgroup, walker_group, n_groups_created, group_distribution_p, n_subgroups=n_walkers)
-       walker_id = group_distribution(subgroup_rank) + 1 ! shall start by 1
-       IF(n_groups_created/=n_walkers) STOP "glbopt: mp_comm_split failed."
-       CALL cp_para_env_create(glbopt_mpi%walker, group=walker_group, error=error)
+       CALL mp_comm_split(subgroup, worker_group, n_groups_created, group_distribution_p, n_subgroups=n_workers)
+       worker_id = group_distribution(subgroup_rank) + 1 ! shall start by 1
+       IF(n_groups_created/=n_workers) STOP "swarm: mp_comm_split failed."
+       CALL cp_para_env_create(swarm_mpi%worker, group=worker_group, error=error)
 
-       ! collect world-ranks of each walker groups rank-0 node
-       IF(glbopt_mpi%walker%mepos == 0) &
-          glbopt_mpi%wid2group(walker_id) = glbopt_mpi%world%mepos
+       ! collect world-ranks of each worker groups rank-0 node
+       IF(swarm_mpi%worker%mepos == 0) &
+          swarm_mpi%wid2group(worker_id) = swarm_mpi%world%mepos
 
     ENDIF
 
-    CALL mp_sum(glbopt_mpi%wid2group, glbopt_mpi%world%group)
-    !WRITE (*,*), "wid2group table: ",glbopt_mpi%wid2group
+    CALL mp_sum(swarm_mpi%wid2group, swarm_mpi%world%group)
+    !WRITE (*,*), "wid2group table: ",swarm_mpi%wid2group
 
 
-    CALL logger_init(glbopt_mpi, error)
+    CALL logger_init(swarm_mpi, error)
 
-  END SUBROUTINE glbopt_mpi_init
+  END SUBROUTINE swarm_mpi_init
 
  ! *****************************************************************************
  ! *****************************************************************************
-  SUBROUTINE logger_init(glbopt_mpi, error)
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+  SUBROUTINE logger_init(swarm_mpi, error)
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     CHARACTER(LEN=default_path_length)       :: output_path
@@ -136,20 +136,20 @@ MODULE glbopt_mpi
     logger => cp_error_get_logger(error)
     output_unit = logger%default_local_unit_nr
     output_path = ""
-    IF(glbopt_mpi%world%mepos == glbopt_mpi%world%source) THEN
+    IF(swarm_mpi%world%mepos == swarm_mpi%world%source) THEN
        output_path = "__STD_OUT__"
        IF(output_unit /= default_output_unit)&
           INQUIRE(unit=output_unit, name=output_path)
        CALL FLUSH(output_unit) !TODO: really needed?
     END IF
 
-    CALL mp_bcast(output_path, glbopt_mpi%world%source, glbopt_mpi%world%group)
+    CALL mp_bcast(output_path, swarm_mpi%world%source, swarm_mpi%world%group)
 
     ! restore default logger on master's rank-0
-    IF(.NOT. ASSOCIATED(glbopt_mpi%master)) RETURN
+    IF(.NOT. ASSOCIATED(swarm_mpi%master)) RETURN
 
     output_unit = -1
-    IF(glbopt_mpi%master%source == glbopt_mpi%master%mepos) THEN
+    IF(swarm_mpi%master%source == swarm_mpi%master%mepos) THEN
       ! open output_unit according to output_path
        output_unit = default_output_unit
        IF (output_path /= "__STD_OUT__") &
@@ -159,25 +159,25 @@ MODULE glbopt_mpi
 
     ! create default logger from output_unit
     NULLIFY(new_logger)
-    CALL cp_logger_create(new_logger, para_env=glbopt_mpi%master,&
+    CALL cp_logger_create(new_logger, para_env=swarm_mpi%master,&
        default_global_unit_nr=output_unit, close_global_unit_on_dealloc=.FALSE.,&
        template_logger=logger)
     CALL cp_add_default_logger(new_logger)
     CALL cp_logger_release(new_logger)
     CALL cp_error_set(error, logger=new_logger)
-    !TODO also change the loggers of the walkers?
+    !TODO also change the loggers of the workers?
   END SUBROUTINE logger_init
 
  ! *****************************************************************************
  ! *****************************************************************************
-  SUBROUTINE logger_finalize(glbopt_mpi, error)
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+  SUBROUTINE logger_finalize(swarm_mpi, error)
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER                                  :: output_unit
     TYPE(cp_logger_type), POINTER            :: logger, old_logger
 
-    IF(.NOT.ASSOCIATED(glbopt_mpi%master)) RETURN
+    IF(.NOT.ASSOCIATED(swarm_mpi%master)) RETURN
     logger => cp_error_get_logger(error)
     output_unit = logger%default_local_unit_nr
     IF(output_unit > 0) CALL FLUSH(output_unit) !TODO: really needed?
@@ -190,124 +190,124 @@ MODULE glbopt_mpi
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_mpi_finalize(glbopt_mpi, error)
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
+   SUBROUTINE swarm_mpi_finalize(swarm_mpi, error)
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    CALL mp_sync(glbopt_mpi%world%group)
-    CALL logger_finalize(glbopt_mpi, error)
+    CALL mp_sync(swarm_mpi%world%group)
+    CALL logger_finalize(swarm_mpi, error)
 
-    IF(ASSOCIATED(glbopt_mpi%walker)) CALL mp_comm_free(glbopt_mpi%walker%group)
-    CALL mp_comm_free(glbopt_mpi%master%group)
-    NULLIFY(glbopt_mpi%walker, glbopt_mpi%master)
-    DEALLOCATE(glbopt_mpi%wid2group)
-  END SUBROUTINE glbopt_mpi_finalize
+    IF(ASSOCIATED(swarm_mpi%worker)) CALL mp_comm_free(swarm_mpi%worker%group)
+    CALL mp_comm_free(swarm_mpi%master%group)
+    NULLIFY(swarm_mpi%worker, swarm_mpi%master)
+    DEALLOCATE(swarm_mpi%wid2group)
+  END SUBROUTINE swarm_mpi_finalize
 
 
 ! *****************************************************************************
 ! *****************************************************************************
-  SUBROUTINE glbopt_mpi_send_report(glbopt_mpi, report)
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-    TYPE(glbopt_report_type)                 :: report
+  SUBROUTINE swarm_mpi_send_report(swarm_mpi, report)
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
+    TYPE(swarm_report_type)                 :: report
 
     INTEGER                                  :: dest, tag
 
-! Only rank-0 of walker group sends it's report
+! Only rank-0 of worker group sends it's report
 
-     IF(glbopt_mpi%walker%source /= glbopt_mpi%walker%mepos) RETURN
+     IF(swarm_mpi%worker%source /= swarm_mpi%worker%mepos) RETURN
 
-     dest = glbopt_mpi%world%num_pe-1
+     dest = swarm_mpi%world%num_pe-1
      tag = 42
      !TODO: this is inefficient - could pack everything into one buffer
-     CALL mp_send(report%walker_id,       dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(report%iframe,          dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(report%Epot,            dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(SIZE(report%positions), dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(report%positions,       dest, tag, glbopt_mpi%world%group)
-  END SUBROUTINE glbopt_mpi_send_report
+     CALL mp_send(report%worker_id,       dest, tag, swarm_mpi%world%group)
+     CALL mp_send(report%iframe,          dest, tag, swarm_mpi%world%group)
+     CALL mp_send(report%Epot,            dest, tag, swarm_mpi%world%group)
+     CALL mp_send(SIZE(report%positions), dest, tag, swarm_mpi%world%group)
+     CALL mp_send(report%positions,       dest, tag, swarm_mpi%world%group)
+  END SUBROUTINE swarm_mpi_send_report
 
 ! *****************************************************************************
 ! *****************************************************************************
-  SUBROUTINE glbopt_mpi_recv_report(glbopt_mpi, report)
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-    TYPE(glbopt_report_type), INTENT(OUT)    :: report
+  SUBROUTINE swarm_mpi_recv_report(swarm_mpi, report)
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
+    TYPE(swarm_report_type), INTENT(OUT)    :: report
 
     INTEGER                                  :: s, src, tag
 
      tag=42
      src=mp_any_source
 
-     CALL mp_recv(report%walker_id, src, tag, glbopt_mpi%world%group)
+     CALL mp_recv(report%worker_id, src, tag, swarm_mpi%world%group)
 
-     IF(src /= glbopt_mpi%wid2group(report%walker_id)) &
+     IF(src /= swarm_mpi%wid2group(report%worker_id)) &
         CALL mp_abort("wid2group table corrupted")
 
-     CALL mp_recv(report%iframe,    src, tag, glbopt_mpi%world%group)
-     CALL mp_recv(report%Epot,      src, tag, glbopt_mpi%world%group)
-     CALL mp_recv(s,                src, tag, glbopt_mpi%world%group)
+     CALL mp_recv(report%iframe,    src, tag, swarm_mpi%world%group)
+     CALL mp_recv(report%Epot,      src, tag, swarm_mpi%world%group)
+     CALL mp_recv(s,                src, tag, swarm_mpi%world%group)
      ALLOCATE(report%positions(s))
-     CALL mp_recv(report%positions, src, tag, glbopt_mpi%world%group)
-  END SUBROUTINE glbopt_mpi_recv_report
+     CALL mp_recv(report%positions, src, tag, swarm_mpi%world%group)
+  END SUBROUTINE swarm_mpi_recv_report
 
 ! *****************************************************************************
 ! *****************************************************************************
-  SUBROUTINE glbopt_mpi_send_command(glbopt_mpi, walker_id, cmd)
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-    INTEGER                                  :: walker_id
-    TYPE(glbopt_command_type)                :: cmd
+  SUBROUTINE swarm_mpi_send_command(swarm_mpi, worker_id, cmd)
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
+    INTEGER                                  :: worker_id
+    TYPE(swarm_command_type)                :: cmd
 
     INTEGER                                  :: dest, tag
 
      tag = 42
-     dest = glbopt_mpi%wid2group(walker_id)
+     dest = swarm_mpi%wid2group(worker_id)
 
      !TODO: this is inefficient - could pack everything into one buffer
-     CALL mp_send(cmd%cmd_id,          dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(cmd%iframe,          dest, tag, glbopt_mpi%world%group)
-     CALL mp_send(cmd%temperature,     dest, tag, glbopt_mpi%world%group)
+     CALL mp_send(cmd%cmd_id,          dest, tag, swarm_mpi%world%group)
+     CALL mp_send(cmd%iframe,          dest, tag, swarm_mpi%world%group)
+     CALL mp_send(cmd%temperature,     dest, tag, swarm_mpi%world%group)
      IF(ALLOCATED(cmd%positions)) THEN
-       CALL mp_send(SIZE(cmd%positions), dest, tag, glbopt_mpi%world%group)
-       CALL mp_send(cmd%positions,       dest, tag, glbopt_mpi%world%group)
+       CALL mp_send(SIZE(cmd%positions), dest, tag, swarm_mpi%world%group)
+       CALL mp_send(cmd%positions,       dest, tag, swarm_mpi%world%group)
      ELSE
-       CALL mp_send(0,                   dest, tag, glbopt_mpi%world%group)
+       CALL mp_send(0,                   dest, tag, swarm_mpi%world%group)
      ENDIF
-  END SUBROUTINE glbopt_mpi_send_command
+  END SUBROUTINE swarm_mpi_send_command
 
 ! *****************************************************************************
 ! *****************************************************************************
-  SUBROUTINE glbopt_mpi_recv_command(glbopt_mpi, cmd)
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-    TYPE(glbopt_command_type), INTENT(OUT)   :: cmd
+  SUBROUTINE swarm_mpi_recv_command(swarm_mpi, cmd)
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
+    TYPE(swarm_command_type), INTENT(OUT)   :: cmd
 
     INTEGER                                  :: s, src, tag
 
 ! This is a two step communication schema.
-! First: The rank-0 of the walker groups receives the command from the master.
+! First: The rank-0 of the worker groups receives the command from the master.
 
-     IF(glbopt_mpi%walker%source == glbopt_mpi%walker%mepos) THEN 
+     IF(swarm_mpi%worker%source == swarm_mpi%worker%mepos) THEN 
         tag = 42
-        src = glbopt_mpi%world%num_pe-1
-        CALL mp_recv(cmd%cmd_id,      src, tag, glbopt_mpi%world%group)
-        CALL mp_recv(cmd%iframe,      src, tag, glbopt_mpi%world%group)
-        CALL mp_recv(cmd%temperature, src, tag, glbopt_mpi%world%group)
-        CALL mp_recv(s,               src, tag, glbopt_mpi%world%group)
+        src = swarm_mpi%world%num_pe-1
+        CALL mp_recv(cmd%cmd_id,      src, tag, swarm_mpi%world%group)
+        CALL mp_recv(cmd%iframe,      src, tag, swarm_mpi%world%group)
+        CALL mp_recv(cmd%temperature, src, tag, swarm_mpi%world%group)
+        CALL mp_recv(s,               src, tag, swarm_mpi%world%group)
         IF(s > 0) THEN
           ALLOCATE(cmd%positions(s))
-          CALL mp_recv(cmd%positions,   src, tag, glbopt_mpi%world%group)
+          CALL mp_recv(cmd%positions,   src, tag, swarm_mpi%world%group)
         END IF
      ENDIF
 
-     ! Second: The command is broadcasted within the walker group.
-     CALL mp_bcast(cmd%cmd_id,      glbopt_mpi%walker%source, glbopt_mpi%walker%group)
-     CALL mp_bcast(cmd%iframe,      glbopt_mpi%walker%source, glbopt_mpi%walker%group)
-     CALL mp_bcast(cmd%temperature, glbopt_mpi%walker%source, glbopt_mpi%walker%group)
-     CALL mp_bcast(s,               glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+     ! Second: The command is broadcasted within the worker group.
+     CALL mp_bcast(cmd%cmd_id,      swarm_mpi%worker%source, swarm_mpi%worker%group)
+     CALL mp_bcast(cmd%iframe,      swarm_mpi%worker%source, swarm_mpi%worker%group)
+     CALL mp_bcast(cmd%temperature, swarm_mpi%worker%source, swarm_mpi%worker%group)
+     CALL mp_bcast(s,               swarm_mpi%worker%source, swarm_mpi%worker%group)
      IF(s > 0) THEN
-       IF(glbopt_mpi%walker%source/=glbopt_mpi%walker%mepos) ALLOCATE(cmd%positions(s))
-       CALL mp_bcast(cmd%positions,   glbopt_mpi%walker%source, glbopt_mpi%walker%group)
+       IF(swarm_mpi%worker%source/=swarm_mpi%worker%mepos) ALLOCATE(cmd%positions(s))
+       CALL mp_bcast(cmd%positions,   swarm_mpi%worker%source, swarm_mpi%worker%group)
      ENDIF
-  END SUBROUTINE glbopt_mpi_recv_command
+  END SUBROUTINE swarm_mpi_recv_command
 
 
-END MODULE glbopt_mpi
+END MODULE swarm_mpi
 

@@ -8,29 +8,28 @@
 !> \par History
 !> \author Ole
 ! *****************************************************************************
-MODULE glbopt
+MODULE swarm
   USE cp_output_handling,              ONLY: cp_print_key_unit_nr
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE glbopt_input
-  USE glbopt_master,                   ONLY: glbopt_master_finalize,&
-                                             glbopt_master_init,&
-                                             glbopt_master_steer,&
-                                             glbopt_master_type
-  USE glbopt_mpi,                      ONLY: glbopt_mpi_finalize,&
-                                             glbopt_mpi_init,&
-                                             glbopt_mpi_recv_command,&
-                                             glbopt_mpi_recv_report,&
-                                             glbopt_mpi_send_command,&
-                                             glbopt_mpi_send_report,&
-                                             glbopt_mpi_type
-  USE glbopt_types,                    ONLY: GLBOPT_CMD_SHUTDOWN,&
-                                             glbopt_command_type,&
-                                             glbopt_report_type
-  USE glbopt_walker,                   ONLY: glbopt_walker_assemble_report,&
-                                             glbopt_walker_execute_command,&
-                                             glbopt_walker_finalize,&
-                                             glbopt_walker_init,&
-                                             glbopt_walker_type
+  USE swarm_input
+  USE swarm_master,                   ONLY: swarm_master_finalize,&
+                                             swarm_master_init,&
+                                             swarm_master_steer,&
+                                             swarm_master_type
+  USE swarm_mpi,                      ONLY: swarm_mpi_finalize,&
+                                             swarm_mpi_init,&
+                                             swarm_mpi_recv_command,&
+                                             swarm_mpi_recv_report,&
+                                             swarm_mpi_send_command,&
+                                             swarm_mpi_send_report,&
+                                             swarm_mpi_type
+  USE swarm_types,                    ONLY: SWARM_CMD_SHUTDOWN,&
+                                             swarm_command_type,&
+                                             swarm_report_type
+  USE swarm_worker,                   ONLY:  swarm_worker_execute,&
+                                             swarm_worker_finalize,&
+                                             swarm_worker_init,&
+                                             swarm_worker_type
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_type,&
                                              section_vals_val_get
@@ -41,9 +40,9 @@ MODULE glbopt
  IMPLICIT NONE
  PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt'
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'swarm'
 
- PUBLIC :: run_global_opt
+ PUBLIC :: run_swarm
  
   CONTAINS 
  
@@ -54,45 +53,45 @@ MODULE glbopt
 !> \param error variable to control error logging, stopping,...
 !>        see module cp_error_handling
 ! *****************************************************************************
-   SUBROUTINE run_global_opt(root_section, para_env, globenv, input_path, error)
+   SUBROUTINE run_swarm(root_section, para_env, globenv, input_path, error)
     TYPE(section_vals_type), POINTER         :: root_section
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(global_environment_type), POINTER   :: globenv
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    CHARACTER(len=*), PARAMETER :: routineN = 'run_global_opt', &
+    CHARACTER(len=*), PARAMETER :: routineN = 'run_SWARM', &
       routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: handle, iw, n_walkers
+    INTEGER                                  :: handle, iw, n_workers
     TYPE(cp_logger_type), POINTER            :: logger
 
     CALL timeset(routineN,handle)
 
     logger => cp_error_get_logger(error)
     iw = cp_print_key_unit_nr(logger,root_section,&
-          "GLOBAL_OPT%PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
+          "SWARM%PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
 
-    IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Ready to roll :-)"
+    IF(iw > 0) WRITE(iw,"(A)") " SWARM| Ready to roll :-)"
 
-    CALL section_vals_val_get(root_section,"GLOBAL_OPT%NUMBER_OF_WALKERS",&
-       i_val=n_walkers,error=error)
+    CALL section_vals_val_get(root_section,"SWARM%NUMBER_OF_WORKERS",&
+       i_val=n_workers,error=error)
 
-    IF(n_walkers == 1) THEN
-       IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Running in single walker mode."
-       CALL glbopt_serial_driver(root_section, input_path, para_env, globenv, error)
+    IF(n_workers == 1) THEN
+       IF(iw > 0) WRITE(iw,"(A)") " SWARM| Running in single worker mode."
+       CALL swarm_serial_driver(root_section, input_path, para_env, globenv, error)
     ELSE
-       IF(iw > 0) WRITE(iw,"(A)") " GLOBAL_OPT| Running in master / walkers mode."
-       !printkey iw passed on for output from glbopt_mpi_init()
-       CALL glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, globenv, iw, error)
+       IF(iw > 0) WRITE(iw,"(A)") " SWARM| Running in master / workers mode."
+       !printkey iw passed on for output from swarm_mpi_init()
+       CALL swarm_parallel_driver(n_workers, root_section, input_path, para_env, globenv, iw, error)
     ENDIF
 
     CALL timestop(handle)
-   END SUBROUTINE run_global_opt
+   END SUBROUTINE run_SWARM
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_serial_driver(root_section, input_path, para_env, globenv, error)
+   SUBROUTINE swarm_serial_driver(root_section, input_path, para_env, globenv, error)
     TYPE(section_vals_type), POINTER         :: root_section
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     TYPE(cp_para_env_type), POINTER          :: para_env
@@ -100,32 +99,37 @@ MODULE glbopt
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     LOGICAL                                  :: should_stop
-    TYPE(glbopt_command_type)                :: cmd
-    TYPE(glbopt_master_type)                 :: master
-    TYPE(glbopt_report_type)                 :: report
-    TYPE(glbopt_walker_type)                 :: walker
+    TYPE(swarm_command_type)                :: cmd
+    TYPE(swarm_master_type)                 :: master
+    TYPE(swarm_report_type)                 :: report
+    TYPE(swarm_worker_type)                 :: worker
 
-       CALL glbopt_master_init(master, para_env, globenv, root_section, n_walkers=1, error=error)
-       CALL glbopt_walker_init(walker, para_env, root_section, input_path, &
-                                   walker_id=1, error=error)
+       CALL swarm_master_init(master, para_env, globenv, root_section, n_workers=1, error=error)
+       CALL swarm_worker_init(worker, para_env, root_section, input_path, &
+                                   worker_id=1, error=error)
 
+       CALL create_empty_report(report)
        should_stop = .FALSE.
        DO WHILE(.NOT. should_stop)
-          CALL glbopt_walker_assemble_report(walker, report)
-          CALL glbopt_master_steer(master, report, cmd)
-          CALL glbopt_walker_execute_command(walker, cmd, should_stop)
+          CALL swarm_master_steer(master, report, cmd)
+          CALL swarm_worker_execute(worker, cmd, report, should_stop)
        END DO
 
-       CALL glbopt_walker_finalize(walker)
-       CALL glbopt_master_finalize(master)
+       CALL swarm_worker_finalize(worker)
+       CALL swarm_master_finalize(master)
 
-    END SUBROUTINE glbopt_serial_driver
-
+    END SUBROUTINE swarm_serial_driver
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_parallel_driver(n_walkers, root_section, input_path, para_env, globenv, iw, error)
-    INTEGER, INTENT(IN)                      :: n_walkers
+
+   SUBROUTINE create_empty_report(report)
+       TYPE(swarm_report_type), INTENT(OUT)                 :: report
+   END SUBROUTINE create_empty_report
+! *****************************************************************************
+! *****************************************************************************
+   SUBROUTINE swarm_parallel_driver(n_workers, root_section, input_path, para_env, globenv, iw, error)
+    INTEGER, INTENT(IN)                      :: n_workers
     TYPE(section_vals_type), POINTER         :: root_section
     CHARACTER(LEN=*), INTENT(IN)             :: input_path
     TYPE(cp_para_env_type), POINTER          :: para_env
@@ -133,47 +137,47 @@ MODULE glbopt
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    INTEGER                                  :: i_shutdowns, walker_id
+    INTEGER                                  :: i_shutdowns, worker_id
     LOGICAL                                  :: should_stop
-    TYPE(glbopt_command_type)                :: cmd
-    TYPE(glbopt_master_type)                 :: master
-    TYPE(glbopt_mpi_type)                    :: glbopt_mpi
-    TYPE(glbopt_report_type)                 :: report
-    TYPE(glbopt_walker_type)                 :: walker
+    TYPE(swarm_command_type)                :: cmd
+    TYPE(swarm_master_type)                 :: master
+    TYPE(swarm_mpi_type)                    :: swarm_mpi
+    TYPE(swarm_report_type)                 :: report
+    TYPE(swarm_worker_type)                 :: worker
 
-       CALL glbopt_mpi_init(para_env, glbopt_mpi, n_walkers, walker_id, iw, error=error)
+       CALL swarm_mpi_init(para_env, swarm_mpi, n_workers, worker_id, iw, error=error)
 
-       IF(ASSOCIATED(glbopt_mpi%walker)) THEN ! I'm a walker
-          CALL glbopt_walker_init(walker, glbopt_mpi%walker,&
-                     root_section, input_path, walker_id=walker_id, error=error)
+       IF(ASSOCIATED(swarm_mpi%worker)) THEN ! I'm a worker
+          CALL swarm_worker_init(worker, swarm_mpi%worker,&
+                     root_section, input_path, worker_id=worker_id, error=error)
 
+          CALL create_empty_report(report)
           should_stop = .FALSE.
           DO WHILE(.NOT. should_stop)
-             CALL glbopt_walker_assemble_report(walker, report)
-             CALL glbopt_mpi_send_report(glbopt_mpi, report)
-             CALL glbopt_mpi_recv_command(glbopt_mpi, cmd)
-             CALL glbopt_walker_execute_command(walker, cmd, should_stop)
+             CALL swarm_mpi_send_report(swarm_mpi, report)
+             CALL swarm_mpi_recv_command(swarm_mpi, cmd)
+             CALL swarm_worker_execute(worker, cmd, report, should_stop)
           END DO
-          CALL glbopt_walker_finalize(walker)
+          CALL swarm_worker_finalize(worker)
 
        !------------------------------------------------------------------------
        ELSE  ! I'm the master
-          CALL glbopt_master_init(master, glbopt_mpi%master, globenv, root_section,&
-                 n_walkers, error)
+          CALL swarm_master_init(master, swarm_mpi%master, globenv, root_section,&
+                 n_workers, error)
           i_shutdowns = 0
-          DO WHILE(i_shutdowns < n_walkers)
-             CALL glbopt_mpi_recv_report(glbopt_mpi, report)
-             CALL glbopt_master_steer(master, report, cmd)
-             CALL glbopt_mpi_send_command(glbopt_mpi, report%walker_id, cmd)
-             IF(cmd%cmd_id == GLBOPT_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
+          DO WHILE(i_shutdowns < n_workers)
+             CALL swarm_mpi_recv_report(swarm_mpi, report)
+             CALL swarm_master_steer(master, report, cmd)
+             CALL swarm_mpi_send_command(swarm_mpi, report%worker_id, cmd)
+             IF(cmd%cmd_id == SWARM_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
           END DO
-          CALL glbopt_master_finalize(master)
+          CALL swarm_master_finalize(master)
        END IF
 
-       CALL glbopt_mpi_finalize(glbopt_mpi, error)
+       CALL swarm_mpi_finalize(swarm_mpi, error)
 
-   END SUBROUTINE glbopt_parallel_driver
+   END SUBROUTINE swarm_parallel_driver
 
 
-END MODULE glbopt
+END MODULE swarm
 

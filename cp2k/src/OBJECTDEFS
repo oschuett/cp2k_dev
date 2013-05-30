@@ -791,17 +791,20 @@ OBJECTS_GENERIC =\
  dict_str_i4.o\
  dict_i4tuple_callstat.o\
  dict.o\
- glbopt.o\
- glbopt_types.o\
+ swarm.o\
+ swarm_types.o\
+ swarm_master.o\
+ swarm_worker.o\
+ swarm_input.o\
+ swarm_mpi.o\
+ swarm_comlog.o\
  glbopt_master.o\
- glbopt_walker.o\
- glbopt_callback.o\
- glbopt_utils.o\
+ glbopt_worker.o\
+ glbopt_types.o\
  glbopt_history.o\
- glbopt_input.o\
  glbopt_minhop.o\
- glbopt_mpi.o\
- glbopt_comlog.o\
+ glbopt_utils.o\
+ glbopt_callback.o\
  mdctrl_types.o\
  mdctrl_methods.o\
  hash_functions.o

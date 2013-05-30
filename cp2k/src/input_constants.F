@@ -29,7 +29,7 @@ MODULE input_constants
                                               do_test=3,&
                                               do_cp2k=4,&
                                               do_optimize_input=5,&
-                                              do_global_opt=6
+                                              do_swarm=6
                                               
   INTEGER, PARAMETER, PUBLIC               :: opt_force_matching=1
 

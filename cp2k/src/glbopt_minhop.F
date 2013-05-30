@@ -9,14 +9,13 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_minhop
-  USE glbopt_history,                  ONLY: glbopt_history_add,&
-                                             glbopt_history_finalize,&
-                                             glbopt_history_init,&
-                                             glbopt_history_lookup,&
-                                             glbopt_history_type
-  USE glbopt_types,                    ONLY: glbopt_cmd_mdgopt,&
-                                             glbopt_command_type,&
-                                             glbopt_report_type
+  USE glbopt_history,                  ONLY: history_add,&
+                                             history_finalize,&
+                                             history_init,&
+                                             history_lookup,&
+                                             history_type
+  USE swarm_types,                     ONLY: swarm_command_type,&
+                                             swarm_report_type
   USE glbopt_utils,                    ONLY: particles_connected
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -24,6 +23,8 @@ MODULE glbopt_minhop
   USE kinds,                           ONLY: dp
   USE physcon,                         ONLY: angstrom,&
                                              kelvin
+  USE glbopt_types,                    ONLY: glbopt_cmd_mdgopt,&
+                                             glbopt_cmd_setiframe
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -32,15 +33,15 @@ MODULE glbopt_minhop
   CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_minhop'
 
 
- PUBLIC :: glbopt_minhop_type
- PUBLIC :: glbopt_minhop_init, glbopt_minhop_finalize
- PUBLIC :: glbopt_minhop_steer
+ PUBLIC :: minhop_type
+ PUBLIC :: minhop_init, minhop_finalize
+ PUBLIC :: minhop_steer
 
 
- TYPE glbopt_minhop_type
+ TYPE minhop_type
    PRIVATE
-   TYPE(glbopt_history_type), DIMENSION(:),ALLOCATABLE :: history
-   TYPE(glbopt_report_type), DIMENSION(:), ALLOCATABLE :: prev_report
+   TYPE(history_type), DIMENSION(:),ALLOCATABLE :: history
+   TYPE(swarm_report_type), DIMENSION(:), ALLOCATABLE  :: prev_report
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: temperature
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: Eaccept
    REAL(KIND=dp)                                       :: beta2 = 0
@@ -54,20 +55,19 @@ MODULE glbopt_minhop
    REAL(KIND=dp)                                       :: max_dist = 0
    INTEGER                                             :: n_accepted = 0
    INTEGER                                             :: iw = 0
-   INTEGER                                             :: n_walkers =0
+   INTEGER                                             :: n_workers =0
    LOGICAL                                             :: share_history = .FALSE.
-   
- END TYPE glbopt_minhop_type
+ END TYPE minhop_type
 
  CONTAINS
 
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_minhop_init(minhop, glbopt_section, n_walkers, iw, error)
-    TYPE(glbopt_minhop_type)                 :: minhop
-    TYPE(section_vals_type), POINTER         :: glbopt_section
-    INTEGER, INTENT(IN)                      :: n_walkers, iw
+ SUBROUTINE minhop_init(minhop, section, n_workers, iw, error)
+    TYPE(minhop_type)                        :: minhop
+    TYPE(section_vals_type), POINTER         :: section
+    INTEGER, INTENT(IN)                      :: n_workers, iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     INTEGER                                  :: i, n_histories
@@ -76,7 +76,7 @@ MODULE glbopt_minhop
 
 ! read input
 
-    minhop_section => section_vals_get_subs_vals(glbopt_section, "MINIMA_HOPPING", error=error)
+    minhop_section => section_vals_get_subs_vals(section, "MINIMA_HOPPING", error=error)
     CALL section_vals_val_get(minhop_section,"BETA_2",  r_val=minhop%beta2,error=error)
     CALL section_vals_val_get(minhop_section,"BETA_3",  r_val=minhop%beta3,error=error)
     CALL section_vals_val_get(minhop_section,"ALPHA_1", r_val=minhop%alpha1,error=error)
@@ -96,45 +96,45 @@ MODULE glbopt_minhop
        STOP "minhop: temp_max < temp_init < temp_min not fulfilled"
 
     ! allocate history / histories
-    n_histories = n_walkers
+    n_histories = n_workers
     IF(minhop%share_history) n_histories = 1
     ALLOCATE(minhop%history(n_histories))
     DO i=1, n_histories
-      CALL glbopt_history_init(minhop%history(i), iw=iw)
+      CALL history_init(minhop%history(i), iw=iw)
     END DO
 
-    ALLOCATE(minhop%prev_report(n_walkers))
-    ALLOCATE(minhop%temperature(n_walkers))
-    ALLOCATE(minhop%Eaccept(n_walkers))
+    ALLOCATE(minhop%prev_report(n_workers))
+    ALLOCATE(minhop%temperature(n_workers))
+    ALLOCATE(minhop%Eaccept(n_workers))
 
     minhop%temperature(:) = minhop%temp_init
     minhop%Eaccept(:)     = minhop%Eaccept0
-    minhop%n_walkers = n_walkers
+    minhop%n_workers = n_workers
     minhop%iw = iw
     minhop%n_accepted = 0
 
     IF(minhop%iw>0) &
       WRITE(minhop%iw, '(A,36X,L1)') " GLOBAL_OPT|MINHOP| Using shared histories:", minhop%share_history
- END SUBROUTINE glbopt_minhop_init
+ END SUBROUTINE minhop_init
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_minhop_steer(minhop, report, cmd)
-    TYPE(glbopt_minhop_type)                 :: minhop
-    TYPE(glbopt_report_type)                 :: report
-    TYPE(glbopt_command_type)                :: cmd
+ SUBROUTINE minhop_steer(minhop, report, cmd)
+    TYPE(minhop_type)                      :: minhop
+    TYPE(swarm_report_type)                 :: report
+    TYPE(swarm_command_type)                :: cmd
 
     INTEGER                                  :: hid, wid
     LOGICAL                                  :: minima_known
 
-    wid = report%walker_id
+    wid = report%worker_id
 
-    IF(minhop%prev_report(wid)%walker_id<0) minhop%prev_report(wid)=report !init
+    IF(minhop%prev_report(wid)%worker_id<0) minhop%prev_report(wid)=report !init
 
-    hid = wid ! history_id = walker_id unless ....
+    hid = wid ! history_id = worker_id unless ....
     IF(minhop%share_history) hid = 1 !...there is ONE shared history.
 
-    CALL glbopt_history_lookup(minhop%history(hid), report, minima_known)
+    CALL history_lookup(minhop%history(hid), report, minima_known)
 
     ! Stop if cluster starts to splits into multiple fragments.
     IF(.NOT. particles_connected(report%positions, minhop%max_dist)) THEN
@@ -155,7 +155,7 @@ MODULE glbopt_minhop
       IF(minhop%iw>0) WRITE(minhop%iw,'(A,27X,A)') " GLOBAL_OPT|MINHOP| Conclusion","new minima got accepted"
       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
       minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1 !decreasing temperature
-      CALL glbopt_history_add(minhop%history(hid), report)
+      CALL history_add(minhop%history(hid), report)
       minhop%prev_report(wid) = report
       minhop%n_accepted = minhop%n_accepted + 1
     END IF
@@ -173,9 +173,9 @@ MODULE glbopt_minhop
 
     IF(minhop%iw>0) THEN
         WRITE (minhop%iw,'(A,4X,E20.10)')&
-         " GLOBAL_OPT|MINHOP| Walker's acceptance Energy [Hartree]",minhop%Eaccept(wid)
+         " GLOBAL_OPT|MINHOP| Worker's acceptance Energy [Hartree]",minhop%Eaccept(wid)
         WRITE (minhop%iw,'(A,11X,F20.3)')&
-         " GLOBAL_OPT|MINHOP| Walker's temperature [Kelvin]",minhop%temperature(wid)*kelvin
+         " GLOBAL_OPT|MINHOP| Worker's temperature [Kelvin]",minhop%temperature(wid)*kelvin
     END IF
 
     cmd%cmd_id          = GLBOPT_CMD_MDGOPT
@@ -186,20 +186,20 @@ MODULE glbopt_minhop
       WRITE(minhop%iw,'(A,19X,I10)')&
        " GLOBAL_OPT|MINHOP| Total number of accepted minima",minhop%n_accepted
 
- END SUBROUTINE glbopt_minhop_steer
+ END SUBROUTINE minhop_steer
 
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_minhop_finalize(minhop)
-    TYPE(glbopt_minhop_type)                 :: minhop
+ SUBROUTINE minhop_finalize(minhop)
+    TYPE(minhop_type)                 :: minhop
 
     INTEGER                                  :: i
 
     DO i=1, SIZE(minhop%history)
-      CALL glbopt_history_finalize(minhop%history(i))
+      CALL history_finalize(minhop%history(i))
     END DO
- END SUBROUTINE glbopt_minhop_finalize
+ END SUBROUTINE minhop_finalize
 
 
 

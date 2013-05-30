@@ -8,28 +8,28 @@
 !> \par History
 !> \author Ole
 ! *****************************************************************************
-MODULE glbopt_comlog
+MODULE swarm_comlog
   USE cp_parser_methods,               ONLY: parser_get_next_line,&
                                              parser_get_object
   USE cp_parser_types,                 ONLY: cp_parser_type
-  USE glbopt_types,                    ONLY: glbopt_command_type,&
-                                             glbopt_report_type
+  USE swarm_types,                    ONLY: swarm_command_type,&
+                                             swarm_report_type
   USE kinds,                           ONLY: default_string_length
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
  PRIVATE
 
-  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'glbopt_comlog'
+  CHARACTER(len=*), PARAMETER, PRIVATE :: moduleN = 'swarm_comlog'
 
 
- PUBLIC :: glbopt_comlog_write,  glbopt_comlog_read
+ PUBLIC :: swarm_comlog_write,  swarm_comlog_read
 
-  INTERFACE glbopt_comlog_write
+  INTERFACE swarm_comlog_write
      MODULE PROCEDURE write_report, write_command
   END INTERFACE
 
-  INTERFACE glbopt_comlog_read
+  INTERFACE swarm_comlog_read
      MODULE PROCEDURE read_report, read_command
   END INTERFACE
  CONTAINS
@@ -39,7 +39,7 @@ MODULE glbopt_comlog
 ! *****************************************************************************
  SUBROUTINE write_report(unit, i_iteration, report)
     INTEGER                                  :: unit, i_iteration
-    TYPE(glbopt_report_type)                 :: report
+    TYPE(swarm_report_type)                 :: report
 
     INTEGER                                  :: i
 
@@ -48,8 +48,8 @@ MODULE glbopt_comlog
     WRITE(unit,"(I8)") SIZE(report%positions)/3 ! number of atoms
     WRITE(unit,"(A,I8,A,A,I8,A,I8,A,E30.20)")&
         'i = ',i_iteration,&
-        ', type = "glbopt_report"',&
-        ", walker_id = ",report%walker_id,&
+        ', type = "swarm_report"',&
+        ", worker_id = ",report%worker_id,&
         ", iframe = ",report%iframe,&
         ", Epot = ",report%Epot! info line, free text
 
@@ -64,7 +64,7 @@ MODULE glbopt_comlog
 ! *****************************************************************************
  SUBROUTINE read_report(parser, report, at_end, error)
     TYPE(cp_parser_type), POINTER            :: parser
-    TYPE(glbopt_report_type), INTENT(OUT)    :: report
+    TYPE(swarm_report_type), INTENT(OUT)    :: report
     LOGICAL, INTENT(INOUT)                   :: at_end
     TYPE(cp_error_type)                      :: error
 
@@ -82,9 +82,9 @@ MODULE glbopt_comlog
     IF(at_end) RETURN
 
     READ (parser%input_line,*) key1, eq, val1, key2, eq, val2,&
-      key3, eq, report%walker_id, key4, eq, report%iframe, key5, eq, report%Epot
+      key3, eq, report%worker_id, key4, eq, report%iframe, key5, eq, report%Epot
     IF(TRIM(key1)/="i" .OR. TRIM(key2)/="type"&
-     .OR. TRIM(val2)/="glbopt_report" .OR. TRIM(key3)/="walker_id"&
+     .OR. TRIM(val2)/="swarm_report" .OR. TRIM(key3)/="worker_id"&
      .OR. TRIM(key4)/="iframe" .OR. TRIM(key5)/="Epot")&
         STOP "comlog_read_report failed"
 
@@ -108,7 +108,7 @@ MODULE glbopt_comlog
 ! *****************************************************************************
  SUBROUTINE write_command(unit, i_iteration, cmd)
     INTEGER                                  :: unit, i_iteration
-    TYPE(glbopt_command_type)                :: cmd
+    TYPE(swarm_command_type)                :: cmd
 
     INTEGER                                  :: i
 
@@ -117,8 +117,8 @@ MODULE glbopt_comlog
     WRITE(unit,"(I8)") SIZE(cmd%positions)/3 ! number of atoms
     WRITE(unit,"(A,I8,A,A,I8,A,I3,A,I8,A,E30.20)")&
         'i = ',i_iteration,&
-        ', type = "glbopt_command"',&
-        ", walker_id = ",cmd%walker_id,&
+        ', type = "swarm_command"',&
+        ", worker_id = ",cmd%worker_id,&
         ", cmd_id = ",cmd%cmd_id,&
         ", iframe = ",cmd%iframe,&
         ", temperature = ",cmd%temperature! info line, free text
@@ -133,7 +133,7 @@ MODULE glbopt_comlog
 ! *****************************************************************************
  SUBROUTINE read_command(parser, cmd, at_end, error)
     TYPE(cp_parser_type), POINTER            :: parser
-    TYPE(glbopt_command_type), INTENT(OUT)   :: cmd
+    TYPE(swarm_command_type), INTENT(OUT)   :: cmd
     LOGICAL, INTENT(INOUT)                   :: at_end
     TYPE(cp_error_type)                      :: error
 
@@ -150,11 +150,11 @@ MODULE glbopt_comlog
     at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
     IF(at_end) RETURN
     READ (parser%input_line,*) key1, eq, val1, key2, eq, val2,&
-      key3, eq, cmd%walker_id, key4, eq, cmd%cmd_id,&
+      key3, eq, cmd%worker_id, key4, eq, cmd%cmd_id,&
       key5, eq, cmd%iframe, key6, eq, cmd%temperature
 
-    IF(TRIM(key1)/="i" .OR. TRIM(key2)/="type" .OR. TRIM(val2)/="glbopt_command" &
-      .OR. TRIM(key3)/="walker_id" .OR. TRIM(key4)/="cmd_id" &
+    IF(TRIM(key1)/="i" .OR. TRIM(key2)/="type" .OR. TRIM(val2)/="swarm_command" &
+      .OR. TRIM(key3)/="worker_id" .OR. TRIM(key4)/="cmd_id" &
       .OR. TRIM(key5)/="iframe".OR. TRIM(key6)/="temperature") &
          STOP "comlog_read_command failed"
 
@@ -170,5 +170,5 @@ MODULE glbopt_comlog
      END DO
  END SUBROUTINE read_command
 
-END MODULE glbopt_comlog
+END MODULE swarm_comlog
 

@@ -9,37 +9,37 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_history
-  USE glbopt_types,                    ONLY: glbopt_report_type
+  USE swarm_types,                    ONLY: swarm_report_type
   USE kinds,                           ONLY: dp, int_8
 
  IMPLICIT NONE
  PRIVATE
 
-  TYPE glbopt_history_type
+  TYPE history_type
     PRIVATE
     TYPE(history_entry_type), POINTER :: root      => Null()
     REAL(KIND=dp)                     :: PRECISION =  1.0e-6
     INTEGER                           :: iw = -1
     !.. config params
-  END TYPE glbopt_history_type
-  
+  END TYPE history_type
+
   ! a linked list
   TYPE history_entry_type
-    TYPE(glbopt_report_type) :: report
+    TYPE(swarm_report_type) :: report
     TYPE(history_entry_type), POINTER :: next => Null()
   END TYPE history_entry_type
 
 
-  PUBLIC :: glbopt_history_type
-  PUBLIC :: glbopt_history_init, glbopt_history_finalize
-  PUBLIC :: glbopt_history_add, glbopt_history_lookup
+  PUBLIC :: history_type
+  PUBLIC :: history_init, history_finalize
+  PUBLIC :: history_add, history_lookup
 
   CONTAINS
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_history_init(history, iw)
-    TYPE(glbopt_history_type)                :: history
+ SUBROUTINE history_init(history, iw)
+    TYPE(history_type)                :: history
     INTEGER                                  :: iw
     history%iw = iw
 
@@ -47,24 +47,24 @@ MODULE glbopt_history
 !TYPE(cp_error_type), INTENT(inout)       :: error
 !nothing todo, yet
 
- END SUBROUTINE glbopt_history_init
+ END SUBROUTINE history_init
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_history_finalize(history)
-    TYPE(glbopt_history_type)                :: history
+ SUBROUTINE history_finalize(history)
+    TYPE(history_type)                :: history
 
 !nothing todo, yet
 !TODO: deallocate 
 
- END SUBROUTINE glbopt_history_finalize
+ END SUBROUTINE history_finalize
 
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_history_add(history, report)
-    TYPE(glbopt_history_type)                :: history
-    TYPE(glbopt_report_type)                 :: report
+ SUBROUTINE history_add(history, report)
+    TYPE(history_type)                :: history
+    TYPE(swarm_report_type)                 :: report
 
     TYPE(history_entry_type), POINTER        :: last_entry, new_entry
 
@@ -80,14 +80,14 @@ MODULE glbopt_history
       END DO
       last_entry%next => new_entry
     END IF
- END SUBROUTINE glbopt_history_add
+ END SUBROUTINE history_add
 
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_history_lookup(history, report, found)
-    TYPE(glbopt_history_type), INTENT(IN)    :: history
-    TYPE(glbopt_report_type), INTENT(IN)     :: report
+ SUBROUTINE history_lookup(history, report, found)
+    TYPE(history_type), INTENT(IN)    :: history
+    TYPE(swarm_report_type), INTENT(IN)     :: report
     LOGICAL, INTENT(OUT)                     :: found
 
     TYPE(history_entry_type), POINTER        :: ENTRY
@@ -107,15 +107,15 @@ MODULE glbopt_history
       IF(a == b) THEN
          found = .TRUE.
          IF(history%iw>0) &
-           WRITE(history%iw, *) "glbopt_history: Found: ",report%Epot, "dist: ", closest
+           WRITE(history%iw, *) "history: Found: ",report%Epot, "dist: ", closest
          RETURN
       END IF
       ENTRY => entry%next
     END DO
 
     IF(history%iw>0) &
-      WRITE(history%iw, *) "glbopt_history: Did not find: ",report%Epot, "closest dist: ", closest
- END SUBROUTINE glbopt_history_lookup
+      WRITE(history%iw, *) "history: Did not find: ",report%Epot, "closest dist: ", closest
+ END SUBROUTINE history_lookup
 
 
 END MODULE glbopt_history
