@@ -797,6 +797,7 @@ OBJECTS_GENERIC =\
  swarm_worker.o\
  swarm_input.o\
  swarm_mpi.o\
+ swarm_message.o\
  swarm_comlog.o\
  glbopt_master.o\
  glbopt_worker.o\

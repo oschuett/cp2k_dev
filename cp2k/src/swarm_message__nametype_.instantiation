@@ -1,0 +1,26 @@
+[
+{'nametype':'i4',
+'type':' INTEGER(KIND=int_4)'},
+
+{'nametype':'i8',
+'type':' INTEGER(KIND=int_8)'},
+
+{'nametype':'r4',
+'type':' REAL(KIND=real_4)'},
+
+{'nametype':'r8',
+'type':' REAL(KIND=real_8)'},
+
+{'nametype':'i4_1d',
+'type':' INTEGER(KIND=int_4), DIMENSION(:)'},
+
+{'nametype':'i8_1d',
+'type':' INTEGER(KIND=int_8), DIMENSION(:)'},
+
+{'nametype':'r4_1d',
+'type':' REAL(KIND=real_4), DIMENSION(:)'},
+
+{'nametype':'r8_1d',
+'type':' REAL(KIND=real_8), DIMENSION(:)'},
+
+]
