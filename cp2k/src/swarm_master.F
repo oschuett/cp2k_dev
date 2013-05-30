@@ -22,9 +22,10 @@ MODULE swarm_master
                                              glbopt_master_init,&
                                              glbopt_master_steer,&
                                              glbopt_master_type
-  USE swarm_types,                    ONLY:  SWARM_CMD_SHUTDOWN,&
-                                             swarm_command_type,&
-                                             swarm_report_type
+  USE swarm_message,                   ONLY: swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get,&
+                                             swarm_message_length
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -65,7 +66,7 @@ MODULE swarm_master
  END TYPE swarm_master_type
 
  TYPE cmd_linked_list_type
-   TYPE(swarm_command_type)           :: cmd
+   TYPE(swarm_message_type)            :: cmd
    TYPE(cmd_linked_list_type), POINTER :: next
  END TYPE cmd_linked_list_type
 
@@ -124,17 +125,16 @@ MODULE swarm_master
 
     CHARACTER(LEN=default_path_length)       :: filename
     INTEGER                                  :: i
-    TYPE(swarm_command_type), &
+    TYPE(swarm_message_type), &
       DIMENSION(master%n_workers)            :: last_command
-    TYPE(swarm_command_type)                :: cmd_log, cmd_now
+    TYPE(swarm_message_type)                :: cmd_log, cmd_now
     TYPE(cp_parser_type), POINTER            :: parser
     TYPE(cmd_linked_list_type), POINTER      :: cmd_ll
     LOGICAL                                  :: at_end, explicit
     INTEGER, DIMENSION(master%n_workers)     :: last_iframe
-    TYPE(swarm_report_type)                 :: report_log
+    TYPE(swarm_message_type)                 :: report_log
 
-    last_iframe(:) = 0
-    last_command(:)%cmd_id = -1
+    INTEGER :: cmd_log_worker_id
 
     NULLIFY(parser)
 
@@ -158,24 +158,17 @@ MODULE swarm_master
       !TODO: maybe we should just exit the loop instead of stopping?
       IF(.NOT. commands_equal(cmd_now, cmd_log, master%iw)) STOP "wrong behaviour"
 
-      last_command(cmd_log%worker_id) = cmd_log
-      last_iframe(report_log%worker_id) = report_log%iframe
+      CALL swarm_message_get(cmd_log, "worker_id", cmd_log_worker_id)
+      last_command(cmd_log_worker_id) = cmd_log
     END DO
 
     IF(master%iw>0) WRITE(master%iw,'(A,A)') &
        " SWARM| Reached end of communication log. Queueing last commands."
 
+    !TODO: maybe we don't need a queue here? Only one command per worker
+    WRITE (*,*) "replay_comlog: iframe ignored"
     DO i=1, master%n_workers
-      STOP "replay does not work, yet"
-      !TODO send iframe along with every command
-      !ALLOCATE(cmd_ll)
-      !cmd_ll%cmd%worker_id = i
-      !cmd_ll%cmd%cmd_id = SWARM_CMD_SETIFRAME
-      !cmd_ll%cmd%iframe = last_iframe(i)
-      !cmd_ll%next => master%command_queue
-      !master%command_queue => cmd_ll
-
-      IF(last_command(i)%cmd_id > 0) THEN
+      IF(swarm_message_length(last_command(i)) > 0) THEN
          ALLOCATE(cmd_ll)
          cmd_ll%cmd = last_command(i)
          cmd_ll%next => master%command_queue
@@ -190,23 +183,26 @@ MODULE swarm_master
 ! *****************************************************************************
 ! *****************************************************************************
  FUNCTION commands_equal(cmd1, cmd2, iw) RESULT(res)
-    TYPE(swarm_command_type)                :: cmd1, cmd2
+    TYPE(swarm_message_type)                 :: cmd1, cmd2
     LOGICAL                                  :: res
     INTEGER                                  :: iw
 
-    res =           cmd1%worker_id == cmd2%worker_id
-    res = res .AND. cmd1%cmd_id == cmd2%cmd_id
-    res = res .AND. ABS(cmd1%temperature - cmd2%temperature) < 1e-10
-    res = res .AND. ALL(ABS(cmd1%positions -cmd2%positions) < 1e-10)
+    res = .TRUE.
 
-    IF(.NOT.res .AND. iw>0)THEN
-      WRITE (iw,*) "commands_equal failed"
-      WRITE (iw,*) "worker_id",cmd1%worker_id, cmd2%worker_id
-      WRITE (iw,*) "cmd_id", cmd1%cmd_id, cmd2%cmd_id
-      WRITE (iw,*) "temperature", cmd1%temperature, cmd2%temperature
-      WRITE (iw,*) "cmd1%positions: ", cmd1%positions
-      WRITE (iw,*) "cmd2%positions: ", cmd2%positions
-    END IF
+    WRITE (*,*) "commands_equal: TODO: implement message equal"
+    !res =           cmd1%worker_id == cmd2%worker_id
+    !res = res .AND. cmd1%cmd_id == cmd2%cmd_id
+    !res = res .AND. ABS(cmd1%temperature - cmd2%temperature) < 1e-10
+    !res = res .AND. ALL(ABS(cmd1%positions -cmd2%positions) < 1e-10)
+    !
+    !IF(.NOT.res .AND. iw>0)THEN
+    !  WRITE (iw,*) "commands_equal failed"
+    !  WRITE (iw,*) "worker_id",cmd1%worker_id, cmd2%worker_id
+    !  WRITE (iw,*) "cmd_id", cmd1%cmd_id, cmd2%cmd_id
+    !  WRITE (iw,*) "temperature", cmd1%temperature, cmd2%temperature
+    !  WRITE (iw,*) "cmd1%positions: ", cmd1%positions
+    !  WRITE (iw,*) "cmd2%positions: ", cmd2%positions
+    !END IF
  END FUNCTION commands_equal
 
 
@@ -214,17 +210,19 @@ MODULE swarm_master
 ! *****************************************************************************
   FUNCTION command_queue_pop(master, worker_id) RESULT(cmd)
     TYPE(swarm_master_type)                 :: master
-    INTEGER                                  :: worker_id
-    TYPE(swarm_command_type)                :: cmd
+    INTEGER                                 :: worker_id
+    TYPE(swarm_message_type)                :: cmd
 
     TYPE(cmd_linked_list_type), POINTER      :: cmd_ll, cmd_ll_prev
+    INTEGER :: cmd_ll_worker_id
 
-    cmd%cmd_id = -1 ! default result = nothing found
+    !cmd%cmd_id = -1 ! default result = nothing found
 
     NULLIFY(cmd_ll_prev)
     cmd_ll => master%command_queue
     DO WHILE(ASSOCIATED(cmd_ll))
-       IF(cmd_ll%cmd%worker_id /= worker_id) THEN
+       CALL swarm_message_get(cmd_ll%cmd, "worker_id", cmd_ll_worker_id)
+       IF(cmd_ll_worker_id /= worker_id) THEN
           cmd_ll_prev => cmd_ll
           cmd_ll => cmd_ll%next
           CYCLE
@@ -248,19 +246,22 @@ MODULE swarm_master
 ! *****************************************************************************
  SUBROUTINE swarm_master_steer(master, report, cmd)
     TYPE(swarm_master_type)                 :: master
-    TYPE(swarm_report_type)                 :: report
-    TYPE(swarm_command_type)                :: cmd
+    TYPE(swarm_message_type)                :: report
+    TYPE(swarm_message_type)                :: cmd
 
+    INTEGER :: worker_id
     LOGICAL                                 :: should_stop
     should_stop = .FALSE.
 
 ! First check if there are queued commands for this worker
 
-    cmd = command_queue_pop(master, report%worker_id)
-    IF(cmd%cmd_id > 0) THEN
+    CALL swarm_message_get(report, "worker_id", worker_id)
+
+    cmd = command_queue_pop(master, worker_id)
+    IF(swarm_message_length(cmd) > 0) THEN
        IF(master%iw>0) WRITE (master%iw,'(A,A,A,I9,X,A)') ' SWARM| ',&
          REPEAT("*", 9), " Sending out queued command to worker: ",&
-         cmd%worker_id,REPEAT("*", 9)
+         worker_id,REPEAT("*", 9)
        RETURN
     END IF
 
@@ -283,18 +284,18 @@ MODULE swarm_master
 
     CALL swarm_comlog_write(master%comlog_unit, master%i_iteration, report)
 
-    cmd%worker_id = report%worker_id
+    CALL swarm_message_add(cmd, "worker_id", worker_id)
 
     IF(master%should_stop) THEN
-       cmd%cmd_id = SWARM_CMD_SHUTDOWN
+       CALL swarm_message_add(cmd, "cmd", "shutdown")
        IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
-         " SWARM| Sending shutdown command to worker",cmd%worker_id
+         " SWARM| Sending shutdown command to worker",worker_id
     ELSE
        CALL glbopt_master_steer(master%glbopt, report, cmd, should_stop)
        IF(should_stop) THEN
-          cmd%cmd_id = SWARM_CMD_SHUTDOWN  !overwrite command
+          CALL swarm_message_add(cmd, "cmd", "shutdown") !overwrite command
           IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
-              " SWARM| Sending shutdown command to worker",cmd%worker_id
+              " SWARM| Sending shutdown command to worker",worker_id
            master%should_stop = .TRUE.
        ELSE
           CALL swarm_comlog_write(master%comlog_unit, master%i_iteration, cmd)

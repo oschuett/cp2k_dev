@@ -23,9 +23,12 @@ MODULE swarm
                                              swarm_mpi_send_command,&
                                              swarm_mpi_send_report,&
                                              swarm_mpi_type
-  USE swarm_types,                    ONLY: SWARM_CMD_SHUTDOWN,&
-                                             swarm_command_type,&
-                                             swarm_report_type
+  USE swarm_message,                  ONLY:  swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get,&
+                                             swarm_message_mpi_send,&
+                                             swarm_message_mpi_recv
+
   USE swarm_worker,                   ONLY:  swarm_worker_execute,&
                                              swarm_worker_finalize,&
                                              swarm_worker_init,&
@@ -36,6 +39,8 @@ MODULE swarm
                                              section_vals_val_get
   USE timings,                         ONLY: timeset,&
                                              timestop
+  USE kinds,                           ONLY: default_string_length
+
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -100,9 +105,8 @@ MODULE swarm
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     LOGICAL                                  :: should_stop
-    TYPE(swarm_command_type)                :: cmd
+    TYPE(swarm_message_type)                :: cmd, report
     TYPE(swarm_master_type)                 :: master
-    TYPE(swarm_report_type)                 :: report
     TYPE(swarm_worker_type)                 :: worker
 
        CALL swarm_master_init(master, para_env, globenv, root_section, n_workers=1, error=error)
@@ -136,10 +140,10 @@ MODULE swarm
 
     INTEGER                                  :: i_shutdowns, worker_id
     LOGICAL                                  :: should_stop
-    TYPE(swarm_command_type)                :: cmd
+    CHARACTER(len=default_string_length)     :: command
+    TYPE(swarm_message_type)                :: cmd, report
     TYPE(swarm_master_type)                 :: master
     TYPE(swarm_mpi_type)                    :: swarm_mpi
-    TYPE(swarm_report_type)                 :: report
     TYPE(swarm_worker_type)                 :: worker
 
        CALL swarm_mpi_init(para_env, swarm_mpi, n_workers, worker_id, iw, error=error)
@@ -165,8 +169,10 @@ MODULE swarm
           DO WHILE(i_shutdowns < n_workers)
              CALL swarm_mpi_recv_report(swarm_mpi, report)
              CALL swarm_master_steer(master, report, cmd)
-             CALL swarm_mpi_send_command(swarm_mpi, report%worker_id, cmd)
-             IF(cmd%cmd_id == SWARM_CMD_SHUTDOWN) i_shutdowns = i_shutdowns + 1
+             CALL swarm_message_get(report, "worker_id", worker_id)
+             CALL swarm_message_get(cmd, "command", command)
+             CALL swarm_mpi_send_command(swarm_mpi, worker_id, cmd)
+             IF(TRIM(command) == "shutdown") i_shutdowns = i_shutdowns + 1
           END DO
           CALL swarm_master_finalize(master)
        END IF

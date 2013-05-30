@@ -792,7 +792,6 @@ OBJECTS_GENERIC =\
  dict_i4tuple_callstat.o\
  dict.o\
  swarm.o\
- swarm_types.o\
  swarm_master.o\
  swarm_worker.o\
  swarm_input.o\

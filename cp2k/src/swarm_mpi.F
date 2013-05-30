@@ -12,13 +12,17 @@ MODULE swarm_mpi
   USE cp_files,                        ONLY: open_file
   USE cp_para_env,                     ONLY: cp_para_env_create
   USE cp_para_types,                   ONLY: cp_para_env_type
-  USE swarm_types,                     ONLY: swarm_command_type,&
-                                             swarm_report_type
   USE kinds,                           ONLY: default_path_length
   USE machine,                         ONLY: default_output_unit
   USE message_passing,                 ONLY: &
        mp_abort, mp_any_source, mp_bcast, mp_comm_free, mp_comm_split, &
        mp_comm_split_direct, mp_environ, mp_recv, mp_send, mp_sum, mp_sync
+
+  USE swarm_message,                  ONLY:  swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get,&
+                                             swarm_message_mpi_send,&
+                                             swarm_message_mpi_recv
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -208,7 +212,7 @@ MODULE swarm_mpi
 ! *****************************************************************************
   SUBROUTINE swarm_mpi_send_report(swarm_mpi, report)
     TYPE(swarm_mpi_type)                    :: swarm_mpi
-    TYPE(swarm_report_type)                 :: report
+    TYPE(swarm_message_type)                 :: report
 
     INTEGER                                  :: dest, tag
 
@@ -218,35 +222,39 @@ MODULE swarm_mpi
 
      dest = swarm_mpi%world%num_pe-1
      tag = 42
-     !TODO: this is inefficient - could pack everything into one buffer
-     CALL mp_send(report%worker_id,       dest, tag, swarm_mpi%world%group)
-     CALL mp_send(report%iframe,          dest, tag, swarm_mpi%world%group)
-     CALL mp_send(report%Epot,            dest, tag, swarm_mpi%world%group)
-     CALL mp_send(SIZE(report%positions), dest, tag, swarm_mpi%world%group)
-     CALL mp_send(report%positions,       dest, tag, swarm_mpi%world%group)
+     CALL swarm_message_mpi_send(report, dest, tag, swarm_mpi%world%group)
+
+     !!TODO: this is inefficient - could pack everything into one buffer
+     !CALL mp_send(report%worker_id,       dest, tag, swarm_mpi%world%group)
+     !CALL mp_send(report%iframe,          dest, tag, swarm_mpi%world%group)
+     !CALL mp_send(report%Epot,            dest, tag, swarm_mpi%world%group)
+     !CALL mp_send(SIZE(report%positions), dest, tag, swarm_mpi%world%group)
+     !CALL mp_send(report%positions,       dest, tag, swarm_mpi%world%group)
   END SUBROUTINE swarm_mpi_send_report
 
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE swarm_mpi_recv_report(swarm_mpi, report)
-    TYPE(swarm_mpi_type)                    :: swarm_mpi
-    TYPE(swarm_report_type), INTENT(OUT)    :: report
+     TYPE(swarm_mpi_type)                    :: swarm_mpi
+     TYPE(swarm_message_type), INTENT(OUT)    :: report
 
-    INTEGER                                  :: s, src, tag
+     INTEGER                                  :: s, src, tag
 
      tag=42
      src=mp_any_source
 
-     CALL mp_recv(report%worker_id, src, tag, swarm_mpi%world%group)
+     CALL swarm_message_mpi_recv(report, src, tag, swarm_mpi%world%group)
 
-     IF(src /= swarm_mpi%wid2group(report%worker_id)) &
-        CALL mp_abort("wid2group table corrupted")
-
-     CALL mp_recv(report%iframe,    src, tag, swarm_mpi%world%group)
-     CALL mp_recv(report%Epot,      src, tag, swarm_mpi%world%group)
-     CALL mp_recv(s,                src, tag, swarm_mpi%world%group)
-     ALLOCATE(report%positions(s))
-     CALL mp_recv(report%positions, src, tag, swarm_mpi%world%group)
+     !CALL mp_recv(report%worker_id, src, tag, swarm_mpi%world%group)
+     !
+     !IF(src /= swarm_mpi%wid2group(report%worker_id)) &
+     !   CALL mp_abort("wid2group table corrupted")
+     !
+     !CALL mp_recv(report%iframe,    src, tag, swarm_mpi%world%group)
+     !CALL mp_recv(report%Epot,      src, tag, swarm_mpi%world%group)
+     !CALL mp_recv(s,                src, tag, swarm_mpi%world%group)
+     !ALLOCATE(report%positions(s))
+     !CALL mp_recv(report%positions, src, tag, swarm_mpi%world%group)
   END SUBROUTINE swarm_mpi_recv_report
 
 ! *****************************************************************************
@@ -254,58 +262,62 @@ MODULE swarm_mpi
   SUBROUTINE swarm_mpi_send_command(swarm_mpi, worker_id, cmd)
     TYPE(swarm_mpi_type)                    :: swarm_mpi
     INTEGER                                  :: worker_id
-    TYPE(swarm_command_type)                :: cmd
+    TYPE(swarm_message_type)                :: cmd
 
     INTEGER                                  :: dest, tag
 
      tag = 42
      dest = swarm_mpi%wid2group(worker_id)
 
-     !TODO: this is inefficient - could pack everything into one buffer
-     CALL mp_send(cmd%cmd_id,          dest, tag, swarm_mpi%world%group)
-     CALL mp_send(cmd%iframe,          dest, tag, swarm_mpi%world%group)
-     CALL mp_send(cmd%temperature,     dest, tag, swarm_mpi%world%group)
-     IF(ALLOCATED(cmd%positions)) THEN
-       CALL mp_send(SIZE(cmd%positions), dest, tag, swarm_mpi%world%group)
-       CALL mp_send(cmd%positions,       dest, tag, swarm_mpi%world%group)
-     ELSE
-       CALL mp_send(0,                   dest, tag, swarm_mpi%world%group)
-     ENDIF
+     CALL swarm_message_mpi_send(cmd, dest, tag, swarm_mpi%world%group)
+
+     !!TODO: this is inefficient - could pack everything into one buffer
+     !CALL mp_send(cmd%cmd_id,          dest, tag, swarm_mpi%world%group)
+     !CALL mp_send(cmd%iframe,          dest, tag, swarm_mpi%world%group)
+     !CALL mp_send(cmd%temperature,     dest, tag, swarm_mpi%world%group)
+     !IF(ALLOCATED(cmd%positions)) THEN
+     !  CALL mp_send(SIZE(cmd%positions), dest, tag, swarm_mpi%world%group)
+     !  CALL mp_send(cmd%positions,       dest, tag, swarm_mpi%world%group)
+     !ELSE
+     !  CALL mp_send(0,                   dest, tag, swarm_mpi%world%group)
+     !ENDIF
   END SUBROUTINE swarm_mpi_send_command
 
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE swarm_mpi_recv_command(swarm_mpi, cmd)
     TYPE(swarm_mpi_type)                    :: swarm_mpi
-    TYPE(swarm_command_type), INTENT(OUT)   :: cmd
+    TYPE(swarm_message_type), INTENT(OUT)   :: cmd
 
     INTEGER                                  :: s, src, tag
 
+    STOP "swarm_mpi_recv_command not implemented, yet"
+
 ! This is a two step communication schema.
 ! First: The rank-0 of the worker groups receives the command from the master.
-
-     IF(swarm_mpi%worker%source == swarm_mpi%worker%mepos) THEN 
-        tag = 42
-        src = swarm_mpi%world%num_pe-1
-        CALL mp_recv(cmd%cmd_id,      src, tag, swarm_mpi%world%group)
-        CALL mp_recv(cmd%iframe,      src, tag, swarm_mpi%world%group)
-        CALL mp_recv(cmd%temperature, src, tag, swarm_mpi%world%group)
-        CALL mp_recv(s,               src, tag, swarm_mpi%world%group)
-        IF(s > 0) THEN
-          ALLOCATE(cmd%positions(s))
-          CALL mp_recv(cmd%positions,   src, tag, swarm_mpi%world%group)
-        END IF
-     ENDIF
-
-     ! Second: The command is broadcasted within the worker group.
-     CALL mp_bcast(cmd%cmd_id,      swarm_mpi%worker%source, swarm_mpi%worker%group)
-     CALL mp_bcast(cmd%iframe,      swarm_mpi%worker%source, swarm_mpi%worker%group)
-     CALL mp_bcast(cmd%temperature, swarm_mpi%worker%source, swarm_mpi%worker%group)
-     CALL mp_bcast(s,               swarm_mpi%worker%source, swarm_mpi%worker%group)
-     IF(s > 0) THEN
-       IF(swarm_mpi%worker%source/=swarm_mpi%worker%mepos) ALLOCATE(cmd%positions(s))
-       CALL mp_bcast(cmd%positions,   swarm_mpi%worker%source, swarm_mpi%worker%group)
-     ENDIF
+!
+!     IF(swarm_mpi%worker%source == swarm_mpi%worker%mepos) THEN 
+!        tag = 42
+!        src = swarm_mpi%world%num_pe-1
+!        CALL mp_recv(cmd%cmd_id,      src, tag, swarm_mpi%world%group)
+!        CALL mp_recv(cmd%iframe,      src, tag, swarm_mpi%world%group)
+!        CALL mp_recv(cmd%temperature, src, tag, swarm_mpi%world%group)
+!        CALL mp_recv(s,               src, tag, swarm_mpi%world%group)
+!        IF(s > 0) THEN
+!          ALLOCATE(cmd%positions(s))
+!          CALL mp_recv(cmd%positions,   src, tag, swarm_mpi%world%group)
+!        END IF
+!     ENDIF
+!
+!     ! Second: The command is broadcasted within the worker group.
+!     CALL mp_bcast(cmd%cmd_id,      swarm_mpi%worker%source, swarm_mpi%worker%group)
+!     CALL mp_bcast(cmd%iframe,      swarm_mpi%worker%source, swarm_mpi%worker%group)
+!     CALL mp_bcast(cmd%temperature, swarm_mpi%worker%source, swarm_mpi%worker%group)
+!     CALL mp_bcast(s,               swarm_mpi%worker%source, swarm_mpi%worker%group)
+!     IF(s > 0) THEN
+!       IF(swarm_mpi%worker%source/=swarm_mpi%worker%mepos) ALLOCATE(cmd%positions(s))
+!       CALL mp_bcast(cmd%positions,   swarm_mpi%worker%source, swarm_mpi%worker%group)
+!     ENDIF
   END SUBROUTINE swarm_mpi_recv_command
 
 

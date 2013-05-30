@@ -1,17 +1,17 @@
- SUBROUTINE swarm_message_add_[nametype](msg, key, value)
+ SUBROUTINE swarm_message_add_str(msg, key, value)
    TYPE(swarm_message_type), INTENT(INOUT)   :: msg
    CHARACTER(LEN=*), INTENT(IN)              :: key
-   [type], INTENT(IN)                        :: value
+   CHARACTER(LEN=*), INTENT(IN)                        :: value
 
    TYPE(message_entry_type), POINTER :: new_entry
 
    ALLOCATE(new_entry)
    new_entry%key = key
 
-   ALLOCATE(new_entry%value_[nametype][alloc])
-   new_entry%value_[nametype] = value
+   ALLOCATE(new_entry%value_str)
+   new_entry%value_str = value
 
-   WRITE (*,*) "swarm_message_add_[nametype]: key=",key, " value=",new_entry%value_[nametype]
+   WRITE (*,*) "swarm_message_add_str: key=",key, " value=",new_entry%value_str
 
    !TODO: check if name already exists
    IF(.NOT. ASSOCIATED(msg%root)) THEN
@@ -21,26 +21,26 @@
       msg%root => new_entry
    ENDIF
 
- END SUBROUTINE swarm_message_add_[nametype]
+ END SUBROUTINE swarm_message_add_str
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE swarm_message_get_[nametype](msg, key, value)
+ SUBROUTINE swarm_message_get_str(msg, key, value)
    TYPE(swarm_message_type), INTENT(IN)  :: msg
    CHARACTER(LEN=*), INTENT(IN)          :: key
-   [type], INTENT(OUT)                   :: value
+   CHARACTER(LEN=*), INTENT(OUT)                   :: value
 
    TYPE(message_entry_type), POINTER :: curr_entry
-   WRITE (*,*) "swarm_message_get_[nametype]: key=",key
+   WRITE (*,*) "swarm_message_get_str: key=",key
 
    curr_entry => msg%root
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
-         IF(.NOT. ASSOCIATED(curr_entry%value_[nametype])) &
-            STOP "swarm_message_get_[nametype]: value not associated"
+         IF(.NOT. ASSOCIATED(curr_entry%value_str)) &
+            STOP "swarm_message_get_str: value not associated"
             !TODO: check other datatypes
-         value = curr_entry%value_[nametype]
-         WRITE (*,*) "swarm_message_get_[nametype]: value=",value
+         value = curr_entry%value_str
+         WRITE (*,*) "swarm_message_get_str: value=",value
          RETURN
       ENDIF
       curr_entry => curr_entry%next
@@ -48,6 +48,6 @@
    WRITE (*,*) "swarm_message_get: key not found: ",key
    CALL ABORT()
    !TODO: call mp_abort
- END SUBROUTINE swarm_message_get_[nametype]
+ END SUBROUTINE swarm_message_get_str
 
 

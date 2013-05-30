@@ -14,8 +14,10 @@ MODULE glbopt_minhop
                                              history_init,&
                                              history_lookup,&
                                              history_type
-  USE swarm_types,                     ONLY: swarm_command_type,&
-                                             swarm_report_type
+  USE swarm_message,                   ONLY: swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get,&
+                                             swarm_message_length
   USE glbopt_utils,                    ONLY: particles_connected
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -23,8 +25,10 @@ MODULE glbopt_minhop
   USE kinds,                           ONLY: dp
   USE physcon,                         ONLY: angstrom,&
                                              kelvin
-  USE glbopt_types,                    ONLY: glbopt_cmd_mdgopt,&
-                                             glbopt_cmd_setiframe
+
+  USE swarm_message,                   ONLY: swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -41,7 +45,7 @@ MODULE glbopt_minhop
  TYPE minhop_type
    PRIVATE
    TYPE(history_type), DIMENSION(:),ALLOCATABLE :: history
-   TYPE(swarm_report_type), DIMENSION(:), ALLOCATABLE  :: prev_report
+   TYPE(swarm_message_type), DIMENSION(:), ALLOCATABLE :: prev_report
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: temperature
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: Eaccept
    REAL(KIND=dp)                                       :: beta2 = 0
@@ -120,16 +124,25 @@ MODULE glbopt_minhop
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE minhop_steer(minhop, report, cmd)
-    TYPE(minhop_type)                      :: minhop
-    TYPE(swarm_report_type)                 :: report
-    TYPE(swarm_command_type)                :: cmd
+    TYPE(minhop_type)                       :: minhop
+    TYPE(swarm_message_type)                :: report
+    TYPE(swarm_message_type)                :: cmd
 
-    INTEGER                                  :: hid, wid
-    LOGICAL                                  :: minima_known
+    INTEGER                                 :: hid, wid
+    LOGICAL                                 :: minima_known
 
-    wid = report%worker_id
+    REAL(KIND=dp)                           :: report_Epot, prev_Epot
+    REAL(KIND=dp), DIMENSION(:), POINTER    :: report_positions, prev_positions
+    INTEGER                                 :: iframe
 
-    IF(minhop%prev_report(wid)%worker_id<0) minhop%prev_report(wid)=report !init
+
+    CALL swarm_message_get(report, "worker_id", wid)
+
+    IF(swarm_message_length(minhop%prev_report(wid))==0) minhop%prev_report(wid)=report !init
+
+    CALL swarm_message_get(report, "Epot", report_Epot)
+    CALL swarm_message_get(report, "positions", report_positions)
+    CALL swarm_message_get(minhop%prev_report(wid), "Epot", prev_Epot)
 
     hid = wid ! history_id = worker_id unless ....
     IF(minhop%share_history) hid = 1 !...there is ONE shared history.
@@ -137,7 +150,7 @@ MODULE glbopt_minhop
     CALL history_lookup(minhop%history(hid), report, minima_known)
 
     ! Stop if cluster starts to splits into multiple fragments.
-    IF(.NOT. particles_connected(report%positions, minhop%max_dist)) THEN
+    IF(.NOT. particles_connected(report_positions, minhop%max_dist)) THEN
        IF(minhop%iw > 0) WRITE (minhop%iw,"(A)") " MINHOP| Conclusion: rejecting minima because of MAX_DIST."
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3  !decreasing temperature
 
@@ -145,7 +158,7 @@ MODULE glbopt_minhop
        IF(minhop%iw>0) WRITE(minhop%iw,'(A,51X,A)') " MINHOP| Conclusion","old minima"
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta2 !increasing temperature
 
-    ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
+    ELSE IF (report_Epot - prev_Epot > minhop%Eaccept(wid)) THEN
        IF(minhop%iw>0) WRITE(minhop%iw,'(A,18X,A)')&
           " MINHOP| Conclusion","new minima, but got rejected due to Eaccept"
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
@@ -178,9 +191,15 @@ MODULE glbopt_minhop
          " MINHOP| Worker's temperature [Kelvin]",minhop%temperature(wid)*kelvin
     END IF
 
-    cmd%cmd_id          = GLBOPT_CMD_MDGOPT
-    cmd%positions       = minhop%prev_report(wid)%positions
-    cmd%temperature     = minhop%temperature(wid)
+
+    !TODO write copy routine
+    CALL swarm_message_get(report, "iframe", iframe)
+    CALL swarm_message_add(cmd, "iframe", iframe)
+    CALL swarm_message_add(cmd, "command", "md_and_gopt")
+    WRITE(*,*) "can not set prev positions yet"
+    CALL swarm_message_get(minhop%prev_report(wid), "positions", prev_positions)
+    CALL swarm_message_add(cmd, "positions", prev_positions)
+    CALL swarm_message_add(cmd, "temperature", minhop%temperature(wid))
 
     IF(minhop%iw > 0) &
       WRITE(minhop%iw,'(A,30X,I10)')&

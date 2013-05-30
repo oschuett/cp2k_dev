@@ -9,8 +9,8 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_master
-  USE swarm_types,                     ONLY: swarm_command_type,&
-                                             swarm_report_type
+  USE swarm_message,                   ONLY: swarm_message_type
+
   USE glbopt_minhop,                   ONLY: minhop_type
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -20,7 +20,10 @@ MODULE glbopt_master
                                              kelvin
   USE glbopt_minhop,                   ONLY: minhop_type,minhop_steer,&
                                              minhop_init, minhop_finalize
-
+  USE swarm_message,                   ONLY: swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get,&
+                                             swarm_message_length
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -68,16 +71,22 @@ MODULE glbopt_master
 ! *****************************************************************************
  SUBROUTINE glbopt_master_steer(glbopt, report, cmd, should_stop)
     TYPE(glbopt_master_type)                 :: glbopt
-    TYPE(swarm_report_type)                 :: report
-    TYPE(swarm_command_type)                :: cmd
-    LOGICAL, INTENT(INOUT)                  :: should_stop
+    TYPE(swarm_message_type)                 :: report
+    TYPE(swarm_message_type)                 :: cmd
+    LOGICAL, INTENT(INOUT)                   :: should_stop
 
-    glbopt%Elowest = MIN(glbopt%Elowest, report%Epot)
+    REAL(KIND=dp) :: report_Epot
+    INTEGER :: report_worker_id
+
+    CALL swarm_message_get(report, "worker_id", report_worker_id)
+    CALL swarm_message_get(report, "Epot", report_Epot)
+
+    glbopt%Elowest = MIN(glbopt%Elowest, report_Epot)
     IF(glbopt%iw>0) THEN
        WRITE (glbopt%iw,'(A,46X,I8)')&
-              " GLBOPT| Reporting worker ", report%worker_id
+              " GLBOPT| Reporting worker ", report_worker_id
        WRITE (glbopt%iw,'(A,20X,E15.8)')&
-              " GLBOPT| Reported potential Energy [Hartree] ", report%Epot
+              " GLBOPT| Reported potential Energy [Hartree] ", report_Epot
        WRITE (glbopt%iw,'(A,13X,E15.8)')&
         " GLBOPT| Lowest reported potential Energy [Hartree] ",glbopt%Elowest
     END IF

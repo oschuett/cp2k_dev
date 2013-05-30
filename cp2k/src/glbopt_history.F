@@ -9,7 +9,7 @@
 !> \author Ole
 ! *****************************************************************************
 MODULE glbopt_history
-  USE swarm_types,                    ONLY: swarm_report_type
+  USE swarm_message,                   ONLY: swarm_message_type
   USE kinds,                           ONLY: dp, int_8
 
  IMPLICIT NONE
@@ -25,7 +25,7 @@ MODULE glbopt_history
 
   ! a linked list
   TYPE history_entry_type
-    TYPE(swarm_report_type) :: report
+    !TYPE(swarm_report_type) :: report
     TYPE(history_entry_type), POINTER :: next => Null()
   END TYPE history_entry_type
 
@@ -64,22 +64,23 @@ MODULE glbopt_history
 ! *****************************************************************************
  SUBROUTINE history_add(history, report)
     TYPE(history_type)                :: history
-    TYPE(swarm_report_type)                 :: report
+    TYPE(swarm_message_type)                 :: report
 
-    TYPE(history_entry_type), POINTER        :: last_entry, new_entry
-
-    ALLOCATE(new_entry)
-    new_entry%report = report
-
-    IF(.NOT. ASSOCIATED(history%root)) THEN
-       history%root => new_entry
-    ELSE
-      last_entry => history%root
-      DO WHILE(ASSOCIATED(last_entry%next))
-        last_entry => last_entry%next
-      END DO
-      last_entry%next => new_entry
-    END IF
+    WRITE (*,*) "history_add: not working"
+!    TYPE(history_entry_type), POINTER        :: last_entry, new_entry
+!
+!    ALLOCATE(new_entry)
+!    new_entry%report = report
+!
+!    IF(.NOT. ASSOCIATED(history%root)) THEN
+!       history%root => new_entry
+!    ELSE
+!      last_entry => history%root
+!      DO WHILE(ASSOCIATED(last_entry%next))
+!        last_entry => last_entry%next
+!      END DO
+!      last_entry%next => new_entry
+!    END IF
  END SUBROUTINE history_add
 
 
@@ -87,34 +88,36 @@ MODULE glbopt_history
 ! *****************************************************************************
  SUBROUTINE history_lookup(history, report, found)
     TYPE(history_type), INTENT(IN)    :: history
-    TYPE(swarm_report_type), INTENT(IN)     :: report
+    TYPE(swarm_message_type), INTENT(IN)     :: report
     LOGICAL, INTENT(OUT)                     :: found
 
-    TYPE(history_entry_type), POINTER        :: ENTRY
-    INTEGER(kind=int_8)                      :: a, b
-    REAL(kind=dp)                            :: closest
-
-    closest = HUGE(1.0)
-    ! discretize accoring to history%precision
-    a = FLOOR(report%Epot / history%precision, kind=int_8)
-
+    WRITE(*,*) "history_loockup: not working"
     found = .FALSE.
-    ENTRY => history%root
-    DO WHILE(ASSOCIATED(ENTRY))
-     closest = MIN(closest, ABS(entry%report%Epot -report%Epot))
-      !TODO: could store discretized energies instead of reports in a growing array
-      b = FLOOR(entry%report%Epot / history%precision, kind=int_8)
-      IF(a == b) THEN
-         found = .TRUE.
-         !IF(history%iw>0) &
-         !  WRITE(history%iw, *) "history: Found: ",report%Epot, "dist: ", closest
-         RETURN
-      END IF
-      ENTRY => entry%next
-    END DO
-
-    !IF(history%iw>0) &
-    !  WRITE(history%iw, *) "history: Did not find: ",report%Epot, "closest dist: ", closest
+!    TYPE(history_entry_type), POINTER        :: ENTRY
+!    INTEGER(kind=int_8)                      :: a, b
+!    REAL(kind=dp)                            :: closest
+!
+!    closest = HUGE(1.0)
+!    ! discretize accoring to history%precision
+!    a = FLOOR(report%Epot / history%precision, kind=int_8)
+!
+!    found = .FALSE.
+!    ENTRY => history%root
+!    DO WHILE(ASSOCIATED(ENTRY))
+!     closest = MIN(closest, ABS(entry%report%Epot -report%Epot))
+!      !TODO: could store discretized energies instead of reports in a growing array
+!      b = FLOOR(entry%report%Epot / history%precision, kind=int_8)
+!      IF(a == b) THEN
+!         found = .TRUE.
+!         !IF(history%iw>0) &
+!         !  WRITE(history%iw, *) "history: Found: ",report%Epot, "dist: ", closest
+!         RETURN
+!      END IF
+!      ENTRY => entry%next
+!    END DO
+!
+!    !IF(history%iw>0) &
+!    !  WRITE(history%iw, *) "history: Did not find: ",report%Epot, "closest dist: ", closest
  END SUBROUTINE history_lookup
 
 

@@ -22,9 +22,6 @@ MODULE swarm_worker
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
   USE geo_opt,                         ONLY: cp_geo_opt
-  USE swarm_types,                    ONLY:  swarm_cmd_shutdown,&
-                                             swarm_command_type,&
-                                             swarm_report_type
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_type,&
                                              section_vals_val_get,&
@@ -45,6 +42,10 @@ MODULE swarm_worker
                                               glbopt_worker_finalize,&
                                               glbopt_worker_execute,&
                                               glbopt_worker_type
+  USE swarm_message,                   ONLY: swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get,&
+                                             swarm_message_length
 
 #include "cp_common_uses.h"
 
@@ -113,11 +114,12 @@ MODULE swarm_worker
 ! *****************************************************************************
    SUBROUTINE swarm_worker_execute(worker, cmd, report, should_stop)
      TYPE(swarm_worker_type), INTENT(INOUT)  :: worker
-     TYPE(swarm_command_type), INTENT(IN)    :: cmd
-     TYPE(swarm_report_type), INTENT(OUT)    :: report
+     TYPE(swarm_message_type), INTENT(IN)    :: cmd
+     TYPE(swarm_message_type), INTENT(OUT)    :: report
      LOGICAL, INTENT(INOUT)                  :: should_stop
-
-     IF(cmd%cmd_id == SWARM_CMD_SHUTDOWN) THEN
+     CHARACTER(LEN=default_string_length)    :: command
+     CALL swarm_message_get(cmd, "command", command)
+     IF(TRIM(command) == "shutdown") THEN
         IF(worker%iw>0) WRITE(worker%iw,*) "SWARM| Received shutdown command, quitting."
         should_stop = .TRUE.
      ELSE
@@ -129,12 +131,18 @@ MODULE swarm_worker
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE swarm_worker_create_empty_report(worker, report)
-       TYPE(swarm_worker_type), INTENT(INOUT)               :: worker
-       TYPE(swarm_report_type), INTENT(OUT)                 :: report
+       TYPE(swarm_worker_type), INTENT(INOUT)                :: worker
+       TYPE(swarm_message_type), INTENT(OUT)                 :: report
+       REAL(KIND=dp), DIMENSION(3) :: fake_positions
 
-       report%worker_id = worker%id
-       ALLOCATE(report%positions(3))
-       report%positions(:) = 0.0
+       CALL swarm_message_add(report, "worker_id", worker%id)
+       CALL swarm_message_add(report, "Epot", 0.0_dp)
+       CALL swarm_message_add(report, "iframe", 1)
+       fake_positions = 0.0
+       CALL swarm_message_add(report, "positions", fake_positions)
+       WRITE (*,*) "swarm_worker_create_empty_report: ugly hack using fake positions"
+       !ALLOCATE(report%positions(3))
+       !report%positions(:) = 0.0
 
    END SUBROUTINE swarm_worker_create_empty_report
 END MODULE swarm_worker

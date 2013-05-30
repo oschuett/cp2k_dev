@@ -22,12 +22,7 @@ MODULE glbopt_worker
   USE force_env_types,                 ONLY: force_env_get,&
                                              force_env_type
   USE geo_opt,                         ONLY: cp_geo_opt
-  USE glbopt_types,                    ONLY: glbopt_cmd_mdgopt,&
-                                             glbopt_cmd_setiframe,&
-                                             glbopt_mdctrl_data_type
-  USE swarm_types,                     ONLY: swarm_cmd_shutdown,&
-                                             swarm_command_type,&
-                                             swarm_report_type
+  USE glbopt_types,                    ONLY: glbopt_mdctrl_data_type
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_type,&
                                              section_vals_val_get,&
@@ -44,6 +39,10 @@ MODULE glbopt_worker
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
                                              section_vals_val_get
+  USE swarm_message,                   ONLY: swarm_message_type,&
+                                             swarm_message_add,&
+                                             swarm_message_get,&
+                                             swarm_message_length
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -173,29 +172,34 @@ MODULE glbopt_worker
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE glbopt_worker_execute(worker, cmd, report)
-    TYPE(glbopt_worker_type), INTENT(INOUT)  :: worker
-    TYPE(swarm_command_type), INTENT(IN)     :: cmd
-    TYPE(swarm_report_type), INTENT(OUT)     :: report
+       TYPE(glbopt_worker_type), INTENT(INOUT)  :: worker
+       TYPE(swarm_message_type), INTENT(IN)     :: cmd
+       TYPE(swarm_message_type), INTENT(OUT)    :: report
 
-    INTEGER                                  :: n_atoms
+       INTEGER                                  :: n_atoms
+       REAL(KIND=dp)                            :: temperature, Epot
+       REAL(KIND=dp), DIMENSION(:), POINTER     :: positions
+       CHARACTER(len=default_string_length)     :: command
 
-       SELECT CASE (cmd%cmd_id)
-         CASE (GLBOPT_CMD_SETIFRAME)
-           worker%iframe = cmd%iframe
-         CASE (GLBOPT_CMD_MDGOPT)
-           CALL run_mdgopt(worker, cmd%temperature)
-         CASE DEFAULT
-           STOP "Worker: received unkown command"
-       END SELECT
+       CALL swarm_message_get(cmd, "command", command)
+       IF(TRIM(command) == "md_and_gopt") THEN
+           CALL swarm_message_get(cmd, "temperature", temperature)
+           CALL swarm_message_get(cmd, "iframe", worker%iframe)
+           CALL run_mdgopt(worker, temperature)
+       ELSE
+          STOP "Worker: received unkown command"
+       END IF
 
        ! assemble report
-       report%worker_id = worker%id
-       report%iframe = worker%iframe
-       CALL force_env_get(worker%force_env, potential_energy=report%Epot, error=worker%error)
-       IF (worker%iw>0) WRITE (worker%iw,'(A,25X,E20.10)')' GLBOPT| Potential Energy [Hartree]',report%Epot
+       CALL swarm_message_add(report, "worker_id", worker%id)
+       CALL swarm_message_add(report, "iframe", worker%iframe)
+       CALL force_env_get(worker%force_env, potential_energy=Epot, error=worker%error)
+       CALL swarm_message_add(report, "Epot", Epot)
+       IF (worker%iw>0) WRITE (worker%iw,'(A,25X,E20.10)')' GLBOPT| Potential Energy [Hartree]',Epot
        CALL cp_subsys_get(worker%subsys, natom=n_atoms, error=worker%error)
-       ALLOCATE(report%positions(3*n_atoms))
-       CALL pack_subsys_particles(worker%subsys, r=report%positions, error=worker%error)
+       ALLOCATE(positions(3*n_atoms))
+       CALL pack_subsys_particles(worker%subsys, r=positions, error=worker%error)
+       CALL swarm_message_add(report, "positions", positions)
    END SUBROUTINE glbopt_worker_execute
 
 

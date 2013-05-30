@@ -10,7 +10,7 @@
 ! *****************************************************************************
 MODULE swarm_message
 
-  USE kinds,                           ONLY: int_4, int_8, real_4, real_8
+  USE kinds,                           ONLY: int_4, int_8, real_4, real_8, default_string_length
   USE message_passing,                 ONLY: &
        mp_abort, mp_any_source, mp_bcast, mp_comm_free, mp_comm_split, &
        mp_comm_split_direct, mp_environ, mp_recv, mp_send, mp_sum, mp_sync
@@ -30,6 +30,7 @@ MODULE swarm_message
  TYPE message_entry_type
    CHARACTER(LEN=key_length)                       :: key
    TYPE(message_entry_type),            POINTER    :: next        => Null()
+   CHARACTER(LEN=default_string_length),POINTER    :: value_str   => Null()
    INTEGER(KIND=int_4),                 POINTER    :: value_i4    => Null()
    INTEGER(KIND=int_8),                 POINTER    :: value_i8    => Null()
    REAL(KIND=real_4),                   POINTER    :: value_r4    => Null()
@@ -41,6 +42,7 @@ MODULE swarm_message
  END TYPE message_entry_type
 
   INTERFACE swarm_message_add
+     MODULE PROCEDURE swarm_message_add_str
      MODULE PROCEDURE swarm_message_add_i4,    swarm_message_add_i8
      MODULE PROCEDURE swarm_message_add_r4,    swarm_message_add_r8
      MODULE PROCEDURE swarm_message_add_i4_1d, swarm_message_add_i8_1d
@@ -48,6 +50,7 @@ MODULE swarm_message
   END INTERFACE swarm_message_add
 
   INTERFACE swarm_message_get
+     MODULE PROCEDURE swarm_message_get_str
      MODULE PROCEDURE swarm_message_get_i4,    swarm_message_get_i8
      MODULE PROCEDURE swarm_message_get_r4,    swarm_message_get_r8
      MODULE PROCEDURE swarm_message_get_i4_1d, swarm_message_get_i8_1d
@@ -56,6 +59,7 @@ MODULE swarm_message
 
  PUBLIC :: swarm_message_type, swarm_message_add, swarm_message_get
  PUBLIC :: swarm_message_mpi_send, swarm_message_mpi_recv
+ PUBLIC :: swarm_message_length
 
  CONTAINS
 
@@ -65,6 +69,9 @@ MODULE swarm_message
   SUBROUTINE swarm_message_entry_mpi_send(entry, group, dest, tag)
     TYPE(message_entry_type),INTENT(IN) :: entry
     INTEGER, INTENT(IN)                 :: group, dest, tag
+
+    STOP "swarm_message_entry_mpi_send does not work"
+    !CALL mp_send(entry%key, dest, tag, group)
 
     IF(ASSOCIATED(entry%value_i4)) THEN
        CALL mp_send(1, dest, tag, group)
@@ -116,6 +123,8 @@ MODULE swarm_message
 
     INTEGER :: datatype, s
 
+    STOP "swarm_message_entry_mpi_recv does not work"
+    !CALL mp_recv(entry%key, src, tag, group)
     CALL mp_recv(datatype, src, tag, group)
 
     SELECT CASE(datatype)
@@ -211,6 +220,8 @@ MODULE swarm_message
   
 ! *****************************************************************************
 ! *****************************************************************************
+
+#include "swarm_message_str.F"
 #include "swarm_message_i4.F"
 #include "swarm_message_i8.F"
 #include "swarm_message_r4.F"
