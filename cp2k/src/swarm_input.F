@@ -58,9 +58,16 @@ MODULE swarm_input
     CALL section_add_keyword(swarm_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
-    CALL keyword_create(keyword, name="E_MIN",&
-        description="balba TODO.",&
-        default_r_val=-1*HUGE(1.0_dp),type_of_var=real_t,unit_str="hartree",error=error)
+    CALL keyword_create(keyword, name="REPLAY_COMMUNICATION_LOG",&
+           description="TODO",repeats=.FALSE.,&
+           usage="REPLAY_COMMUNICATION_LOG <CHARACTER>", default_lc_val="swarm_translog_replay.xyz", &
+           error=error)
+    CALL section_add_keyword(swarm_section,keyword,error=error)
+    CALL keyword_release(keyword,error=error)
+
+    CALL keyword_create(keyword, name="MAX_ITER",&
+        description="The maximum number iterations the master should perform",&
+        type_of_var=integer_t,default_i_val=HUGE(1),error=error)
     CALL section_add_keyword(swarm_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
@@ -89,87 +96,71 @@ MODULE swarm_input
     CALL section_add_subsection(print_section,printkey,error=error)
     CALL section_release(printkey,error=error)
 
-    CALL keyword_create(keyword, name="REPLAY_COMMUNICATION_LOG",&
-           description="TODO",repeats=.FALSE.,&
-           usage="REPLAY_COMMUNICATION_LOG <CHARACTER>", default_lc_val="swarm_translog_replay.xyz", &
-           error=error)
-    CALL section_add_keyword(swarm_section,keyword,error=error)
-    CALL keyword_release(keyword,error=error)
-
     CALL section_add_subsection(swarm_section,print_section,error=error)
     CALL section_release(print_section,error=error)
 
-    CALL swarm_worker_declare_input(swarm_section, error)
-    CALL swarm_master_declare_input(swarm_section, error)
+
+    CALL glbopt_declare_input(swarm_section, error)
+    !TODO: needed?
+    !CALL section_release(swarm_section,error=error)
   END SUBROUTINE create_swarm_section
 
 !! *****************************************************************************
 !! *****************************************************************************
-  SUBROUTINE swarm_worker_declare_input(swarm_section,error)
+  SUBROUTINE glbopt_declare_input(swarm_section,error)
     TYPE(section_type), POINTER              :: swarm_section
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     TYPE(keyword_type), POINTER              :: keyword
-    TYPE(section_type), POINTER              :: worker_section
+    TYPE(section_type), POINTER              :: glbopt_section
 
-    NULLIFY(worker_section, keyword)
+    NULLIFY(glbopt_section, keyword)
 
-    CALL section_create(worker_section,name="WORKER",&
+    CALL section_create(glbopt_section,name="GLOBAL_OPT",&
          description="blah TODO.",&
          repeats=.FALSE., supported_feature=.TRUE.,error=error)
 
+    CALL keyword_create(keyword, name="E_MIN",&
+        description="balba TODO.",&
+        default_r_val=-1*HUGE(1.0_dp),type_of_var=real_t,unit_str="hartree",error=error)
+    CALL section_add_keyword(glbopt_section, keyword, error=error)
+
+    CALL keyword_release(keyword, error=error)
     CALL keyword_create(keyword, name="MD_EPOT_N_UP",&
         description="balba TODO.",&
         type_of_var=integer_t,default_i_val=2,error=error)
-    CALL section_add_keyword(worker_section, keyword, error=error)
+    CALL section_add_keyword(glbopt_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
     CALL keyword_create(keyword, name="MD_EPOT_N_DOWN",&
         description="balba TODO.",&
         type_of_var=integer_t,default_i_val=2,error=error)
-    CALL section_add_keyword(worker_section, keyword, error=error)
+    CALL section_add_keyword(glbopt_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
     CALL keyword_create(keyword, name="MD_MINCOUNT_MAX",&
         description="balba TODO.",&
         type_of_var=integer_t,default_i_val=3,error=error)
-    CALL section_add_keyword(worker_section, keyword, error=error)
+    CALL section_add_keyword(glbopt_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
     CALL keyword_create(keyword, name="MD_MAX_DIST",&
          description="balba TODO.", &
          default_r_val=2.0_dp, unit_str="angstrom",type_of_var=real_t,error=error)
-    CALL section_add_keyword(worker_section, keyword, error=error)
+    CALL section_add_keyword(glbopt_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
-    CALL section_add_subsection(swarm_section, worker_section,error=error)
-    CALL section_release(worker_section,error=error)
-  END SUBROUTINE swarm_worker_declare_input
+    CALL minhop_declare_input(glbopt_section, error=error)
 
-!! *****************************************************************************
-!! *****************************************************************************
-  SUBROUTINE swarm_master_declare_input(swarm_section,error)
-    TYPE(section_type), POINTER              :: swarm_section
-    TYPE(cp_error_type), INTENT(inout)       :: error
-
-    TYPE(keyword_type), POINTER              :: keyword
-
-    NULLIFY(keyword)
-
-    CALL keyword_create(keyword, name="MAX_ITER",&
-        description="The maximum number iterations the master should perform",&
-        type_of_var=integer_t,default_i_val=HUGE(1),error=error)
-    CALL section_add_keyword(swarm_section, keyword, error=error)
-    CALL keyword_release(keyword, error=error)
-
-    CALL swarm_minhop_declare_input(swarm_section, error)
-  END SUBROUTINE swarm_master_declare_input
+    CALL section_add_subsection(swarm_section, glbopt_section,error=error)
+    CALL section_release(glbopt_section,error=error)
+  END SUBROUTINE glbopt_declare_input
 
 
 !! *****************************************************************************
 !! *****************************************************************************
-  SUBROUTINE swarm_minhop_declare_input(swarm_section,error)
-    TYPE(section_type), POINTER              :: swarm_section
+  SUBROUTINE minhop_declare_input(glbopt_section,error)
+    TYPE(section_type), POINTER              :: glbopt_section
     TYPE(cp_error_type), INTENT(inout)       :: error
 
     TYPE(keyword_type), POINTER              :: keyword
@@ -241,9 +232,9 @@ MODULE swarm_input
     CALL section_add_keyword(minhop_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
 
-    CALL section_add_subsection(swarm_section,minhop_section,error=error)
+    CALL section_add_subsection(glbopt_section,minhop_section,error=error)
     CALL section_release(minhop_section,error=error)
-  END SUBROUTINE swarm_minhop_declare_input
+  END SUBROUTINE minhop_declare_input
 
 END MODULE swarm_input
 

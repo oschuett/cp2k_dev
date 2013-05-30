@@ -29,6 +29,7 @@ MODULE swarm
   USE swarm_worker,                   ONLY:  swarm_worker_execute,&
                                              swarm_worker_finalize,&
                                              swarm_worker_init,&
+                                             swarm_worker_create_empty_report,&
                                              swarm_worker_type
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_type,&
@@ -87,7 +88,7 @@ MODULE swarm
     ENDIF
 
     CALL timestop(handle)
-   END SUBROUTINE run_SWARM
+   END SUBROUTINE run_swarm
 
 ! *****************************************************************************
 ! *****************************************************************************
@@ -108,7 +109,7 @@ MODULE swarm
        CALL swarm_worker_init(worker, para_env, root_section, input_path, &
                                    worker_id=1, error=error)
 
-       CALL create_empty_report(report)
+       CALL swarm_worker_create_empty_report(worker, report)
        should_stop = .FALSE.
        DO WHILE(.NOT. should_stop)
           CALL swarm_master_steer(master, report, cmd)
@@ -120,12 +121,8 @@ MODULE swarm
 
     END SUBROUTINE swarm_serial_driver
 
-! *****************************************************************************
-! *****************************************************************************
 
-   SUBROUTINE create_empty_report(report)
-       TYPE(swarm_report_type), INTENT(OUT)                 :: report
-   END SUBROUTINE create_empty_report
+
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE swarm_parallel_driver(n_workers, root_section, input_path, para_env, globenv, iw, error)
@@ -151,7 +148,7 @@ MODULE swarm
           CALL swarm_worker_init(worker, swarm_mpi%worker,&
                      root_section, input_path, worker_id=worker_id, error=error)
 
-          CALL create_empty_report(report)
+          CALL swarm_worker_create_empty_report(worker, report)
           should_stop = .FALSE.
           DO WHILE(.NOT. should_stop)
              CALL swarm_mpi_send_report(swarm_mpi, report)

@@ -98,7 +98,7 @@ MODULE glbopt_callback
 
     IF(mdctrl_data%md_mincounter >= mdctrl_data%md_mincount_max) THEN
        should_stop = .TRUE.
-       IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MINCOUNTER."
+       IF(iw>0) WRITE (iw,"(A)") " GLBOPT| Stopping MD because of MD_MINCOUNTER."
     END IF
 
     CALL force_env_get(force_env, subsys=subsys, error=error)
@@ -108,7 +108,7 @@ MODULE glbopt_callback
 
     ! Stop if cluster starts to splits into multiple fragments.
     IF(.NOT. particles_connected(positions, mdctrl_data%md_max_dist)) THEN
-       IF(iw>0) WRITE (iw,"(A)") " GLOBAL_OPT| Stopping MD because of MD_MAX_DIST."
+       IF(iw>0) WRITE (iw,"(A)") " GLBOPT| Stopping MD because of MD_MAX_DIST."
        should_stop = .TRUE.
     END IF
 

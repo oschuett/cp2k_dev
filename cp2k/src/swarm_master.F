@@ -51,8 +51,6 @@ MODULE swarm_master
  TYPE swarm_master_type
    PRIVATE
    TYPE(glbopt_master_type), ALLOCATABLE               :: glbopt
-   REAL(KIND=dp)                                       :: Elowest = HUGE(1.0_dp)
-   REAL(KIND=dp)                                       :: Emin = TINY(1.0_dp)
    INTEGER                                             :: iw = 0
    INTEGER                                             :: i_iteration = 0
    INTEGER                                             :: max_iter = 0
@@ -108,7 +106,6 @@ MODULE swarm_master
             middle_name="comlog", extension=".xyz", &
             file_action="WRITE", file_position="REWIND", error=error)
 
-    CALL section_vals_val_get(master%swarm_section,"E_MIN", r_val=master%Emin, error=error)
     CALL section_vals_val_get(master%swarm_section,"MAX_ITER", i_val=master%max_iter, error=error)
 
     ALLOCATE(master%glbopt)
@@ -169,6 +166,7 @@ MODULE swarm_master
        " SWARM| Reached end of communication log. Queueing last commands."
 
     DO i=1, master%n_workers
+      STOP "replay does not work, yet"
       !TODO send iframe along with every command
       !ALLOCATE(cmd_ll)
       !cmd_ll%cmd%worker_id = i
@@ -253,6 +251,9 @@ MODULE swarm_master
     TYPE(swarm_report_type)                 :: report
     TYPE(swarm_command_type)                :: cmd
 
+    LOGICAL                                 :: should_stop
+    should_stop = .FALSE.
+
 ! First check if there are queued commands for this worker
 
     cmd = command_queue_pop(master, report%worker_id)
@@ -264,24 +265,10 @@ MODULE swarm_master
     END IF
 
     ! There are no queued commands. Do the normal processing.
-    cmd%worker_id = report%worker_id
-    master%Elowest = MIN(master%Elowest, report%Epot)
     master%i_iteration = master%i_iteration + 1
-    IF(master%iw>0) THEN
-       WRITE (master%iw,'(A,A,X,I8,A,A)') ' SWARM| ',REPEAT("*", 13),&
-          master%i_iteration,'. Global Optimisation Iteration ',REPEAT("*", 13)
-       WRITE (master%iw,'(A,42X,I8)')&
-              " SWARM| Reporting worker ", report%worker_id
-       WRITE (master%iw,'(A,16X,E15.8)')&
-              " SWARM| Reported potential Energy [Hartree] ", report%Epot
-       WRITE (master%iw,'(A,9X,E15.8)')&
-        " SWARM| Lowest reported potential Energy [Hartree] ",master%Elowest
-    END IF
 
-    IF(master%Elowest<master%Emin .AND. .NOT. master%should_stop) THEN
-       IF(master%iw>0)  WRITE (master%iw, *)  "SWARM| Reached Emin > Epot. Quitting."
-       master%should_stop = .TRUE.
-    ENDIF
+    WRITE (master%iw,'(A,A,X,I8,A,A)') ' SWARM| ',REPEAT("*", 15),&
+         master%i_iteration,'. Master / Worker Communication  ',REPEAT("*", 15)
 
     IF(master%i_iteration>=master%max_iter .AND. .NOT. master%should_stop) THEN
        IF(master%iw>0)  WRITE (master%iw, *)  "SWARM| Reached MAX_ITER. Quitting."
@@ -295,13 +282,23 @@ MODULE swarm_master
     END IF
 
     CALL swarm_comlog_write(master%comlog_unit, master%i_iteration, report)
-    CALL glbopt_master_steer(master%glbopt, report, cmd)
-    CALL swarm_comlog_write(master%comlog_unit, master%i_iteration, cmd)
+
+    cmd%worker_id = report%worker_id
 
     IF(master%should_stop) THEN
-       cmd%cmd_id = SWARM_CMD_SHUTDOWN  !overwrite command
+       cmd%cmd_id = SWARM_CMD_SHUTDOWN
        IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
          " SWARM| Sending shutdown command to worker",cmd%worker_id
+    ELSE
+       CALL glbopt_master_steer(master%glbopt, report, cmd, should_stop)
+       IF(should_stop) THEN
+          cmd%cmd_id = SWARM_CMD_SHUTDOWN  !overwrite command
+          IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
+              " SWARM| Sending shutdown command to worker",cmd%worker_id
+           master%should_stop = .TRUE.
+       ELSE
+          CALL swarm_comlog_write(master%comlog_unit, master%i_iteration, cmd)
+       ENDIF
     ENDIF
 
  END SUBROUTINE

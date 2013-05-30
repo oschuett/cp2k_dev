@@ -106,15 +106,15 @@ MODULE glbopt_history
       b = FLOOR(entry%report%Epot / history%precision, kind=int_8)
       IF(a == b) THEN
          found = .TRUE.
-         IF(history%iw>0) &
-           WRITE(history%iw, *) "history: Found: ",report%Epot, "dist: ", closest
+         !IF(history%iw>0) &
+         !  WRITE(history%iw, *) "history: Found: ",report%Epot, "dist: ", closest
          RETURN
       END IF
       ENTRY => entry%next
     END DO
 
-    IF(history%iw>0) &
-      WRITE(history%iw, *) "history: Did not find: ",report%Epot, "closest dist: ", closest
+    !IF(history%iw>0) &
+    !  WRITE(history%iw, *) "history: Did not find: ",report%Epot, "closest dist: ", closest
  END SUBROUTINE history_lookup
 
 

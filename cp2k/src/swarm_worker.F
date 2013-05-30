@@ -41,6 +41,11 @@ MODULE swarm_worker
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
                                              section_vals_val_get
+  USE glbopt_worker,                   ONLY:  glbopt_worker_init,&
+                                              glbopt_worker_finalize,&
+                                              glbopt_worker_execute,&
+                                              glbopt_worker_type
+
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -51,12 +56,14 @@ MODULE swarm_worker
  PUBLIC :: swarm_worker_init, swarm_worker_finalize
  PUBLIC :: swarm_worker_execute
  PUBLIC :: swarm_worker_type
+ PUBLIC :: swarm_worker_create_empty_report
 
   TYPE swarm_worker_type
    PRIVATE
    INTEGER                                  :: id
    INTEGER                                  :: iw
    TYPE(cp_error_type)                      :: error
+   TYPE(glbopt_worker_type)                 :: glbopt
  END TYPE swarm_worker_type
 
  CONTAINS
@@ -75,8 +82,18 @@ MODULE swarm_worker
     INTEGER, INTENT(in)                      :: worker_id
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    !CALL glbopt_worker_init(worker%glbopt, para_env, root_section,&
-    !             input_path, worker_id, error)
+    TYPE(cp_logger_type), POINTER            :: logger
+
+    worker%error = error
+    worker%id = worker_id
+    ! getting an output unit for logging
+    ! TODO: this seems to be too early, because the the force env has not been created
+    logger => cp_error_get_logger(worker%error)
+    worker%iw = cp_print_key_unit_nr(logger,root_section,&
+          "SWARM%PRINT%WORKER_RUN_INFO",extension=".workerLog", error=worker%error)
+
+    CALL glbopt_worker_init(worker%glbopt, para_env, root_section,&
+                 input_path, worker_id, worker%iw, error)
 
   END SUBROUTINE swarm_worker_init
 
@@ -87,7 +104,7 @@ MODULE swarm_worker
    SUBROUTINE swarm_worker_finalize(worker)
     TYPE(swarm_worker_type), INTENT(INOUT)  :: worker
 
-    !CALL glbopt_worker_finalize(worker%glbopt)
+    CALL glbopt_worker_finalize(worker%glbopt)
 
    END SUBROUTINE swarm_worker_finalize
 
@@ -104,10 +121,21 @@ MODULE swarm_worker
         IF(worker%iw>0) WRITE(worker%iw,*) "SWARM| Received shutdown command, quitting."
         should_stop = .TRUE.
      ELSE
-        !CALL glbopt_worker_execute(worker%glbopt, cmd, report)
+        CALL glbopt_worker_execute(worker%glbopt, cmd, report)
      ENDIF
 
    END SUBROUTINE swarm_worker_execute
 
+! *****************************************************************************
+! *****************************************************************************
+   SUBROUTINE swarm_worker_create_empty_report(worker, report)
+       TYPE(swarm_worker_type), INTENT(INOUT)               :: worker
+       TYPE(swarm_report_type), INTENT(OUT)                 :: report
+
+       report%worker_id = worker%id
+       ALLOCATE(report%positions(3))
+       report%positions(:) = 0.0
+
+   END SUBROUTINE swarm_worker_create_empty_report
 END MODULE swarm_worker
 

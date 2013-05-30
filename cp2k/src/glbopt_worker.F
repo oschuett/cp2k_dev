@@ -83,30 +83,33 @@ MODULE glbopt_worker
 ! *****************************************************************************
 ! *****************************************************************************
    SUBROUTINE glbopt_worker_init(worker, para_env, root_section,&
-                 input_path, worker_id, error)
-    TYPE(glbopt_worker_type), INTENT(INOUT)  :: worker
-    TYPE(cp_para_env_type), POINTER          :: para_env
-    TYPE(section_vals_type), POINTER         :: root_section
-    CHARACTER(LEN=*), INTENT(IN)             :: input_path
-    INTEGER, INTENT(in)                      :: worker_id
-    TYPE(cp_error_type), INTENT(inout)       :: error
+                 input_path, worker_id, iw, error)
+        TYPE(glbopt_worker_type), INTENT(INOUT)  :: worker
+        TYPE(cp_para_env_type), POINTER          :: para_env
+        TYPE(section_vals_type), POINTER         :: root_section
+        CHARACTER(LEN=*), INTENT(IN)             :: input_path
+        INTEGER, INTENT(in)                      :: worker_id
+        INTEGER, INTENT(in)                      :: iw
+        TYPE(cp_error_type), INTENT(inout)       :: error
 
-    CHARACTER(len=default_path_length)       :: output_path
-    CHARACTER(len=default_string_length)     :: new_project_name, &
-                                                project_name, worker_name
-    INTEGER                                  :: i
-    LOGICAL                                  :: failure
-    TYPE(cp_logger_type), POINTER            :: logger
-    TYPE(section_vals_type), POINTER         :: worker_section
-    REAL(kind=dp)                            :: dist_in_angstrom
-       failure = .FALSE.
+        CHARACTER(len=default_path_length)       :: output_path
+        CHARACTER(len=default_string_length)     :: new_project_name, &
+                                                    project_name, worker_name
+        INTEGER                                  :: i
+        LOGICAL                                  :: failure
+        TYPE(section_vals_type), POINTER         :: glbopt_section
+        REAL(kind=dp)                            :: dist_in_angstrom 
+        TYPE(cp_logger_type), POINTER            :: logger
+        failure = .FALSE.
 
 
         worker%error = error
         worker%root_section => root_section
         worker%iframe = 0
         worker%id = worker_id
+        worker%iw = iw
 
+       !TODO: project name can also be obtained/manipulated in globenv
        ! change the PROJECT_NAME to avoid clashes during backup of RESTART-files
        !output_path = "__STD_OUT__"
        IF(worker_id > 999) STOP "worker_create_f_env: Did not expect so many workers."
@@ -135,20 +138,20 @@ MODULE glbopt_worker
          CALL reset_to_next_rng_substream(worker%globenv%gaussian_rng_stream, worker%error)
       END DO
 
+
       ! getting an output unit for logging
       logger => cp_error_get_logger(worker%error)
       worker%iw = cp_print_key_unit_nr(logger,root_section,&
-          "GLBOPT%PRINT%WORKER_RUN_INFO",extension=".workerLog", error=worker%error)
-
+          "SWARM%PRINT%WORKER_RUN_INFO",extension=".workerLog", error=worker%error)
 
       ! fetch original value from input
       CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=worker%gopt_max_iter, error=worker%error)
-      worker_section => section_vals_get_subs_vals(root_section, "GLBOPT%WORKER", error=error)
+      glbopt_section => section_vals_get_subs_vals(root_section, "SWARM%GLOBAL_OPT", error=error)
 
-      CALL section_vals_val_get(worker_section,"MD_EPOT_N_UP", i_val=worker%epot_nup, error=error)
-      CALL section_vals_val_get(worker_section,"MD_EPOT_N_DOWN", i_val=worker%epot_ndown, error=error)
-      CALL section_vals_val_get(worker_section,"MD_MINCOUNT_MAX", i_val=worker%md_mincount_max, error=error)
-      CALL section_vals_val_get(worker_section,"MD_MAX_DIST", r_val=dist_in_angstrom, error=error)
+      CALL section_vals_val_get(glbopt_section,"MD_EPOT_N_UP", i_val=worker%epot_nup, error=error)
+      CALL section_vals_val_get(glbopt_section,"MD_EPOT_N_DOWN", i_val=worker%epot_ndown, error=error)
+      CALL section_vals_val_get(glbopt_section,"MD_MINCOUNT_MAX", i_val=worker%md_mincount_max, error=error)
+      CALL section_vals_val_get(glbopt_section,"MD_MAX_DIST", r_val=dist_in_angstrom, error=error)
       worker%md_max_dist = dist_in_angstrom/angstrom
   END SUBROUTINE glbopt_worker_init
 
@@ -169,11 +172,10 @@ MODULE glbopt_worker
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE glbopt_worker_execute(worker, cmd, report, should_stop)
+   SUBROUTINE glbopt_worker_execute(worker, cmd, report)
     TYPE(glbopt_worker_type), INTENT(INOUT)  :: worker
     TYPE(swarm_command_type), INTENT(IN)     :: cmd
     TYPE(swarm_report_type), INTENT(OUT)     :: report
-    LOGICAL, INTENT(INOUT)                   :: should_stop
 
     INTEGER                                  :: n_atoms
 
@@ -190,7 +192,7 @@ MODULE glbopt_worker
        report%worker_id = worker%id
        report%iframe = worker%iframe
        CALL force_env_get(worker%force_env, potential_energy=report%Epot, error=worker%error)
-       IF (worker%iw>0) WRITE (worker%iw,'(A,21X,E20.10)')' GLBOPT| Potential Energy [Hartree]',report%Epot
+       IF (worker%iw>0) WRITE (worker%iw,'(A,25X,E20.10)')' GLBOPT| Potential Energy [Hartree]',report%Epot
        CALL cp_subsys_get(worker%subsys, natom=n_atoms, error=worker%error)
        ALLOCATE(report%positions(3*n_atoms))
        CALL pack_subsys_particles(worker%subsys, r=report%positions, error=worker%error)
@@ -226,9 +228,9 @@ MODULE glbopt_worker
       !TODO: 300K is hard encoded
       timestep = SQRT(MIN(1.0, 300.0/(temperature*kelvin))) / femtoseconds
       IF (worker%iw>0) THEN
-        WRITE (worker%iw,'(A,29X,F20.3)')  ' GLBOPT| MD temperature [K]',temperature*kelvin
-        WRITE (worker%iw,'(A,31X,F20.3)')  ' GLBOPT| MD timestep [fs]',timestep*femtoseconds
-        WRITE (worker%iw,'(A,25X,I10)') " GLBOPT| Starting MD at trajectory frame ", worker%iframe
+        WRITE (worker%iw,'(A,33X,F20.3)')  ' GLBOPT| MD temperature [K]',temperature*kelvin
+        WRITE (worker%iw,'(A,35X,F20.3)')  ' GLBOPT| MD timestep [fs]',timestep*femtoseconds
+        WRITE (worker%iw,'(A,29X,I10)') " GLBOPT| Starting MD at trajectory frame ", worker%iframe
       END IF
 
       mdctrl_data%epot_history = 0.0
@@ -243,7 +245,7 @@ MODULE glbopt_worker
 
       worker%iframe = mdctrl_data%itimes + 1
       IF (worker%iw>0) WRITE (worker%iw,'(A,I4,A)') " GLBOPT| md ended after ", worker%iframe-prev_iframe, " steps."
-      IF (worker%iw>0) WRITE (worker%iw,'(A,9X,I10)') " GLBOPT| Starting local optimisation at trajectory frame ", worker%iframe
+      IF (worker%iw>0) WRITE (worker%iw,'(A,13X,I10)') " GLBOPT| Starting local optimisation at trajectory frame ", worker%iframe
       CALL section_vals_val_set(worker%root_section, "MOTION%GEO_OPT%STEP_START_VAL", i_val=worker%iframe-1, error=worker%error)
       CALL section_vals_val_set(worker%root_section, "MOTION%GEO_OPT%MAX_ITER",&
                                  i_val=worker%iframe+worker%gopt_max_iter, error=worker%error)

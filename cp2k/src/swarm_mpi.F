@@ -74,8 +74,8 @@ MODULE swarm_mpi
     pe_per_worker = (swarm_mpi%world%num_pe-1)/n_workers
 
     IF(iw>0) THEN
-       WRITE(iw,'(A,40X,I8)') " SWARM| Number of mpi ranks", swarm_mpi%world%num_pe
-       WRITE(iw,'(A,42X,I8)') " SWARM| Number of workers", n_workers
+       WRITE(iw,'(A,45X,I8)') " SWARM| Number of mpi ranks", swarm_mpi%world%num_pe
+       WRITE(iw,'(A,47X,I8)') " SWARM| Number of workers", n_workers
     ENDIF
 
     ! the last task becomes the master. Preseves node-alignment of other tasks.

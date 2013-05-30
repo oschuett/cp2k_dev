@@ -64,9 +64,9 @@ MODULE glbopt_minhop
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE minhop_init(minhop, section, n_workers, iw, error)
+ SUBROUTINE minhop_init(minhop, glbopt_section, n_workers, iw, error)
     TYPE(minhop_type)                        :: minhop
-    TYPE(section_vals_type), POINTER         :: section
+    TYPE(section_vals_type), POINTER         :: glbopt_section
     INTEGER, INTENT(IN)                      :: n_workers, iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
@@ -76,7 +76,7 @@ MODULE glbopt_minhop
 
 ! read input
 
-    minhop_section => section_vals_get_subs_vals(section, "MINIMA_HOPPING", error=error)
+    minhop_section => section_vals_get_subs_vals(glbopt_section, "MINIMA_HOPPING", error=error)
     CALL section_vals_val_get(minhop_section,"BETA_2",  r_val=minhop%beta2,error=error)
     CALL section_vals_val_get(minhop_section,"BETA_3",  r_val=minhop%beta3,error=error)
     CALL section_vals_val_get(minhop_section,"ALPHA_1", r_val=minhop%alpha1,error=error)
@@ -114,7 +114,7 @@ MODULE glbopt_minhop
     minhop%n_accepted = 0
 
     IF(minhop%iw>0) &
-      WRITE(minhop%iw, '(A,36X,L1)') " GLOBAL_OPT|MINHOP| Using shared histories:", minhop%share_history
+      WRITE(minhop%iw, '(A,47X,L1)') " MINHOP| Using shared histories:", minhop%share_history
  END SUBROUTINE minhop_init
 
 ! *****************************************************************************
@@ -138,21 +138,21 @@ MODULE glbopt_minhop
 
     ! Stop if cluster starts to splits into multiple fragments.
     IF(.NOT. particles_connected(report%positions, minhop%max_dist)) THEN
-       IF(minhop%iw > 0) WRITE (minhop%iw,"(A)") " GLOBAL_OPT|MINHOP| Conclusion: rejecting minima because of MAX_DIST."
+       IF(minhop%iw > 0) WRITE (minhop%iw,"(A)") " MINHOP| Conclusion: rejecting minima because of MAX_DIST."
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3  !decreasing temperature
 
     ELSE IF(minima_known) THEN ! known minima restart MD
-       IF(minhop%iw>0) WRITE(minhop%iw,'(A,40X,A)') " GLOBAL_OPT|MINHOP| Conclusion","old minima"
+       IF(minhop%iw>0) WRITE(minhop%iw,'(A,51X,A)') " MINHOP| Conclusion","old minima"
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta2 !increasing temperature
 
     ELSE IF (report%Epot - minhop%prev_report(wid)%Epot > minhop%Eaccept(wid)) THEN
-       IF(minhop%iw>0) WRITE(minhop%iw,'(A,7X,A)')&
-          " GLOBAL_OPT|MINHOP| Conclusion","new minima, but got rejected due to Eaccept"
+       IF(minhop%iw>0) WRITE(minhop%iw,'(A,18X,A)')&
+          " MINHOP| Conclusion","new minima, but got rejected due to Eaccept"
        minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
        minhop%Eaccept(wid)     = minhop%Eaccept(wid) * minhop%alpha2 !increasing temperature
 
     ELSE ! Hurra, we accept a new minimum
-      IF(minhop%iw>0) WRITE(minhop%iw,'(A,27X,A)') " GLOBAL_OPT|MINHOP| Conclusion","new minima got accepted"
+      IF(minhop%iw>0) WRITE(minhop%iw,'(A,38X,A)') " MINHOP| Conclusion","new minima got accepted"
       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
       minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1 !decreasing temperature
       CALL history_add(minhop%history(hid), report)
@@ -163,19 +163,19 @@ MODULE glbopt_minhop
 
     IF(minhop%temperature(wid) > minhop%temp_max) THEN
        minhop%temperature(wid) = minhop%temp_max
-      IF(minhop%iw > 0) WRITE(minhop%iw,*) " GLOBAL_OPT|MINHOP| Throttleing to Max Temperature"
+      IF(minhop%iw > 0) WRITE(minhop%iw,*) " MINHOP| Throttleing to Max Temperature"
     END IF
 
     IF(minhop%temperature(wid) < minhop%temp_min) THEN
        minhop%temperature(wid) = minhop%temp_min
-      IF(minhop%iw > 0) WRITE(minhop%iw,*) " GLOBAL_OPT|MINHOP| Throttleing to Min Temperature"
+      IF(minhop%iw > 0) WRITE(minhop%iw,*) " MINHOP| Throttleing to Min Temperature"
     END IF
 
     IF(minhop%iw>0) THEN
-        WRITE (minhop%iw,'(A,4X,E20.10)')&
-         " GLOBAL_OPT|MINHOP| Worker's acceptance Energy [Hartree]",minhop%Eaccept(wid)
-        WRITE (minhop%iw,'(A,11X,F20.3)')&
-         " GLOBAL_OPT|MINHOP| Worker's temperature [Kelvin]",minhop%temperature(wid)*kelvin
+        WRITE (minhop%iw,'(A,15X,E20.10)')&
+         " MINHOP| Worker's acceptance Energy [Hartree]",minhop%Eaccept(wid)
+        WRITE (minhop%iw,'(A,22X,F20.3)')&
+         " MINHOP| Worker's temperature [Kelvin]",minhop%temperature(wid)*kelvin
     END IF
 
     cmd%cmd_id          = GLBOPT_CMD_MDGOPT
@@ -183,8 +183,8 @@ MODULE glbopt_minhop
     cmd%temperature     = minhop%temperature(wid)
 
     IF(minhop%iw > 0) &
-      WRITE(minhop%iw,'(A,19X,I10)')&
-       " GLOBAL_OPT|MINHOP| Total number of accepted minima",minhop%n_accepted
+      WRITE(minhop%iw,'(A,30X,I10)')&
+       " MINHOP| Total number of accepted minima",minhop%n_accepted
 
  END SUBROUTINE minhop_steer
 

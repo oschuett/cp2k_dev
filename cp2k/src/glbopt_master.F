@@ -36,6 +36,11 @@ MODULE glbopt_master
 
  TYPE glbopt_master_type
    PRIVATE
+   REAL(KIND=dp)                                       :: Elowest = HUGE(1.0_dp)
+   REAL(KIND=dp)                                       :: Emin = TINY(1.0_dp)
+   INTEGER                                             :: iw = 0
+   !INTEGER                                             :: n_workers = -1
+   !TYPE(cp_error_type)                                 :: error
    TYPE(minhop_type) :: minhop
  END TYPE glbopt_master_type
 
@@ -44,23 +49,46 @@ MODULE glbopt_master
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_master_init(glbopt, section, n_walkers, iw, error)
+ SUBROUTINE glbopt_master_init(glbopt, swarm_section, n_walkers, iw, error)
     TYPE(glbopt_master_type)                 :: glbopt
-    TYPE(section_vals_type), POINTER         :: section
+    TYPE(section_vals_type), POINTER         :: swarm_section
     INTEGER, INTENT(IN)                      :: n_walkers, iw
     TYPE(cp_error_type), INTENT(inout)       :: error
+    TYPE(section_vals_type), POINTER         :: glbopt_section
 
-    CALL minhop_init(glbopt%minhop, section, n_walkers, iw, error)
+    glbopt%iw = iw
+
+    glbopt_section => section_vals_get_subs_vals(swarm_section, "GLOBAL_OPT", error=error)
+    CALL section_vals_val_get(glbopt_section,"E_MIN", r_val=glbopt%Emin, error=error)
+
+    CALL minhop_init(glbopt%minhop, glbopt_section, n_walkers, iw, error)
  END SUBROUTINE glbopt_master_init
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE glbopt_master_steer(glbopt, report, cmd)
+ SUBROUTINE glbopt_master_steer(glbopt, report, cmd, should_stop)
     TYPE(glbopt_master_type)                 :: glbopt
     TYPE(swarm_report_type)                 :: report
     TYPE(swarm_command_type)                :: cmd
+    LOGICAL, INTENT(INOUT)                  :: should_stop
 
-    CALL minhop_steer(glbopt%minhop, report, cmd)
+    glbopt%Elowest = MIN(glbopt%Elowest, report%Epot)
+    IF(glbopt%iw>0) THEN
+       WRITE (glbopt%iw,'(A,46X,I8)')&
+              " GLBOPT| Reporting worker ", report%worker_id
+       WRITE (glbopt%iw,'(A,20X,E15.8)')&
+              " GLBOPT| Reported potential Energy [Hartree] ", report%Epot
+       WRITE (glbopt%iw,'(A,13X,E15.8)')&
+        " GLBOPT| Lowest reported potential Energy [Hartree] ",glbopt%Elowest
+    END IF
+
+    !IF(glbopt%Elowest<glbopt%Emin .AND. .NOT. master%should_stop) THEN
+    IF(glbopt%Elowest<glbopt%Emin) THEN
+       IF(glbopt%iw>0)  WRITE (glbopt%iw, *)  "GLBOPT| Reached Emin > Epot. Quitting."
+       should_stop = .TRUE.
+    ELSE
+       CALL minhop_steer(glbopt%minhop, report, cmd)
+    ENDIF
  END SUBROUTINE glbopt_master_steer
 
 
