@@ -171,9 +171,8 @@ MODULE swarm
           DO WHILE(i_shutdowns < n_workers)
              CALL swarm_mpi_recv_report(swarm_mpi, report)
              CALL swarm_master_steer(master, report, cmd)
-             CALL swarm_message_get(report, "worker_id", worker_id)
+             CALL swarm_mpi_send_command(swarm_mpi, cmd)
              CALL swarm_message_get(cmd, "command", command)
-             CALL swarm_mpi_send_command(swarm_mpi, worker_id, cmd)
              IF(TRIM(command) == "shutdown") i_shutdowns = i_shutdowns + 1
           END DO
           CALL swarm_master_finalize(master)

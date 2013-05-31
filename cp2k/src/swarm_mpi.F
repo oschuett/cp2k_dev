@@ -260,13 +260,12 @@ MODULE swarm_mpi
 
 ! *****************************************************************************
 ! *****************************************************************************
-  SUBROUTINE swarm_mpi_send_command(swarm_mpi, worker_id, cmd)
+  SUBROUTINE swarm_mpi_send_command(swarm_mpi, cmd)
     TYPE(swarm_mpi_type)                    :: swarm_mpi
-    INTEGER                                  :: worker_id
     TYPE(swarm_message_type)                :: cmd
+    INTEGER                                 :: worker_id, dest, tag
 
-    INTEGER                                  :: dest, tag
-
+     CALL swarm_message_get(cmd, "worker_id", worker_id)
      tag = 42
      dest = swarm_mpi%wid2group(worker_id)
 
