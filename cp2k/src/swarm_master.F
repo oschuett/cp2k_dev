@@ -22,6 +22,10 @@ MODULE swarm_master
                                              glbopt_master_init,&
                                              glbopt_master_steer,&
                                              glbopt_master_type
+  USE paramopt_master,                ONLY:  paramopt_master_finalize,&
+                                             paramopt_master_init,&
+                                             paramopt_master_steer,&
+                                             paramopt_master_type
   USE swarm_message,                   ONLY: swarm_message_type,&
                                              swarm_message_add,&
                                              swarm_message_get,&
@@ -36,6 +40,8 @@ MODULE swarm_master
                                              rm_timer_env,&
                                              timer_env_create
   USE timings_types,                   ONLY: timer_env_type
+  USE input_constants,                 ONLY: swarm_do_glbopt,&
+                                             swarm_do_paramopt
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -51,7 +57,9 @@ MODULE swarm_master
 
  TYPE swarm_master_type
    PRIVATE
+   INTEGER                                             :: behavior = -1
    TYPE(glbopt_master_type), ALLOCATABLE               :: glbopt
+   TYPE(paramopt_master_type), ALLOCATABLE             :: paramopt
    INTEGER                                             :: iw = 0
    INTEGER                                             :: i_iteration = 0
    INTEGER                                             :: max_iter = 0
@@ -102,6 +110,8 @@ MODULE swarm_master
     master%iw = cp_print_key_unit_nr(logger, master%swarm_section,&
           "PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
 
+    CALL section_vals_val_get(master%swarm_section,"BEHAVIOR", i_val=master%behavior, error=error)
+
     ! uses logger%iter_info%project_name to construct filename
     master%comlog_unit = cp_print_key_unit_nr(logger,master%swarm_section,"PRINT%COMMUNICATION_LOG",&
             middle_name="comlog", extension=".xyz", &
@@ -109,8 +119,16 @@ MODULE swarm_master
 
     CALL section_vals_val_get(master%swarm_section,"MAX_ITER", i_val=master%max_iter, error=error)
 
-    ALLOCATE(master%glbopt)
-    CALL glbopt_master_init(master%glbopt, master%swarm_section, n_workers, master%iw, error)
+    SELECT CASE(master%behavior)
+      CASE(swarm_do_glbopt)
+         ALLOCATE(master%glbopt)
+         CALL glbopt_master_init(master%glbopt, master%swarm_section, n_workers, master%iw, error)
+      CASE(swarm_do_paramopt)
+         ALLOCATE(master%paramopt)
+         CALL paramopt_master_init(master%paramopt, master%swarm_section, n_workers, master%iw, error)
+      CASE DEFAULT
+         STOP "swarm_master_init: got unkown behavior"
+    END SELECT
 
     CALL replay_comlog(master)
  END SUBROUTINE swarm_master_init
@@ -291,7 +309,16 @@ MODULE swarm_master
        IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
          " SWARM| Sending shutdown command to worker",worker_id
     ELSE
-       CALL glbopt_master_steer(master%glbopt, report, cmd, should_stop)
+
+       SELECT CASE(master%behavior)
+         CASE(swarm_do_glbopt)
+            CALL glbopt_master_steer(master%glbopt, report, cmd, should_stop)
+         CASE(swarm_do_paramopt)
+            CALL paramopt_master_steer(master%paramopt, report, cmd, should_stop)
+         CASE DEFAULT
+            STOP "swarm_master_steer: got unkown behavior"
+       END SELECT
+
        IF(should_stop) THEN
           CALL swarm_message_add(cmd, "cmd", "shutdown") !overwrite command
           IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
@@ -302,7 +329,8 @@ MODULE swarm_master
        ENDIF
     ENDIF
 
- END SUBROUTINE
+
+ END SUBROUTINE swarm_master_steer
 
 
 ! *****************************************************************************
@@ -314,8 +342,16 @@ MODULE swarm_master
 
     IF(master%iw > 0) WRITE(master%iw,"(A)") " SWARM| Shutting down the master."
 
-    CALL glbopt_master_finalize(master%glbopt)
-    DEALLOCATE(master%glbopt)
+    SELECT CASE(master%behavior)
+      CASE(swarm_do_glbopt)
+         CALL glbopt_master_finalize(master%glbopt)
+         DEALLOCATE(master%glbopt)
+      CASE(swarm_do_paramopt)
+         CALL paramopt_master_finalize(master%paramopt)
+         DEALLOCATE(master%paramopt)
+      CASE DEFAULT
+         STOP "swarm_master_finalize: got unkown behavior"
+    END SELECT
 
     logger => cp_error_get_logger(master%error)
     CALL cp_print_key_finished_output(master%iw, logger,&

@@ -38,15 +38,20 @@ MODULE swarm_worker
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
                                              section_vals_val_get
-  USE glbopt_worker,                   ONLY:  glbopt_worker_init,&
-                                              glbopt_worker_finalize,&
-                                              glbopt_worker_execute,&
-                                              glbopt_worker_type
+  USE glbopt_worker,                   ONLY: glbopt_worker_init,&
+                                             glbopt_worker_finalize,&
+                                             glbopt_worker_execute,&
+                                             glbopt_worker_type
+ USE paramopt_worker,                  ONLY: paramopt_worker_init,&
+                                             paramopt_worker_finalize,&
+                                             paramopt_worker_execute,&
+                                             paramopt_worker_type
   USE swarm_message,                   ONLY: swarm_message_type,&
                                              swarm_message_add,&
                                              swarm_message_get,&
                                              swarm_message_length
-
+  USE input_constants,                 ONLY: swarm_do_glbopt,&
+                                             swarm_do_paramopt
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -61,10 +66,12 @@ MODULE swarm_worker
 
   TYPE swarm_worker_type
    PRIVATE
-   INTEGER                                  :: id
-   INTEGER                                  :: iw
+   INTEGER                                  :: id = -1
+   INTEGER                                  :: iw = -1
    TYPE(cp_error_type)                      :: error
-   TYPE(glbopt_worker_type)                 :: glbopt
+   INTEGER                                  :: behavior = -1
+   TYPE(glbopt_worker_type), POINTER        :: glbopt => Null()
+   TYPE(paramopt_worker_type), POINTER      :: paramopt => Null()
  END TYPE swarm_worker_type
 
  CONTAINS
@@ -93,8 +100,20 @@ MODULE swarm_worker
     worker%iw = cp_print_key_unit_nr(logger,root_section,&
           "SWARM%PRINT%WORKER_RUN_INFO",extension=".workerLog", error=worker%error)
 
-    CALL glbopt_worker_init(worker%glbopt, para_env, root_section,&
+    CALL section_vals_val_get(root_section,"SWARM%BEHAVIOR", i_val=worker%behavior, error=error)
+
+    SELECT CASE(worker%behavior)
+      CASE(swarm_do_glbopt)
+         ALLOCATE(worker%glbopt)
+         CALL glbopt_worker_init(worker%glbopt, para_env, root_section,&
                  input_path, worker_id, worker%iw, error)
+      CASE(swarm_do_paramopt)
+         ALLOCATE(worker%paramopt)
+         CALL paramopt_worker_init(worker%paramopt, para_env, root_section,&
+                 input_path, worker_id, worker%iw, error)
+      CASE DEFAULT
+         STOP "swarm_worker_init: got unkown behavior"
+    END SELECT
 
   END SUBROUTINE swarm_worker_init
 
@@ -105,7 +124,16 @@ MODULE swarm_worker
    SUBROUTINE swarm_worker_finalize(worker)
     TYPE(swarm_worker_type), INTENT(INOUT)  :: worker
 
-    CALL glbopt_worker_finalize(worker%glbopt)
+     SELECT CASE(worker%behavior)
+      CASE(swarm_do_glbopt)
+         CALL glbopt_worker_finalize(worker%glbopt)
+         DEALLOCATE(worker%glbopt)
+      CASE(swarm_do_paramopt)
+         CALL paramopt_worker_finalize(worker%paramopt)
+         DEALLOCATE(worker%glbopt)
+      CASE DEFAULT
+         STOP "swarm_worker_finalize: got unkown behavior"
+    END SELECT
 
    END SUBROUTINE swarm_worker_finalize
 
@@ -115,17 +143,27 @@ MODULE swarm_worker
    SUBROUTINE swarm_worker_execute(worker, cmd, report, should_stop)
      TYPE(swarm_worker_type), INTENT(INOUT)  :: worker
      TYPE(swarm_message_type), INTENT(IN)    :: cmd
-     TYPE(swarm_message_type), INTENT(OUT)    :: report
+     TYPE(swarm_message_type), INTENT(OUT)   :: report
      LOGICAL, INTENT(INOUT)                  :: should_stop
+
      CHARACTER(LEN=default_string_length)    :: command
+
      CALL swarm_message_get(cmd, "command", command)
      IF(TRIM(command) == "shutdown") THEN
         IF(worker%iw>0) WRITE(worker%iw,*) "SWARM| Received shutdown command, quitting."
         should_stop = .TRUE.
      ELSE
-        CALL glbopt_worker_execute(worker%glbopt, cmd, report)
+        SELECT CASE(worker%behavior)
+           CASE(swarm_do_glbopt)
+             CALL glbopt_worker_execute(worker%glbopt, cmd, report)
+           CASE(swarm_do_paramopt)
+              CALL paramopt_worker_execute(worker%paramopt, cmd, report)
+           CASE DEFAULT
+              STOP "swarm_worker_execute: got unkown behavior"
+        END SELECT
      ENDIF
 
+     CALL swarm_message_add(report, "worker_id", worker%id)
    END SUBROUTINE swarm_worker_execute
 
 ! *****************************************************************************

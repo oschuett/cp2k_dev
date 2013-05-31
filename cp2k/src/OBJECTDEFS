@@ -798,8 +798,12 @@ OBJECTS_GENERIC =\
  swarm_mpi.o\
  swarm_message.o\
  swarm_comlog.o\
+ paramopt_master.o\
+ paramopt_worker.o\
+ paramopt_input.o\
  glbopt_master.o\
  glbopt_worker.o\
+ glbopt_input.o\
  glbopt_types.o\
  glbopt_history.o\
  glbopt_minhop.o\

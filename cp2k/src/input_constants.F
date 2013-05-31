@@ -30,7 +30,7 @@ MODULE input_constants
                                               do_cp2k=4,&
                                               do_optimize_input=5,&
                                               do_swarm=6
-                                              
+
   INTEGER, PARAMETER, PUBLIC               :: opt_force_matching=1
 
   INTEGER, PARAMETER, PUBLIC               :: do_full_density=0,&
@@ -910,7 +910,7 @@ MODULE input_constants
   INTEGER, PARAMETER, PUBLIC               :: callgraph_none=0,&
                                               callgraph_master=1,&
                                               callgraph_all=2 
-                                            
+
   ! Impose cell symmetry
   INTEGER, PARAMETER, PUBLIC               :: cell_sym_none=0,&
                                               cell_sym_triclinic=1,&
@@ -923,4 +923,6 @@ MODULE input_constants
                                               cell_sym_hexagonal=8,&
                                               cell_sym_cubic=9
 
+   INTEGER, PARAMETER, PUBLIC               :: swarm_do_glbopt=1,&
+                                               swarm_do_paramopt=2
 END MODULE input_constants
