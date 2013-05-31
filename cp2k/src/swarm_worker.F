@@ -62,7 +62,7 @@ MODULE swarm_worker
  PUBLIC :: swarm_worker_init, swarm_worker_finalize
  PUBLIC :: swarm_worker_execute
  PUBLIC :: swarm_worker_type
- PUBLIC :: swarm_worker_create_empty_report
+ PUBLIC :: swarm_worker_create_initial_report
 
   TYPE swarm_worker_type
    PRIVATE
@@ -149,6 +149,8 @@ MODULE swarm_worker
      CHARACTER(LEN=default_string_length)    :: command
 
      CALL swarm_message_get(cmd, "command", command)
+     CALL swarm_message_add(report, "worker_id", worker%id)
+
      IF(TRIM(command) == "shutdown") THEN
         IF(worker%iw>0) WRITE(worker%iw,*) "SWARM| Received shutdown command, quitting."
         should_stop = .TRUE.
@@ -163,25 +165,24 @@ MODULE swarm_worker
         END SELECT
      ENDIF
 
-     CALL swarm_message_add(report, "worker_id", worker%id)
    END SUBROUTINE swarm_worker_execute
 
 ! *****************************************************************************
 ! *****************************************************************************
-   SUBROUTINE swarm_worker_create_empty_report(worker, report)
+   SUBROUTINE swarm_worker_create_initial_report(worker, report)
        TYPE(swarm_worker_type), INTENT(INOUT)                :: worker
        TYPE(swarm_message_type), INTENT(OUT)                 :: report
-       REAL(KIND=dp), DIMENSION(3) :: fake_positions
+       REAL(KIND=dp), DIMENSION(:), POINTER :: fake_positions
 
        CALL swarm_message_add(report, "worker_id", worker%id)
-       CALL swarm_message_add(report, "Epot", 0.0_dp)
-       CALL swarm_message_add(report, "iframe", 1)
-       fake_positions = 0.0
-       CALL swarm_message_add(report, "positions", fake_positions)
-       WRITE (*,*) "swarm_worker_create_empty_report: ugly hack using fake positions"
-       !ALLOCATE(report%positions(3))
-       !report%positions(:) = 0.0
+       CALL swarm_message_add(report, "initial_hello", 1)
+       !CALL swarm_message_add(report, "iframe", 1)
+       !
+       !ALLOCATE(fake_positions(3))
+       !fake_positions = 0.0
+       !CALL swarm_message_add(report, "positions", fake_positions)
+       !WRITE (*,*) "swarm_worker_create_empty_report: ugly hack using fake positions"
 
-   END SUBROUTINE swarm_worker_create_empty_report
+   END SUBROUTINE swarm_worker_create_initial_report
 END MODULE swarm_worker
 

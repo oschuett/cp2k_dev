@@ -13,7 +13,8 @@ MODULE glbopt_worker
   USE cp_para_types,                   ONLY: cp_para_env_type
   USE cp_subsys_types,                 ONLY: cp_subsys_get,&
                                              cp_subsys_type,&
-                                             pack_subsys_particles
+                                             pack_subsys_particles,&
+                                             unpack_subsys_particles
   USE f77_interface,                   ONLY: create_force_env,&
                                              destroy_force_env,&
                                              f_env_add_defaults,&
@@ -42,6 +43,7 @@ MODULE glbopt_worker
   USE swarm_message,                   ONLY: swarm_message_type,&
                                              swarm_message_add,&
                                              swarm_message_get,&
+                                             swarm_message_haskey,&
                                              swarm_message_length
 #include "cp_common_uses.h"
 
@@ -71,6 +73,8 @@ MODULE glbopt_worker
    INTEGER                                  :: epot_nup
    INTEGER                                  :: md_mincount_max
    REAL(KIND=dp)                            :: md_max_dist
+   !REAL(KING=dp), DIMENSION(:), POINTER     :: positions => Null()
+   INTEGER                                  :: n_atoms = -1
  END TYPE glbopt_worker_type
 
 
@@ -97,7 +101,7 @@ MODULE glbopt_worker
         INTEGER                                  :: i
         LOGICAL                                  :: failure
         TYPE(section_vals_type), POINTER         :: glbopt_section
-        REAL(kind=dp)                            :: dist_in_angstrom 
+        REAL(kind=dp)                            :: dist_in_angstrom
         TYPE(cp_logger_type), POINTER            :: logger
         failure = .FALSE.
 
@@ -143,6 +147,8 @@ MODULE glbopt_worker
       worker%iw = cp_print_key_unit_nr(logger,root_section,&
           "SWARM%PRINT%WORKER_RUN_INFO",extension=".workerLog", error=worker%error)
 
+      CALL cp_subsys_get(worker%subsys, natom=worker%n_atoms, error=worker%error)
+
       ! fetch original value from input
       CALL section_vals_val_get(root_section, "MOTION%GEO_OPT%MAX_ITER", i_val=worker%gopt_max_iter, error=worker%error)
       glbopt_section => section_vals_get_subs_vals(root_section, "SWARM%GLOBAL_OPT", error=error)
@@ -174,7 +180,7 @@ MODULE glbopt_worker
    SUBROUTINE glbopt_worker_execute(worker, cmd, report)
        TYPE(glbopt_worker_type), INTENT(INOUT)  :: worker
        TYPE(swarm_message_type), INTENT(IN)     :: cmd
-       TYPE(swarm_message_type), INTENT(OUT)    :: report
+       TYPE(swarm_message_type), INTENT(INOUT)  :: report
 
        INTEGER                                  :: n_atoms
        REAL(KIND=dp)                            :: temperature, Epot
@@ -182,6 +188,12 @@ MODULE glbopt_worker
        CHARACTER(len=default_string_length)     :: command
 
        CALL swarm_message_get(cmd, "command", command)
+       IF(swarm_message_haskey(cmd, "positions")) THEN
+           CALL swarm_message_get(cmd, "positions", positions)
+           CALL unpack_subsys_particles(worker%subsys, r=positions, error=worker%error)
+           !WRITE (*,*) "unpacking positions", positions
+       END IF
+
        IF(TRIM(command) == "md_and_gopt") THEN
            CALL swarm_message_get(cmd, "temperature", temperature)
            CALL swarm_message_get(cmd, "iframe", worker%iframe)
@@ -191,13 +203,11 @@ MODULE glbopt_worker
        END IF
 
        ! assemble report
-       CALL swarm_message_add(report, "worker_id", worker%id)
        CALL swarm_message_add(report, "iframe", worker%iframe)
        CALL force_env_get(worker%force_env, potential_energy=Epot, error=worker%error)
        CALL swarm_message_add(report, "Epot", Epot)
        IF (worker%iw>0) WRITE (worker%iw,'(A,25X,E20.10)')' GLBOPT| Potential Energy [Hartree]',Epot
-       CALL cp_subsys_get(worker%subsys, natom=n_atoms, error=worker%error)
-       ALLOCATE(positions(3*n_atoms))
+       ALLOCATE(positions(3*worker%n_atoms))
        CALL pack_subsys_particles(worker%subsys, r=positions, error=worker%error)
        CALL swarm_message_add(report, "positions", positions)
    END SUBROUTINE glbopt_worker_execute

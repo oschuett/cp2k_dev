@@ -84,11 +84,13 @@ MODULE swarm_master
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE swarm_master_init(master, para_env, globenv, root_section, n_workers, error)
+! TODO: input_path and root_section not really need
+ SUBROUTINE swarm_master_init(master, para_env, globenv, root_section, input_path, n_workers, error)
     TYPE(swarm_master_type)                 :: master
     TYPE(cp_para_env_type), POINTER          :: para_env
     TYPE(global_environment_type), POINTER   :: globenv
     TYPE(section_vals_type), POINTER         :: root_section
+    CHARACTER(LEN=*), INTENT(IN)             :: input_path
     INTEGER, INTENT(IN)                      :: n_workers
     TYPE(cp_error_type), INTENT(inout)       :: error
 
@@ -122,10 +124,10 @@ MODULE swarm_master
     SELECT CASE(master%behavior)
       CASE(swarm_do_glbopt)
          ALLOCATE(master%glbopt)
-         CALL glbopt_master_init(master%glbopt, master%swarm_section, n_workers, master%iw, error)
+         CALL glbopt_master_init(master%glbopt, para_env, master%swarm_section, input_path, n_workers, master%iw, error)
       CASE(swarm_do_paramopt)
          ALLOCATE(master%paramopt)
-         CALL paramopt_master_init(master%paramopt, master%swarm_section, n_workers, master%iw, error)
+         CALL paramopt_master_init(master%paramopt, para_env, master%swarm_section, input_path, n_workers, master%iw, error)
       CASE DEFAULT
          STOP "swarm_master_init: got unkown behavior"
     END SELECT

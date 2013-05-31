@@ -32,7 +32,7 @@ MODULE swarm
   USE swarm_worker,                   ONLY:  swarm_worker_execute,&
                                              swarm_worker_finalize,&
                                              swarm_worker_init,&
-                                             swarm_worker_create_empty_report,&
+                                             swarm_worker_create_initial_report,&
                                              swarm_worker_type
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_type,&
@@ -109,11 +109,11 @@ MODULE swarm
     TYPE(swarm_master_type)                 :: master
     TYPE(swarm_worker_type)                 :: worker
 
-       CALL swarm_master_init(master, para_env, globenv, root_section, n_workers=1, error=error)
+       CALL swarm_master_init(master, para_env, globenv, root_section, input_path, n_workers=1, error=error)
        CALL swarm_worker_init(worker, para_env, root_section, input_path, &
                                    worker_id=1, error=error)
 
-       CALL swarm_worker_create_empty_report(worker, report)
+       CALL swarm_worker_create_initial_report(worker, report)
        should_stop = .FALSE.
        DO WHILE(.NOT. should_stop)
           CALL swarm_master_steer(master, report, cmd)
@@ -152,7 +152,7 @@ MODULE swarm
           CALL swarm_worker_init(worker, swarm_mpi%worker,&
                      root_section, input_path, worker_id=worker_id, error=error)
 
-          CALL swarm_worker_create_empty_report(worker, report)
+          CALL swarm_worker_create_initial_report(worker, report)
           should_stop = .FALSE.
           DO WHILE(.NOT. should_stop)
              CALL swarm_mpi_send_report(swarm_mpi, report)
@@ -164,7 +164,7 @@ MODULE swarm
        !------------------------------------------------------------------------
        ELSE  ! I'm the master
           CALL swarm_master_init(master, swarm_mpi%master, globenv, root_section,&
-                 n_workers, error)
+                  input_path, n_workers, error)
           i_shutdowns = 0
           DO WHILE(i_shutdowns < n_workers)
              CALL swarm_mpi_recv_report(swarm_mpi, report)

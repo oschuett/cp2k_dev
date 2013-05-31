@@ -59,7 +59,7 @@ MODULE swarm_message
 
  PUBLIC :: swarm_message_type, swarm_message_add, swarm_message_get
  PUBLIC :: swarm_message_mpi_send, swarm_message_mpi_recv, swarm_message_mpi_bcast
- PUBLIC :: swarm_message_length
+ PUBLIC :: swarm_message_length, swarm_message_haskey
 
  CONTAINS
 
@@ -345,6 +345,25 @@ MODULE swarm_message
     END DO
   END FUNCTION swarm_message_length
 
+
+! *****************************************************************************
+! *****************************************************************************
+  FUNCTION swarm_message_haskey(msg, key) RESULT(res)
+    TYPE(swarm_message_type), INTENT(IN) :: msg
+    CHARACTER(LEN=*), INTENT(IN)         :: key
+    LOGICAL                              :: res
+
+    TYPE(message_entry_type), POINTER    :: curr_entry
+    res = .FALSE.
+    curr_entry => msg%root
+    DO WHILE(ASSOCIATED(curr_entry))
+      IF(TRIM(curr_entry%key) == TRIM(key)) THEN
+         res = .TRUE.
+         EXIT
+      END IF
+      curr_entry => curr_entry%next
+    END DO
+  END FUNCTION swarm_message_haskey
 ! *****************************************************************************
 ! *****************************************************************************
 

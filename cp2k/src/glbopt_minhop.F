@@ -17,6 +17,7 @@ MODULE glbopt_minhop
   USE swarm_message,                   ONLY: swarm_message_type,&
                                              swarm_message_add,&
                                              swarm_message_get,&
+                                             swarm_message_haskey,&
                                              swarm_message_length
   USE glbopt_utils,                    ONLY: particles_connected
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
@@ -121,6 +122,7 @@ MODULE glbopt_minhop
       WRITE(minhop%iw, '(A,47X,L1)') " MINHOP| Using shared histories:", minhop%share_history
  END SUBROUTINE minhop_init
 
+
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE minhop_steer(minhop, report, cmd)
@@ -138,7 +140,17 @@ MODULE glbopt_minhop
 
     CALL swarm_message_get(report, "worker_id", wid)
 
-    IF(swarm_message_length(minhop%prev_report(wid))==0) minhop%prev_report(wid)=report !init
+    IF(swarm_message_haskey(report, "initial_hello")) THEN
+       CALL swarm_message_add(cmd, "command", "md_and_gopt")
+       CALL swarm_message_add(cmd, "iframe", 1)
+       CALL swarm_message_add(cmd, "temperature", minhop%temperature(wid))
+       IF(minhop%iw > 0) WRITE(minhop%iw,'(A,30X,I10)') &
+                     " MINHOP| Sending initial command to worker", wid
+       RETURN
+    ENDIF
+
+    IF(swarm_message_length(minhop%prev_report(wid))==0) &
+              minhop%prev_report(wid)=report !init (first real report)
 
     CALL swarm_message_get(report, "Epot", report_Epot)
     CALL swarm_message_get(report, "positions", report_positions)
@@ -147,7 +159,7 @@ MODULE glbopt_minhop
     hid = wid ! history_id = worker_id unless ....
     IF(minhop%share_history) hid = 1 !...there is ONE shared history.
 
-    CALL history_lookup(minhop%history(hid), report, minima_known)
+    CALL history_lookup(minhop%history(hid), report_Epot, minima_known)
 
     ! Stop if cluster starts to splits into multiple fragments.
     IF(.NOT. particles_connected(report_positions, minhop%max_dist)) THEN
@@ -168,7 +180,7 @@ MODULE glbopt_minhop
       IF(minhop%iw>0) WRITE(minhop%iw,'(A,38X,A)') " MINHOP| Conclusion","new minima got accepted"
       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
       minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1 !decreasing temperature
-      CALL history_add(minhop%history(hid), report)
+      CALL history_add(minhop%history(hid), report_Epot)
       minhop%prev_report(wid) = report
       minhop%n_accepted = minhop%n_accepted + 1
     END IF
@@ -196,7 +208,6 @@ MODULE glbopt_minhop
     CALL swarm_message_get(report, "iframe", iframe)
     CALL swarm_message_add(cmd, "iframe", iframe)
     CALL swarm_message_add(cmd, "command", "md_and_gopt")
-    WRITE(*,*) "can not set prev positions yet"
     CALL swarm_message_get(minhop%prev_report(wid), "positions", prev_positions)
     CALL swarm_message_add(cmd, "positions", prev_positions)
     CALL swarm_message_add(cmd, "temperature", minhop%temperature(wid))

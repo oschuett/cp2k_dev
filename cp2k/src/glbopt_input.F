@@ -26,6 +26,7 @@ MODULE glbopt_input
                                              real_t
   USE kinds,                           ONLY: dp
   USE string_utilities,                ONLY: s2a
+  USE input_cp2k_subsys,               ONLY: create_coord_section
 
 #include "cp_common_uses.h"
 
@@ -84,6 +85,8 @@ MODULE glbopt_input
          default_r_val=2.0_dp, unit_str="angstrom",type_of_var=real_t,error=error)
     CALL section_add_keyword(glbopt_section, keyword, error=error)
     CALL keyword_release(keyword, error=error)
+
+    !CALL create_coord_section(glbopt_section, error=error)
 
     CALL minhop_declare_input(glbopt_section, error=error)
 

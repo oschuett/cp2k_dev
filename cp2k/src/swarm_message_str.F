@@ -1,9 +1,14 @@
  SUBROUTINE swarm_message_add_str(msg, key, value)
    TYPE(swarm_message_type), INTENT(INOUT)   :: msg
    CHARACTER(LEN=*), INTENT(IN)              :: key
-   CHARACTER(LEN=*), INTENT(IN)                        :: value
+   CHARACTER(LEN=*)                                    :: value
 
    TYPE(message_entry_type), POINTER :: new_entry
+
+   IF(swarm_message_haskey(msg, key)) THEN
+      WRITE (*,*) "swarm_message_add_str: key already exists: ",key
+      CALL ABORT() !TODO: call mp_abort
+   END IF
 
    ALLOCATE(new_entry)
    new_entry%key = key
@@ -11,7 +16,7 @@
    ALLOCATE(new_entry%value_str)
    new_entry%value_str = value
 
-   WRITE (*,*) "swarm_message_add_str: key=",key, " value=",new_entry%value_str
+   !WRITE (*,*) "swarm_message_add_str: key=",key, " value=",new_entry%value_str
 
    !TODO: check if name already exists
    IF(.NOT. ASSOCIATED(msg%root)) THEN
@@ -28,19 +33,19 @@
  SUBROUTINE swarm_message_get_str(msg, key, value)
    TYPE(swarm_message_type), INTENT(IN)  :: msg
    CHARACTER(LEN=*), INTENT(IN)          :: key
-   CHARACTER(LEN=*), INTENT(OUT)                   :: value
+   CHARACTER(LEN=*)                                :: value
 
    TYPE(message_entry_type), POINTER :: curr_entry
-   WRITE (*,*) "swarm_message_get_str: key=",key
+   !WRITE (*,*) "swarm_message_get_str: key=",key
 
    curr_entry => msg%root
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
          IF(.NOT. ASSOCIATED(curr_entry%value_str)) &
             STOP "swarm_message_get_str: value not associated"
-            !TODO: check other datatypes
+            !TODO: check other datatypes, call mp_abort
          value = curr_entry%value_str
-         WRITE (*,*) "swarm_message_get_str: value=",value
+         !WRITE (*,*) "swarm_message_get_str: value=",value
          RETURN
       ENDIF
       curr_entry => curr_entry%next
