@@ -307,7 +307,7 @@ MODULE swarm_master
     CALL swarm_message_add(cmd, "worker_id", worker_id)
 
     IF(master%should_stop) THEN
-       CALL swarm_message_add(cmd, "cmd", "shutdown")
+       CALL swarm_message_add(cmd, "command", "shutdown")
        IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
          " SWARM| Sending shutdown command to worker",worker_id
     ELSE
@@ -322,7 +322,7 @@ MODULE swarm_master
        END SELECT
 
        IF(should_stop) THEN
-          CALL swarm_message_add(cmd, "cmd", "shutdown") !overwrite command
+          CALL swarm_message_add(cmd, "command", "shutdown") !overwrite command
           IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
               " SWARM| Sending shutdown command to worker",worker_id
            master%should_stop = .TRUE.

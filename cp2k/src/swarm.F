@@ -138,7 +138,7 @@ MODULE swarm
     INTEGER, INTENT(IN)                      :: iw
     TYPE(cp_error_type), INTENT(inout)       :: error
 
-    INTEGER                                  :: i_shutdowns, worker_id
+    INTEGER                                  :: i_shutdowns, worker_id, handle
     LOGICAL                                  :: should_stop
     CHARACTER(len=default_string_length)     :: command
     TYPE(swarm_message_type)                :: cmd, report
@@ -155,8 +155,10 @@ MODULE swarm
           CALL swarm_worker_create_initial_report(worker, report)
           should_stop = .FALSE.
           DO WHILE(.NOT. should_stop)
+             CALL timeset("swarm_worker_await_reply", handle)
              CALL swarm_mpi_send_report(swarm_mpi, report)
              CALL swarm_mpi_recv_command(swarm_mpi, cmd)
+             CALL timestop(handle)
              CALL swarm_worker_execute(worker, cmd, report, should_stop)
           END DO
           CALL swarm_worker_finalize(worker)

@@ -85,8 +85,6 @@ MODULE glbopt_master
    REAL(KIND=dp)                                       :: Elowest = HUGE(1.0_dp)
    REAL(KIND=dp)                                       :: Emin = TINY(1.0_dp)
    INTEGER                                             :: iw = 0
-   !REAL(KIND=dp), DIMENSION(:), POINTER                :: start_positions => Null()
-   !INTEGER                                             :: n_workers = -1
    !TYPE(cp_error_type)                                 :: error
    TYPE(minhop_type) :: minhop
 
