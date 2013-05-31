@@ -22,7 +22,8 @@ MODULE swarm_mpi
                                              swarm_message_add,&
                                              swarm_message_get,&
                                              swarm_message_mpi_send,&
-                                             swarm_message_mpi_recv
+                                             swarm_message_mpi_recv,&
+                                             swarm_message_mpi_bcast
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -222,7 +223,7 @@ MODULE swarm_mpi
 
      dest = swarm_mpi%world%num_pe-1
      tag = 42
-     CALL swarm_message_mpi_send(report, dest, tag, swarm_mpi%world%group)
+     CALL swarm_message_mpi_send(report, group=swarm_mpi%world%group, dest=dest, tag=tag)
 
      !!TODO: this is inefficient - could pack everything into one buffer
      !CALL mp_send(report%worker_id,       dest, tag, swarm_mpi%world%group)
@@ -243,7 +244,7 @@ MODULE swarm_mpi
      tag=42
      src=mp_any_source
 
-     CALL swarm_message_mpi_recv(report, src, tag, swarm_mpi%world%group)
+     CALL swarm_message_mpi_recv(report, group=swarm_mpi%world%group, src=src, tag=tag)
 
      !CALL mp_recv(report%worker_id, src, tag, swarm_mpi%world%group)
      !
@@ -269,7 +270,7 @@ MODULE swarm_mpi
      tag = 42
      dest = swarm_mpi%wid2group(worker_id)
 
-     CALL swarm_message_mpi_send(cmd, dest, tag, swarm_mpi%world%group)
+     CALL swarm_message_mpi_send(cmd, group=swarm_mpi%world%group, dest=dest, tag=tag)
 
      !!TODO: this is inefficient - could pack everything into one buffer
      !CALL mp_send(cmd%cmd_id,          dest, tag, swarm_mpi%world%group)
@@ -291,14 +292,17 @@ MODULE swarm_mpi
 
     INTEGER                                  :: s, src, tag
 
-    STOP "swarm_mpi_recv_command not implemented, yet"
 
 ! This is a two step communication schema.
 ! First: The rank-0 of the worker groups receives the command from the master.
-!
-!     IF(swarm_mpi%worker%source == swarm_mpi%worker%mepos) THEN 
-!        tag = 42
-!        src = swarm_mpi%world%num_pe-1
+
+     
+     IF(swarm_mpi%worker%source == swarm_mpi%worker%mepos) THEN
+        src = swarm_mpi%world%num_pe-1!
+        tag = 42
+        CALL swarm_message_mpi_recv(cmd, group=swarm_mpi%world%group, src=src, tag=tag)
+
+
 !        CALL mp_recv(cmd%cmd_id,      src, tag, swarm_mpi%world%group)
 !        CALL mp_recv(cmd%iframe,      src, tag, swarm_mpi%world%group)
 !        CALL mp_recv(cmd%temperature, src, tag, swarm_mpi%world%group)
@@ -307,8 +311,11 @@ MODULE swarm_mpi
 !          ALLOCATE(cmd%positions(s))
 !          CALL mp_recv(cmd%positions,   src, tag, swarm_mpi%world%group)
 !        END IF
-!     ENDIF
+     ENDIF
 !
+
+      CALL swarm_message_mpi_bcast(cmd, src=swarm_mpi%worker%source, group=swarm_mpi%worker%group)
+
 !     ! Second: The command is broadcasted within the worker group.
 !     CALL mp_bcast(cmd%cmd_id,      swarm_mpi%worker%source, swarm_mpi%worker%group)
 !     CALL mp_bcast(cmd%iframe,      swarm_mpi%worker%source, swarm_mpi%worker%group)

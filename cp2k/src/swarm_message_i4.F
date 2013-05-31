@@ -46,7 +46,8 @@
       curr_entry => curr_entry%next
    END DO
    WRITE (*,*) "swarm_message_get: key not found: ",key
-   CALL ABORT()
+   !CALL ABORT()
+   STOP 1
    !TODO: call mp_abort
  END SUBROUTINE swarm_message_get_i4
 
