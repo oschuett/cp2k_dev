@@ -1,0 +1,11 @@
+--------------------------------- summary --------------------------------
+number of FAILED  tests 0
+number of WRONG   tests 0
+number of CORRECT tests 2395
+number of NEW     tests 0
+number of         tests 2395
+--------------------------------------------------------------------------
+Mon Jun 10 16:11:43 CEST 2013
+*************************** testing ended ********************************
+
+ log: branches/oschuett_dev/cufft/2013-06-10T16:03:09_regtest.out
