@@ -2631,77 +2631,81 @@ CONTAINS
        DEALLOCATE(fft_scratch%p1buf,STAT=ierr)
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
-    IF(ASSOCIATED(fft_scratch%p2buf)) THEN
 #if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
+    IF(ASSOCIATED(fft_scratch%p2buf)) THEN
        dummy_ptr_z => fft_scratch%p2buf(1,1)
        ierr = cudaFreeHost(c_loc(dummy_ptr_z))
-#else
-       DEALLOCATE(fft_scratch%p2buf,STAT=ierr)
-#endif
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
     IF(ASSOCIATED(fft_scratch%p3buf)) THEN
-#if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
        dummy_ptr_z => fft_scratch%p3buf(1,1)
        ierr = cudaFreeHost(c_loc(dummy_ptr_z))
-#else
-       DEALLOCATE(fft_scratch%p3buf,STAT=ierr)
-#endif
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
     IF(ASSOCIATED(fft_scratch%p4buf)) THEN
-#if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
        dummy_ptr_z => fft_scratch%p4buf(1,1)
        ierr = cudaFreeHost(c_loc(dummy_ptr_z))
-#else
-       DEALLOCATE(fft_scratch%p4buf,STAT=ierr)
-#endif
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
     IF(ASSOCIATED(fft_scratch%p5buf)) THEN
-#if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
        dummy_ptr_z => fft_scratch%p5buf(1,1)
        ierr = cudaFreeHost(c_loc(dummy_ptr_z))
-#else
-       DEALLOCATE(fft_scratch%p5buf,STAT=ierr)
-#endif
-       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
-    END IF
-    IF(ASSOCIATED(fft_scratch%p6buf)) THEN
-       DEALLOCATE(fft_scratch%p6buf,STAT=ierr)
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
     IF(ASSOCIATED(fft_scratch%p7buf)) THEN
-#if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
        dummy_ptr_z => fft_scratch%p7buf(1,1)
        ierr = cudaFreeHost(c_loc(dummy_ptr_z))
-#else
-       DEALLOCATE(fft_scratch%p7buf,STAT=ierr)
-#endif
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
     IF(ASSOCIATED(fft_scratch%r1buf)) THEN
-#if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
        dummy_ptr_z => fft_scratch%r1buf(1,1)
        ierr = cudaFreeHost(c_loc(dummy_ptr_z))
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
+    IF(ASSOCIATED(fft_scratch%tbuf)) THEN
+       dummy_ptr_z => fft_scratch%tbuf(1,1,1)
+       ierr = cudaFreeHost(c_loc(dummy_ptr_z))
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
 #else
+    IF(ASSOCIATED(fft_scratch%p2buf)) THEN
+       DEALLOCATE(fft_scratch%p2buf,STAT=ierr)
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
+    IF(ASSOCIATED(fft_scratch%p3buf)) THEN
+       DEALLOCATE(fft_scratch%p3buf,STAT=ierr)
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
+    IF(ASSOCIATED(fft_scratch%p4buf)) THEN
+       DEALLOCATE(fft_scratch%p4buf,STAT=ierr)
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
+    IF(ASSOCIATED(fft_scratch%p5buf)) THEN
+       DEALLOCATE(fft_scratch%p5buf,STAT=ierr)
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
+    IF(ASSOCIATED(fft_scratch%p7buf)) THEN
+       DEALLOCATE(fft_scratch%p7buf,STAT=ierr)
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
+    IF(ASSOCIATED(fft_scratch%r1buf)) THEN
        DEALLOCATE(fft_scratch%r1buf,STAT=ierr)
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
+    IF(ASSOCIATED(fft_scratch%tbuf)) THEN
+       DEALLOCATE(fft_scratch%tbuf,STAT=ierr)
+       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
+    END IF
 #endif
+    IF(ASSOCIATED(fft_scratch%p6buf)) THEN
+       DEALLOCATE(fft_scratch%p6buf,STAT=ierr)
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
     IF(ASSOCIATED(fft_scratch%r2buf)) THEN
        DEALLOCATE(fft_scratch%r2buf,STAT=ierr)
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
     END IF
-    IF(ASSOCIATED(fft_scratch%tbuf)) THEN
-#if defined ( __PW_CUDA ) && !defined ( __PW_CUDA_NO_HOSTALLOC )
-       dummy_ptr_z => fft_scratch%tbuf(1,1,1)
-       ierr = cudaFreeHost(c_loc(dummy_ptr_z))
-#else
-       DEALLOCATE(fft_scratch%tbuf,STAT=ierr)
-#endif
-       CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
-    END IF
+
     IF(ASSOCIATED(fft_scratch%a1buf)) THEN
        DEALLOCATE(fft_scratch%a1buf,STAT=ierr)
        CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
@@ -3125,6 +3129,7 @@ CONTAINS
                 CALL mp_cart_rank ( fft_sizes%rs_group, coord, fft_scratch_new%fft_scratch%pgcube (i, 2) )
              END DO
 
+#if !defined ( __PW_CUDA )
              !set up fft plans
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(1), fft_type, FWFFT, .TRUE., n(3), mx1*my1, &
                   fft_scratch_new%fft_scratch%a1buf, fft_scratch_new%fft_scratch%a2buf, fft_plan_style)
@@ -3138,6 +3143,7 @@ CONTAINS
                   fft_scratch_new%fft_scratch%a4buf, fft_scratch_new%fft_scratch%a3buf, fft_plan_style)
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(6), fft_type, BWFFT, .TRUE., n(3), mx1*my1, &
                   fft_scratch_new%fft_scratch%a2buf, fft_scratch_new%fft_scratch%a1buf, fft_plan_style)
+#endif
 
 
           CASE (101)    ! fft3d_pb: full cube distribution (dim 1)
@@ -3170,6 +3176,7 @@ CONTAINS
              ALLOCATE ( fft_scratch_new%fft_scratch%rbuf6(mx1*mz1*mcy3,0:DIM(1)-1),STAT=ierr)
              CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
 
+#if !defined ( __PW_CUDA )
              !set up fft plans
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(1), fft_type, FWFFT, .TRUE., n(3), mx1*my1, &
                   fft_scratch_new%fft_scratch%a1buf, fft_scratch_new%fft_scratch%a3buf, fft_plan_style)
@@ -3183,6 +3190,7 @@ CONTAINS
                   fft_scratch_new%fft_scratch%a4buf, fft_scratch_new%fft_scratch%a3buf, fft_plan_style)
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(6), fft_type, BWFFT, .TRUE., n(3), mx1*my1, &
                   fft_scratch_new%fft_scratch%a3buf, fft_scratch_new%fft_scratch%a1buf, fft_plan_style)
+#endif
 
 
           CASE (200)    ! fft3d_ps: plane distribution
@@ -3226,6 +3234,7 @@ CONTAINS
                 CPPrecondition(ierr==0,cp_failure_level,routineP,error,failure)
              END IF
 
+#if !defined ( __PW_CUDA )
              !set up fft plans
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(1), fft_type, FWFFT, .TRUE., nz, nx*ny, &
                   fft_scratch_new%fft_scratch%tbuf, fft_scratch_new%fft_scratch%r1buf, fft_plan_style)
@@ -3239,6 +3248,7 @@ CONTAINS
                   fft_scratch_new%fft_scratch%tbuf, fft_scratch_new%fft_scratch%r1buf, fft_plan_style)
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(6), fft_type, BWFFT, .TRUE., nz, nx*ny, &
                   fft_scratch_new%fft_scratch%r1buf, fft_scratch_new%fft_scratch%tbuf, fft_plan_style)
+#endif
 
           CASE (300)    ! fft3d_ps: block distribution
              mx1   = fft_sizes%mx1
@@ -3355,6 +3365,7 @@ CONTAINS
                 fft_scratch_new%fft_scratch%pzcoord(i) = pcoord(2)
              END DO
 
+#if !defined ( __PW_CUDA )
              !set up fft plans
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(1), fft_type, FWFFT, .TRUE., n(3), mx1*my1, &
                   fft_scratch_new%fft_scratch%p1buf, fft_scratch_new%fft_scratch%p2buf, fft_plan_style)
@@ -3368,6 +3379,7 @@ CONTAINS
                   fft_scratch_new%fft_scratch%p4buf, fft_scratch_new%fft_scratch%p3buf, fft_plan_style)
              CALL fft_create_plan_1dm(fft_scratch_new%fft_scratch%fft_plan(6), fft_type, BWFFT, .TRUE., n(3), mx1*my1, &
                   fft_scratch_new%fft_scratch%p3buf, fft_scratch_new%fft_scratch%p1buf, fft_plan_style)
+#endif
 
 
           CASE (400)    ! serial FFT
