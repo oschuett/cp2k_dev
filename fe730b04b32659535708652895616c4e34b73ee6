@@ -1,0 +1,11 @@
+--------------------------------- summary --------------------------------
+number of FAILED  tests 0
+number of WRONG   tests 0
+number of CORRECT tests 0
+number of NEW     tests 2395
+number of         tests 2395
+--------------------------------------------------------------------------
+Mon Jun 10 18:13:01 CEST 2013
+*************************** testing ended ********************************
+
+ log: branches/github_cp2k/master/2013-06-10T18:02:47_regtest.out
