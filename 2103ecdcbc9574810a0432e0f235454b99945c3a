@@ -1,0 +1,11 @@
+--------------------------------- summary --------------------------------
+number of FAILED  tests 0
+number of WRONG   tests 0
+number of CORRECT tests 0
+number of NEW     tests 2384
+number of         tests 2384
+--------------------------------------------------------------------------
+Tue Jun 11 18:08:01 CEST 2013
+*************************** testing ended ********************************
+
+ log: branches/oschuett_dev/glbopt/2013-06-11T17:57:49_regtest.out
