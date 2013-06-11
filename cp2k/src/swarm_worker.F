@@ -130,7 +130,7 @@ MODULE swarm_worker
          DEALLOCATE(worker%glbopt)
       CASE(swarm_do_paramopt)
          CALL paramopt_worker_finalize(worker%paramopt)
-         DEALLOCATE(worker%glbopt)
+         DEALLOCATE(worker%paramopt)
       CASE DEFAULT
          STOP "swarm_worker_finalize: got unkown behavior"
     END SELECT
