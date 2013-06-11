@@ -1,0 +1,142 @@
+&GLOBAL
+   PROGRAM_NAME SWARM
+   RUN_TYPE NONE
+   PROJECT_NAME LJ010_RUN001
+   SEED 100
+&END GLOBAL
+&SWARM
+   BEHAVIOR PARAM_OPT
+   !REPLAY_COMMUNICATION_LOG comlog.xyz
+   NUMBER_OF_WORKERS  10
+   MAX_ITER 100
+&END SWARM
+
+&MOTION
+  &PRINT  ! IO is expensive, turning everything off
+    &RESTART 
+      BACKUP_COPIES 0
+      ADD_LAST NO
+      &EACH
+        MD -1
+        GEO_OPT 1
+      &END EACH
+    &END RESTART
+    &RESTART_HISTORY OFF
+    &END RESTART_HISTORY
+    &TRAJECTORY 
+      ADD_LAST NUMERIC
+      &EACH
+        GEO_OPT -1
+        MD -1
+      &END EACH
+    &END TRAJECTORY
+  &END PRINT
+
+  &MD
+    ENSEMBLE NVE
+    STEPS 100
+    TIMESTEP 1.0
+    TEMPERATURE 10.0
+    &PRINT
+      &ENERGY OFF
+      &END ENERGY
+      &PROGRAM_RUN_INFO SILENT
+      &END PROGRAM_RUN_INFO
+      FORCE_LAST .TRUE.
+    &END PRINT
+  &END MD
+
+  &GEO_OPT
+    OPTIMIZER BFGS
+    MAX_ITER 300
+    &BFGS
+      USE_MODEL_HESSIAN .FALSE.
+      TRUST_RADIUS [angstrom] 0.1
+      USE_RAT_FUN_OPT  ! otherwise LJ particle sth. get too close.
+      &RESTART OFF
+      &END RESTART
+    &END BFGS
+    &PRINT
+      &PROGRAM_RUN_INFO SILENT
+      &END PROGRAM_RUN_INFO
+    &END PRINT
+  &END GEO_OPT
+
+&END MOTION
+
+&FORCE_EVAL
+  METHOD FIST
+  &MM
+    &FORCEFIELD
+     &SPLINE
+        R0_NB 0.0     ! solely MAX_SPLINE shall control spline range
+        EMAX_SPLINE   [hartree] 1000    ! yields r_min = 0.66 bohr
+        EMAX_ACCURACY [hartree] 1000
+        EPS_SPLINE    [hartree] 1.0E-10   ! yields 1698 spline points
+     &END SPLINE
+      &NONBONDED
+        &LENNARD-JONES
+          atoms X X
+          EPSILON [hartree] 0.001
+          SIGMA 1.0
+          RCUT 25.0
+        &END LENNARD-JONES
+      &END NONBONDED
+      &CHARGE
+        ATOM X
+        CHARGE 0.0
+      &END CHARGE
+    &END FORCEFIELD
+    &POISSON
+      &EWALD
+        EWALD_TYPE none
+      &END EWALD
+    &END POISSON
+    &PRINT
+      &FF_INFO
+      &END FF_INFO
+    &END PRINT
+  &END MM
+  &SUBSYS
+    &CELL
+    ABC [angstrom] 50.0 50.0 50.0
+      !PERIODIC NONE
+   &END CELL
+
+   &COORD
+      X 0.000000 0.000000 0.000000
+X 1.500000 0.000000 0.000000
+X 0.000000 1.500000 0.000000
+X 1.500000 1.500000 0.000000
+X 0.000000 0.000000 1.500000
+X 1.500000 0.000000 1.500000
+X 0.000000 1.500000 1.500000
+X 1.500000 1.500000 1.500000
+X 0.000000 0.000000 3.000000
+X 1.500000 0.000000 3.000000
+
+    &END COORD
+
+    &TOPOLOGY
+      CONNECTIVITY OFF
+    &END TOPOLOGY
+
+    &COLVAR
+      &U
+      &END U
+    &END COLVAR
+
+    !&COLVAR
+    !  &DISTANCE
+    !    ATOMS 1 2
+    !  &END DISTANCE
+    !&END COLVAR
+
+
+     &KIND X
+        ELEMENT H
+        MASS 1.0
+     &END KIND
+  &END SUBSYS
+&END FORCE_EVAL
+
