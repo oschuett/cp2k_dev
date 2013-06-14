@@ -1,0 +1,2 @@
+build_gfortran_pdbg PASS  http://test.cp2k.org/auto_tester/s01/branches/oschuett_dev/dbcsr/2013-06-14T18:48:03_make.out
+regtest_gfortran_pdbg FAIL TOTAL: 40, FAILED: 39, WRONG: 0 CORRECT: 1 NEW: 0 http://test.cp2k.org/auto_tester/s01/branches/oschuett_dev/dbcsr/2013-06-14T18:48:09_regtest.out
