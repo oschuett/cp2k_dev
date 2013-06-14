@@ -1,0 +1,2 @@
+build_gfortran_pdbg PASS  http://test.cp2k.org/auto_tester/s01/branches/github_cp2k/master/2013-06-15T00:15:10_make.out
+regtest_gfortran_pdbg PASS TOTAL: 44, FAILED: 0, WRONG: 0 CORRECT: 44 NEW: 0 http://test.cp2k.org/auto_tester/s01/branches/github_cp2k/master/2013-06-15T00:17:13_regtest.out
