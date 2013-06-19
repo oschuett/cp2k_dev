@@ -76,7 +76,7 @@ MODULE swarm_message
     if(src==mepos) key_arr = TRANSFER(entry%key, key_arr)
 
     CALL mp_bcast(key_arr, src, group)
-    if(src/=mepos) entry%key = TRANSFER(entry%key,entry%key)
+    if(src/=mepos) entry%key = TRANSFER(key_arr, entry%key)
 
     IF(src==mepos) THEN
        datasize = 1
@@ -111,12 +111,16 @@ MODULE swarm_message
 
     SELECT CASE(datatype)
     CASE(1)
+       IF(src/=mepos) ALLOCATE(entry%value_i4)
        CALL mp_bcast(entry%value_i4, src, group)
     CASE(2)
+       IF(src/=mepos) ALLOCATE(entry%value_i8)
        CALL mp_bcast(entry%value_i8, src, group)
     CASE(3)
+       IF(src/=mepos) ALLOCATE(entry%value_r4)
        CALL mp_bcast(entry%value_r4, src, group)
     CASE(4)
+       IF(src/=mepos) ALLOCATE(entry%value_r8)
        CALL mp_bcast(entry%value_r8, src, group)
     CASE(5)
        IF(src/=mepos) ALLOCATE(entry%value_i4_1d(datasize))

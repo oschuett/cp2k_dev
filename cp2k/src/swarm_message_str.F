@@ -50,9 +50,7 @@
       ENDIF
       curr_entry => curr_entry%next
    END DO
-   WRITE (*,*) "swarm_message_get: key not found: ",key
-   CALL ABORT()
-   !TODO: call mp_abort
+   CALL mp_abort("swarm_message_get: key not found: "//TRIM(key))
  END SUBROUTINE swarm_message_get_str
 
 

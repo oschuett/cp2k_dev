@@ -288,7 +288,7 @@ MODULE swarm_master
     ! There are no queued commands. Do the normal processing.
     master%i_iteration = master%i_iteration + 1
 
-    WRITE (master%iw,'(A,A,X,I8,A,A)') ' SWARM| ',REPEAT("*", 15),&
+    IF(master%iw>0) WRITE (master%iw,'(A,A,X,I8,A,A)') ' SWARM| ',REPEAT("*", 15),&
          master%i_iteration,'. Master / Worker Communication  ',REPEAT("*", 15)
 
     IF(master%i_iteration>=master%max_iter .AND. .NOT. master%should_stop) THEN
