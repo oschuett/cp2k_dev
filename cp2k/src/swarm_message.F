@@ -15,6 +15,11 @@ MODULE swarm_message
        mp_abort, mp_any_source, mp_bcast, mp_comm_free, mp_comm_split, &
        mp_comm_split_direct, mp_environ, mp_recv, mp_send, mp_sum, mp_sync
 
+  USE cp_parser_methods,               ONLY: parser_get_next_line,&
+                                             parser_get_object
+  USE cp_parser_types,                 ONLY: cp_parser_type
+  USE kinds,                           ONLY: default_string_length
+
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -59,6 +64,7 @@ MODULE swarm_message
 
  PUBLIC :: swarm_message_type, swarm_message_add, swarm_message_get
  PUBLIC :: swarm_message_mpi_send, swarm_message_mpi_recv, swarm_message_mpi_bcast
+ PUBLIC :: swarm_message_file_write, swarm_message_file_read
  PUBLIC :: swarm_message_length, swarm_message_haskey
 
  CONTAINS
@@ -373,8 +379,216 @@ MODULE swarm_message
 
 !  END SUBROUTINE swarm_mpi_recv_message_entry(group, dest, tag, entry)
   
+	
 ! *****************************************************************************
 ! *****************************************************************************
+  SUBROUTINE swarm_message_file_write(msg, unit)
+    TYPE(swarm_message_type),INTENT(IN) :: msg
+    INTEGER, INTENT(IN)                 :: unit
+
+    TYPE(message_entry_type), POINTER :: curr_entry
+
+    WRITE(unit,"(A)") "BEGIN SWARM_MESSAGE"
+    WRITE(unit,"(AI10)") "msg_length: ", swarm_message_length(msg)
+
+    curr_entry => msg%root
+    DO WHILE(ASSOCIATED(curr_entry))
+      CALL swarm_message_entry_file_write(curr_entry, unit)
+      curr_entry => curr_entry%next
+    END DO
+
+    WRITE(unit,"(A)") "END SWARM_MESSAGE"
+    WRITE(unit,"()")
+  END SUBROUTINE swarm_message_file_write
+
+
+! *****************************************************************************
+! *****************************************************************************
+  SUBROUTINE swarm_message_entry_file_write(entry, unit)
+    TYPE(message_entry_type),INTENT(IN) :: entry
+    INTEGER, INTENT(IN)                 :: unit
+
+    INTEGER                             :: i
+
+    WRITE(unit,"(AA)") "key: ",  entry%key
+    IF(ASSOCIATED(entry%value_i4)) THEN
+       WRITE(unit,"(A)") "datatype: i4"
+       WRITE(unit,"(AI10)") "value: ", entry%value_i4
+
+    ELSE IF(ASSOCIATED(entry%value_i8)) THEN
+       WRITE(unit,"(A)") "datatype: i8"
+       WRITE(unit,"(AI20)") "value: ", entry%value_i8
+
+    ELSE IF(ASSOCIATED(entry%value_r4)) THEN
+       WRITE(unit,"(A)") "datatype: r4"
+       WRITE(unit,"(AE30.20)") "value: ", entry%value_r4
+
+    ELSE IF(ASSOCIATED(entry%value_r8)) THEN
+       WRITE(unit,"(A)") "datatype: r8"
+       WRITE(unit,"(AE30.20)") "value: ", entry%value_r8
+
+    ELSE IF(ASSOCIATED(entry%value_str)) THEN
+       WRITE(unit,"(A)") "datatype: str"
+       WRITE(unit,"(AA)") "value: ", entry%value_str
+
+    ELSE IF(ASSOCIATED(entry%value_i4_1d)) THEN
+       WRITE(unit,"(A)") "datatype: i4_1d"
+       WRITE(unit,"(AI10)") "size: ", SIZE(entry%value_i4_1d)
+       WRITE(unit,*) entry%value_i4_1d
+
+    ELSE IF(ASSOCIATED(entry%value_i8_1d)) THEN
+       WRITE(unit,"(A)") "datatype: i8_1d"
+       WRITE(unit,"(AI20)") "size: ", SIZE(entry%value_i8_1d)
+       WRITE(unit,*) entry%value_i8_1d
+
+    ELSE IF(ASSOCIATED(entry%value_r4_1d)) THEN
+       WRITE(unit,"(A)") "datatype: r4_1d"
+       WRITE(unit,"(AI8)") "size: ", SIZE(entry%value_r4_1d)
+       DO i=1, SIZE(entry%value_r4_1d)
+         WRITE(unit,"(XE30.20)", advance="no") entry%value_r4_1d(i)
+       END DO
+       WRITE(unit,"(X)")
+
+    ELSE IF(ASSOCIATED(entry%value_r8_1d)) THEN
+       WRITE(unit,"(A)") "datatype: r8_1d"
+       WRITE(unit,"(AI8)") "size: ", SIZE(entry%value_r8_1d)
+       DO i=1, SIZE(entry%value_r8_1d)
+         WRITE(unit,"(XE30.20)", advance="no") entry%value_r8_1d(i)
+       END DO
+       WRITE(unit,"(X)")
+
+    ELSE
+       CALL abort()
+       STOP "swarm_message_entry_file_write: no value associated"
+    END IF
+  END SUBROUTINE swarm_message_entry_file_write
+
+
+! *****************************************************************************
+! *****************************************************************************
+  SUBROUTINE swarm_message_file_read(msg, parser, at_end, error)
+    TYPE(swarm_message_type),INTENT(INOUT)     :: msg
+    TYPE(cp_parser_type), POINTER              :: parser
+    LOGICAL, INTENT(INOUT)                     :: at_end
+    TYPE(cp_error_type)                        :: error
+
+    TYPE(message_entry_type), POINTER          :: new_entry
+    INTEGER                                    :: length, i
+    CHARACTER(LEN=default_string_length)       :: key
+
+    IF(ASSOCIATED(msg%root)) STOP "swarm_message_file_read: message not empty"
+
+    CALL parser_get_next_line(parser, 1, at_end, error)
+    at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
+    IF(at_end) RETURN
+    IF(TRIM(parser%input_line)/="BEGIN SWARM_MESSAGE") STOP "swarm_message_file_read failed (1)"
+
+    CALL parser_get_next_line(parser, 1, at_end, error)
+    at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
+    IF(at_end) RETURN
+    READ (parser%input_line,*) key, length
+    IF(TRIM(key)/="msg_length:") STOP "swarm_message_file_read failed (2)"
+
+    DO i=1, length
+       ALLOCATE(new_entry)
+       CALL swarm_message_entry_file_read(new_entry, parser, at_end, error)
+       new_entry%next => msg%root
+       msg%root => new_entry
+    END DO
+
+    CALL parser_get_next_line(parser, 1, at_end, error)
+    at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
+    IF(at_end) RETURN
+    IF(TRIM(parser%input_line)/="END SWARM_MESSAGE") STOP "swarm_message_file_read failed (3)"
+
+  END SUBROUTINE swarm_message_file_read
+
+! *****************************************************************************
+! *****************************************************************************
+  SUBROUTINE swarm_message_entry_file_read(entry, parser, at_end, error)
+    TYPE(message_entry_type),INTENT(INOUT)     :: entry
+    TYPE(cp_parser_type), POINTER              :: parser
+    LOGICAL, INTENT(INOUT)                     :: at_end
+    TYPE(cp_error_type)                        :: error
+    CHARACTER(LEN=default_string_length)       :: label, datatype
+
+    INTEGER                                    :: i, arr_size
+    LOGICAL                                    :: is_scalar
+
+    CALL parser_get_next_line(parser, 1, at_end, error)
+    at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
+    IF(at_end) RETURN
+    READ (parser%input_line,*) label, entry%key
+    IF(TRIM(label)/="key:") STOP "swarm_message_entry_file_read failed (1)"
+    
+    WRITE (*,*) "key: ", entry%key
+    
+    CALL parser_get_next_line(parser, 1, at_end, error)
+    at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
+    IF(at_end) RETURN
+    READ (parser%input_line,*) label, datatype
+    IF(TRIM(label)/="datatype:") STOP "swarm_message_entry_file_read failed (2)"
+
+    CALL parser_get_next_line(parser, 1, at_end, error)
+    at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
+    IF(at_end) RETURN
+
+    is_scalar=.TRUE.
+    IF(TRIM(datatype)=="i4") THEN
+       ALLOCATE(entry%value_i4)
+       READ (parser%input_line,*) label, entry%value_i4
+    ELSE IF(TRIM(datatype)=="i8") THEN
+       ALLOCATE(entry%value_i8)
+       READ (parser%input_line,*) label, entry%value_i8
+    ELSE IF(TRIM(datatype)=="r4") THEN
+       ALLOCATE(entry%value_r4)
+       READ (parser%input_line,*) label, entry%value_r4
+    ELSE IF(TRIM(datatype)=="r8") THEN
+       ALLOCATE(entry%value_r8)
+       READ (parser%input_line,*) label, entry%value_r8
+    ELSE IF(TRIM(datatype)=="str") THEN
+       ALLOCATE(entry%value_str)
+       READ (parser%input_line,*) label, entry%value_str
+    ELSE
+       is_scalar = .FALSE.
+    END IF
+
+    IF(is_scalar) THEN
+       IF(TRIM(label)/="value:") STOP "swarm_message_entry_file_read failed (3)"
+       RETURN
+    END IF
+
+    ! musst be an array-datatype
+    READ (parser%input_line,*) label, arr_size
+    IF(TRIM(label)/="size:") STOP "swarm_message_entry_file_read failed (4)"
+
+    CALL parser_get_next_line(parser, 1, at_end, error)
+    at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
+    IF(at_end) RETURN
+
+    IF(TRIM(datatype)=="i4_1d") THEN
+       ALLOCATE(entry%value_i4_1d(arr_size))
+       READ (parser%input_line,*) entry%value_i4_1d
+
+    ELSE IF(TRIM(datatype)=="i8_1d") THEN
+       ALLOCATE(entry%value_i8_1d(arr_size))
+       READ (parser%input_line,*) entry%value_i8_1d
+
+    ELSE IF(TRIM(datatype)=="r4_1d") THEN
+       ALLOCATE(entry%value_r4_1d(arr_size))
+       READ (parser%input_line,*) entry%value_r4_1d
+
+    ELSE IF(TRIM(datatype)=="r8_1d") THEN
+       ALLOCATE(entry%value_r8_1d(arr_size))
+       READ (parser%input_line,*) entry%value_r8_1d
+    ELSE
+       STOP "swarm_message_entry_file_read: unkown datatype"
+    END IF
+  END SUBROUTINE swarm_message_entry_file_read
+
+! *****************************************************************************
+! *****************************************************************************
+
 
 #include "swarm_message_str.F"
 #include "swarm_message_i4.F"

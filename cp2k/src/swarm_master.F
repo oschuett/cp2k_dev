@@ -116,7 +116,8 @@ MODULE swarm_master
 
     ! uses logger%iter_info%project_name to construct filename
     master%comlog_unit = cp_print_key_unit_nr(logger,master%swarm_section,"PRINT%COMMUNICATION_LOG",&
-            middle_name="comlog", extension=".xyz", &
+            !middle_name="comlog", extension=".xyz", &
+            extension=".comlog", &
             file_action="WRITE", file_position="REWIND", error=error)
 
     CALL section_vals_val_get(master%swarm_section,"MAX_ITER", i_val=master%max_iter, error=error)

@@ -12,7 +12,9 @@ MODULE swarm_comlog
   USE cp_parser_methods,               ONLY: parser_get_next_line,&
                                              parser_get_object
   USE cp_parser_types,                 ONLY: cp_parser_type
-  USE swarm_message,                   ONLY: swarm_message_type
+  USE swarm_message,                   ONLY: swarm_message_type,&
+                                             swarm_message_file_write,&
+                                             swarm_message_file_read
   USE kinds,                           ONLY: default_string_length
 #include "cp_common_uses.h"
 
@@ -68,7 +70,9 @@ MODULE swarm_comlog
     LOGICAL, INTENT(INOUT)                   :: at_end
     TYPE(cp_error_type)                      :: error
 
-    STOP "read_report not working"
+    CALL swarm_message_file_read(msg, parser, at_end, error)
+
+    !STOP "read_report not working"
 !    !CHARACTER(LEN=default_string_length)     :: eq, key1, key2, key3, key4, &
 !    !                                            key5, val2
 !    !INTEGER                                  :: i, natoms, val1
@@ -114,8 +118,9 @@ MODULE swarm_comlog
 !    WRITE (*,*) "swarm_comlog_write not working"
 !    INTEGER                                  :: i
 !
-!    IF(unit <= 0) RETURN
-!
+    IF(unit <= 0) RETURN
+    CALL swarm_message_file_write(msg, unit)
+
 !    WRITE(unit,"(I8)") SIZE(cmd%positions)/3 ! number of atoms
 !    WRITE(unit,"(A,I8,A,A,I8,A,I3,A,I8,A,E30.20)")&
 !        'i = ',i_iteration,&
