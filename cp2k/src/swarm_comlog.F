@@ -111,7 +111,7 @@ MODULE swarm_comlog
     INTEGER                                  :: unit, i_iteration
     TYPE(swarm_message_type)                 :: msg
 
-    WRITE (*,*) "swarm_comlog_write not working"
+!    WRITE (*,*) "swarm_comlog_write not working"
 !    INTEGER                                  :: i
 !
 !    IF(unit <= 0) RETURN
