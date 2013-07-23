@@ -1,51 +1,47 @@
 [
 {'nametype':'str',
 'type':'CHARACTER(LEN=*)',
-'alloc':'ALLOCATE(new_entry%value_str)',
-'assign':'='
+'typeout':'',
 },
 
 {'nametype':'i4',
 'type':' INTEGER(KIND=int_4)',
-'alloc':'ALLOCATE(new_entry%value_i4)',
-'assign':'='
+'typeout':'',
 },
 
 {'nametype':'i8',
 'type':' INTEGER(KIND=int_8)',
-'alloc':'ALLOCATE(new_entry%value_i8)',
-'assign':'='
+'typeout':'',
 },
 
 {'nametype':'r4',
 'type':' REAL(KIND=real_4)',
-'alloc':'ALLOCATE(new_entry%value_r4)',
-'assign':'='
+'typeout':'',
 },
 
 {'nametype':'r8',
 'type':' REAL(KIND=real_8)',
-'alloc':'ALLOCATE(new_entry%value_r8)',
-'assign':'='},
+'typeout':'',
+},
 
 {'nametype':'i4_1d',
-'type':' INTEGER(KIND=int_4), DIMENSION(:), POINTER',
-'alloc':'',
-'assign':'=>'},
+'type':' INTEGER(KIND=int_4), DIMENSION(:) ',
+'typeout':', ALLOCATABLE',
+},
 
 {'nametype':'i8_1d',
-'type':' INTEGER(KIND=int_8), DIMENSION(:), POINTER',
-'alloc':'',
-'assign':'=>'},
+'type':' INTEGER(KIND=int_8), DIMENSION(:) ',
+'typeout':', ALLOCATABLE',
+},
 
 {'nametype':'r4_1d',
-'type':' REAL(KIND=real_4), DIMENSION(:), POINTER',
-'alloc':'',
-'assign':'=>'},
+'type':' REAL(KIND=real_4), DIMENSION(:) ',
+'typeout':', ALLOCATABLE',
+},
 
 {'nametype':'r8_1d',
-'type':' REAL(KIND=real_8), DIMENSION(:), POINTER',
-'alloc':'',
-'assign':'=>'},
+'type':' REAL(KIND=real_8), DIMENSION(:) ',
+'typeout':', ALLOCATABLE',
+},
 
 ]

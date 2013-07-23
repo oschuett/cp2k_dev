@@ -16,8 +16,6 @@ MODULE swarm_master
   USE cp_parser_types,                 ONLY: cp_parser_type,&
                                              parser_create,&
                                              parser_release
-  USE swarm_comlog,                   ONLY: swarm_comlog_read,&
-                                             swarm_comlog_write
   USE glbopt_master,                  ONLY:  glbopt_master_finalize,&
                                              glbopt_master_init,&
                                              glbopt_master_steer,&
@@ -29,7 +27,9 @@ MODULE swarm_master
   USE swarm_message,                   ONLY: swarm_message_type,&
                                              swarm_message_add,&
                                              swarm_message_get,&
-                                             swarm_message_length
+                                             swarm_message_length,&
+                                             swarm_message_file_write,&
+                                             swarm_message_file_read
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -171,9 +171,9 @@ MODULE swarm_master
 
     at_end = .FALSE.
     DO
-      CALL swarm_comlog_read(parser, report_log, at_end, master%error)
+      CALL swarm_message_file_read(report_log, parser, at_end, master%error)
       IF(at_end) EXIT
-      CALL swarm_comlog_read(parser, cmd_log, at_end, master%error)
+      CALL swarm_message_file_read(cmd_log, parser, at_end, master%error)
       IF(at_end) EXIT
       CALL swarm_master_steer(master, report_log, cmd_now)
       !TODO: maybe we should just exit the loop instead of stopping?
@@ -303,7 +303,8 @@ MODULE swarm_master
          WRITE (master%iw, *)  "SWARM| Received stop from external_control. Quitting."
     END IF
 
-    CALL swarm_comlog_write(master%comlog_unit, master%i_iteration, report)
+    !IF(unit > 0) &
+    CALL swarm_message_file_write(report, master%comlog_unit) ! master%i_iteration
 
     CALL swarm_message_add(cmd, "worker_id", worker_id)
 
@@ -328,7 +329,7 @@ MODULE swarm_master
               " SWARM| Sending shutdown command to worker",worker_id
            master%should_stop = .TRUE.
        ELSE
-          CALL swarm_comlog_write(master%comlog_unit, master%i_iteration, cmd)
+          CALL swarm_message_file_write(cmd, master%comlog_unit) ! master%i_iteration
        ENDIF
     ENDIF
 

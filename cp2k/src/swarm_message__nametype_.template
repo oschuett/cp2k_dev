@@ -1,7 +1,7 @@
  SUBROUTINE swarm_message_add_[nametype](msg, key, value)
    TYPE(swarm_message_type), INTENT(INOUT)   :: msg
    CHARACTER(LEN=*), INTENT(IN)              :: key
-   [type]                                    :: value
+   [type], INTENT(IN)                        :: value
 
    TYPE(message_entry_type), POINTER :: new_entry
 
@@ -13,8 +13,7 @@
    ALLOCATE(new_entry)
    new_entry%key = key
 
-   [alloc]
-   new_entry%value_[nametype] [assign] value
+   new_entry%value_[nametype] = value
 
    !WRITE (*,*) "swarm_message_add_[nametype]: key=",key, " value=",new_entry%value_[nametype]
 
@@ -33,7 +32,7 @@
  SUBROUTINE swarm_message_get_[nametype](msg, key, value)
    TYPE(swarm_message_type), INTENT(IN)  :: msg
    CHARACTER(LEN=*), INTENT(IN)          :: key
-   [type]                                :: value
+   [type] [typeout], INTENT(OUT)         :: value
 
    TYPE(message_entry_type), POINTER :: curr_entry
    !WRITE (*,*) "swarm_message_get_[nametype]: key=",key
@@ -41,10 +40,10 @@
    curr_entry => msg%root
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
-         IF(.NOT. ASSOCIATED(curr_entry%value_[nametype])) &
+         IF(.NOT. ALLOCATED(curr_entry%value_[nametype])) &
             STOP "swarm_message_get_[nametype]: value not associated"
             !TODO: check other datatypes, call mp_abort
-         value [assign] curr_entry%value_[nametype]
+         value = curr_entry%value_[nametype]
          !WRITE (*,*) "swarm_message_get_[nametype]: value=",value
          RETURN
       ENDIF

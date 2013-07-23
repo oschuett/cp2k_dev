@@ -134,7 +134,7 @@ MODULE glbopt_minhop
     LOGICAL                                 :: minima_known
 
     REAL(KIND=dp)                           :: report_Epot, prev_Epot
-    REAL(KIND=dp), DIMENSION(:), POINTER    :: report_positions, prev_positions
+    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE:: report_positions, prev_positions
     INTEGER                                 :: iframe
 
 

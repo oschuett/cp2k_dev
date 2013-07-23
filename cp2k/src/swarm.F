@@ -27,7 +27,8 @@ MODULE swarm
                                              swarm_message_add,&
                                              swarm_message_get,&
                                              swarm_message_mpi_send,&
-                                             swarm_message_mpi_recv
+                                             swarm_message_mpi_recv,&
+                                             swarm_message_free
 
   USE swarm_worker,                   ONLY:  swarm_worker_execute,&
                                              swarm_worker_finalize,&
@@ -117,7 +118,9 @@ MODULE swarm
        should_stop = .FALSE.
        DO WHILE(.NOT. should_stop)
           CALL swarm_master_steer(master, report, cmd)
+          CALL swarm_message_free(report)
           CALL swarm_worker_execute(worker, cmd, report, should_stop)
+          CALL swarm_message_free(cmd)
        END DO
 
        CALL swarm_worker_finalize(worker)
@@ -157,9 +160,11 @@ MODULE swarm
           DO WHILE(.NOT. should_stop)
              CALL timeset("swarm_worker_await_reply", handle)
              CALL swarm_mpi_send_report(swarm_mpi, report)
+             CALL swarm_message_free(report)
              CALL swarm_mpi_recv_command(swarm_mpi, cmd)
              CALL timestop(handle)
              CALL swarm_worker_execute(worker, cmd, report, should_stop)
+             CALL swarm_message_free(cmd)
           END DO
           CALL swarm_worker_finalize(worker)
 
@@ -174,6 +179,8 @@ MODULE swarm
              CALL swarm_mpi_send_command(swarm_mpi, cmd)
              CALL swarm_message_get(cmd, "command", command)
              IF(TRIM(command) == "shutdown") i_shutdowns = i_shutdowns + 1
+             CALL swarm_message_free(cmd)
+             CALL swarm_message_free(report)
           END DO
           CALL swarm_master_finalize(master)
        END IF

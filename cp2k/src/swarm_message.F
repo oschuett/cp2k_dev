@@ -31,19 +31,20 @@ MODULE swarm_message
  END TYPE swarm_message_type
 
  INTEGER, PARAMETER  :: key_length      = 20
- 
+
+
  TYPE message_entry_type
-   CHARACTER(LEN=key_length)                       :: key
-   TYPE(message_entry_type),            POINTER    :: next        => Null()
-   CHARACTER(LEN=default_string_length),POINTER    :: value_str   => Null()
-   INTEGER(KIND=int_4),                 POINTER    :: value_i4    => Null()
-   INTEGER(KIND=int_8),                 POINTER    :: value_i8    => Null()
-   REAL(KIND=real_4),                   POINTER    :: value_r4    => Null()
-   REAL(KIND=real_8),                   POINTER    :: value_r8    => Null()
-   INTEGER(KIND=int_4), DIMENSION(:),   POINTER    :: value_i4_1d => Null()
-   INTEGER(KIND=int_8), DIMENSION(:),   POINTER    :: value_i8_1d => Null()
-   REAL(KIND=real_4),   DIMENSION(:),   POINTER    :: value_r4_1d => Null()
-   REAL(KIND=real_8),   DIMENSION(:),   POINTER    :: value_r8_1d => Null()
+   CHARACTER(LEN=key_length)                        :: key
+   TYPE(message_entry_type),            POINTER     :: next        => Null()
+   CHARACTER(LEN=default_string_length),ALLOCATABLE :: value_str
+   INTEGER(KIND=int_4),                 ALLOCATABLE :: value_i4
+   INTEGER(KIND=int_8),                 ALLOCATABLE :: value_i8
+   REAL(KIND=real_4),                   ALLOCATABLE :: value_r4
+   REAL(KIND=real_8),                   ALLOCATABLE :: value_r8
+   INTEGER(KIND=int_4), DIMENSION(:),   ALLOCATABLE :: value_i4_1d
+   INTEGER(KIND=int_8), DIMENSION(:),   ALLOCATABLE :: value_i8_1d
+   REAL(KIND=real_4),   DIMENSION(:),   ALLOCATABLE :: value_r4_1d
+   REAL(KIND=real_8),   DIMENSION(:),   ALLOCATABLE :: value_r8_1d
  END TYPE message_entry_type
 
   INTERFACE swarm_message_add
@@ -66,11 +67,27 @@ MODULE swarm_message
  PUBLIC :: swarm_message_mpi_send, swarm_message_mpi_recv, swarm_message_mpi_bcast
  PUBLIC :: swarm_message_file_write, swarm_message_file_read
  PUBLIC :: swarm_message_length, swarm_message_haskey
+ PUBLIC :: swarm_message_free
 
  CONTAINS
 
 
- ! *****************************************************************************
+! *****************************************************************************
+! *****************************************************************************
+  SUBROUTINE swarm_message_free(msg)
+     TYPE(swarm_message_type),INTENT(IN) :: msg
+     TYPE(message_entry_type), POINTER :: curr_entry, old_entry
+
+     curr_entry => msg%root
+     DO WHILE(ASSOCIATED(curr_entry))
+       old_entry => curr_entry
+       curr_entry => curr_entry%next
+       DEALLOCATE(old_entry)
+     END DO
+  END SUBROUTINE swarm_message_free
+
+
+! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE swarm_message_entry_mpi_bcast(entry, src, group, mepos)
     TYPE(message_entry_type),INTENT(INOUT) :: entry
@@ -86,30 +103,30 @@ MODULE swarm_message
 
     IF(src==mepos) THEN
        datasize = 1
-       IF(ASSOCIATED(entry%value_i4)) THEN
+       IF(ALLOCATED(entry%value_i4)) THEN
           datatype = 1
-       ELSE IF(ASSOCIATED(entry%value_i8)) THEN
+       ELSE IF(ALLOCATED(entry%value_i8)) THEN
           datatype = 2
-       ELSE IF(ASSOCIATED(entry%value_r4)) THEN
+       ELSE IF(ALLOCATED(entry%value_r4)) THEN
           datatype = 3
-       ELSE IF(ASSOCIATED(entry%value_r8)) THEN
+       ELSE IF(ALLOCATED(entry%value_r8)) THEN
           datatype = 4
-       ELSE IF(ASSOCIATED(entry%value_i4_1d)) THEN
+       ELSE IF(ALLOCATED(entry%value_i4_1d)) THEN
           datatype = 5
           datasize = SIZE(entry%value_i4_1d)
-       ELSE IF(ASSOCIATED(entry%value_i8_1d)) THEN
+       ELSE IF(ALLOCATED(entry%value_i8_1d)) THEN
           datatype = 6
           datasize = SIZE(entry%value_i8_1d)
-       ELSE IF(ASSOCIATED(entry%value_r4_1d)) THEN
+       ELSE IF(ALLOCATED(entry%value_r4_1d)) THEN
           datatype = 7
           datasize = SIZE(entry%value_r4_1d)
-       ELSE IF(ASSOCIATED(entry%value_r8_1d)) THEN
+       ELSE IF(ALLOCATED(entry%value_r8_1d)) THEN
           datatype = 8
           datasize = SIZE(entry%value_r8_1d)
-       ELSE IF(ASSOCIATED(entry%value_str)) THEN
+       ELSE IF(ALLOCATED(entry%value_str)) THEN
           datatype = 9
        ELSE
-          STOP "swarm_message_entry_mpi_bcast: no value associated"
+          STOP "swarm_message_entry_mpi_bcast: no value ALLOCATED"
        END IF
     END IF
     CALL mp_bcast(datatype, src, group)
@@ -166,50 +183,50 @@ MODULE swarm_message
     key_arr = TRANSFER(entry%key, key_arr)
     CALL mp_send(key_arr, dest, tag, group)
 
-    IF(ASSOCIATED(entry%value_i4)) THEN
+    IF(ALLOCATED(entry%value_i4)) THEN
        CALL mp_send(1, dest, tag, group)
        CALL mp_send(entry%value_i4, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_i8)) THEN
+    ELSE IF(ALLOCATED(entry%value_i8)) THEN
        CALL mp_send(2, dest, tag, group)
        CALL mp_send(entry%value_i8, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_r4)) THEN
+    ELSE IF(ALLOCATED(entry%value_r4)) THEN
        CALL mp_send(3, dest, tag, group)
        CALL mp_send(entry%value_r4, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_r8)) THEN
+    ELSE IF(ALLOCATED(entry%value_r8)) THEN
        CALL mp_send(4, dest, tag, group)
        CALL mp_send(entry%value_r8, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_i4_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_i4_1d)) THEN
        CALL mp_send(5, dest, tag, group)
        CALL mp_send(SIZE(entry%value_i4_1d), dest, tag, group)
        CALL mp_send(entry%value_i4_1d, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_i8_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_i8_1d)) THEN
        CALL mp_send(6, dest, tag, group)
        CALL mp_send(SIZE(entry%value_i8_1d), dest, tag, group)
        CALL mp_send(entry%value_i8_1d, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_r4_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_r4_1d)) THEN
        CALL mp_send(7, dest, tag, group)
        CALL mp_send(SIZE(entry%value_r4_1d), dest, tag, group)
        CALL mp_send(entry%value_r4_1d, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_r8_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_r8_1d)) THEN
        CALL mp_send(8, dest, tag, group)
        CALL mp_send(SIZE(entry%value_r8_1d), dest, tag, group)
        CALL mp_send(entry%value_r8_1d, dest, tag, group)
 
-    ELSE IF(ASSOCIATED(entry%value_str)) THEN
+    ELSE IF(ALLOCATED(entry%value_str)) THEN
        CALL mp_send(9, dest, tag, group)
        ALLOCATE(value_str_arr(default_string_length))
        value_str_arr = TRANSFER(entry%value_str, value_str_arr)
        CALL mp_send(value_str_arr, dest, tag, group)
     ELSE
        CALL abort()
-       STOP "swarm_message_entry_mpi_send: no value associated"
+       STOP "swarm_message_entry_mpi_send: no value ALLOCATED"
     END IF
   END SUBROUTINE swarm_message_entry_mpi_send
 
@@ -379,7 +396,7 @@ MODULE swarm_message
 
 !  END SUBROUTINE swarm_mpi_recv_message_entry(group, dest, tag, entry)
   
-	
+
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE swarm_message_file_write(msg, unit)
@@ -411,37 +428,37 @@ MODULE swarm_message
     INTEGER                             :: i
 
     WRITE(unit,"(AA)") "key: ",  entry%key
-    IF(ASSOCIATED(entry%value_i4)) THEN
+    IF(ALLOCATED(entry%value_i4)) THEN
        WRITE(unit,"(A)") "datatype: i4"
        WRITE(unit,"(AI10)") "value: ", entry%value_i4
 
-    ELSE IF(ASSOCIATED(entry%value_i8)) THEN
+    ELSE IF(ALLOCATED(entry%value_i8)) THEN
        WRITE(unit,"(A)") "datatype: i8"
        WRITE(unit,"(AI20)") "value: ", entry%value_i8
 
-    ELSE IF(ASSOCIATED(entry%value_r4)) THEN
+    ELSE IF(ALLOCATED(entry%value_r4)) THEN
        WRITE(unit,"(A)") "datatype: r4"
        WRITE(unit,"(AE30.20)") "value: ", entry%value_r4
 
-    ELSE IF(ASSOCIATED(entry%value_r8)) THEN
+    ELSE IF(ALLOCATED(entry%value_r8)) THEN
        WRITE(unit,"(A)") "datatype: r8"
        WRITE(unit,"(AE30.20)") "value: ", entry%value_r8
 
-    ELSE IF(ASSOCIATED(entry%value_str)) THEN
+    ELSE IF(ALLOCATED(entry%value_str)) THEN
        WRITE(unit,"(A)") "datatype: str"
        WRITE(unit,"(AA)") "value: ", entry%value_str
 
-    ELSE IF(ASSOCIATED(entry%value_i4_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_i4_1d)) THEN
        WRITE(unit,"(A)") "datatype: i4_1d"
        WRITE(unit,"(AI10)") "size: ", SIZE(entry%value_i4_1d)
        WRITE(unit,*) entry%value_i4_1d
 
-    ELSE IF(ASSOCIATED(entry%value_i8_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_i8_1d)) THEN
        WRITE(unit,"(A)") "datatype: i8_1d"
        WRITE(unit,"(AI20)") "size: ", SIZE(entry%value_i8_1d)
        WRITE(unit,*) entry%value_i8_1d
 
-    ELSE IF(ASSOCIATED(entry%value_r4_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_r4_1d)) THEN
        WRITE(unit,"(A)") "datatype: r4_1d"
        WRITE(unit,"(AI8)") "size: ", SIZE(entry%value_r4_1d)
        DO i=1, SIZE(entry%value_r4_1d)
@@ -449,7 +466,7 @@ MODULE swarm_message
        END DO
        WRITE(unit,"(X)")
 
-    ELSE IF(ASSOCIATED(entry%value_r8_1d)) THEN
+    ELSE IF(ALLOCATED(entry%value_r8_1d)) THEN
        WRITE(unit,"(A)") "datatype: r8_1d"
        WRITE(unit,"(AI8)") "size: ", SIZE(entry%value_r8_1d)
        DO i=1, SIZE(entry%value_r8_1d)
@@ -459,7 +476,7 @@ MODULE swarm_message
 
     ELSE
        CALL abort()
-       STOP "swarm_message_entry_file_write: no value associated"
+       STOP "swarm_message_entry_file_write: no value ALLOCATED"
     END IF
   END SUBROUTINE swarm_message_entry_file_write
 
@@ -467,7 +484,7 @@ MODULE swarm_message
 ! *****************************************************************************
 ! *****************************************************************************
   SUBROUTINE swarm_message_file_read(msg, parser, at_end, error)
-    TYPE(swarm_message_type),INTENT(INOUT)     :: msg
+    TYPE(swarm_message_type),INTENT(OUT)       :: msg
     TYPE(cp_parser_type), POINTER              :: parser
     LOGICAL, INTENT(INOUT)                     :: at_end
     TYPE(cp_error_type)                        :: error
@@ -476,7 +493,7 @@ MODULE swarm_message
     INTEGER                                    :: length, i
     CHARACTER(LEN=default_string_length)       :: key
 
-    IF(ASSOCIATED(msg%root)) STOP "swarm_message_file_read: message not empty"
+    !IF(ALLOCATED(msg%root)) STOP "swarm_message_file_read: message not empty"
 
     CALL parser_get_next_line(parser, 1, at_end, error)
     at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
@@ -490,6 +507,7 @@ MODULE swarm_message
     IF(TRIM(key)/="msg_length:") STOP "swarm_message_file_read failed (2)"
 
     DO i=1, length
+       NULLIFY(new_entry)
        ALLOCATE(new_entry)
        CALL swarm_message_entry_file_read(new_entry, parser, at_end, error)
        new_entry%next => msg%root

@@ -1,7 +1,7 @@
  SUBROUTINE swarm_message_add_i4(msg, key, value)
    TYPE(swarm_message_type), INTENT(INOUT)   :: msg
    CHARACTER(LEN=*), INTENT(IN)              :: key
-    INTEGER(KIND=int_4)                                    :: value
+    INTEGER(KIND=int_4), INTENT(IN)                        :: value
 
    TYPE(message_entry_type), POINTER :: new_entry
 
@@ -10,9 +10,10 @@
       CALL ABORT() !TODO: call mp_abort
    END IF
 
+   WRITE (*,*) "associated1: ", ASSOCIATED(new_entry)
    ALLOCATE(new_entry)
+   WRITE (*,*) "associated2: ", ASSOCIATED(new_entry)
    new_entry%key = key
-
    ALLOCATE(new_entry%value_i4)
    new_entry%value_i4 = value
 
@@ -33,7 +34,7 @@
  SUBROUTINE swarm_message_get_i4(msg, key, value)
    TYPE(swarm_message_type), INTENT(IN)  :: msg
    CHARACTER(LEN=*), INTENT(IN)          :: key
-    INTEGER(KIND=int_4)                                :: value
+    INTEGER(KIND=int_4) , INTENT(OUT)         :: value
 
    TYPE(message_entry_type), POINTER :: curr_entry
    !WRITE (*,*) "swarm_message_get_i4: key=",key
@@ -41,7 +42,7 @@
    curr_entry => msg%root
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
-         IF(.NOT. ASSOCIATED(curr_entry%value_i4)) &
+         IF(.NOT. ALLOCATED(curr_entry%value_i4)) &
             STOP "swarm_message_get_i4: value not associated"
             !TODO: check other datatypes, call mp_abort
          value = curr_entry%value_i4

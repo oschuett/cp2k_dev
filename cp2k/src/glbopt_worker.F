@@ -184,7 +184,7 @@ MODULE glbopt_worker
 
        INTEGER                                  :: n_atoms
        REAL(KIND=dp)                            :: temperature, Epot
-       REAL(KIND=dp), DIMENSION(:), POINTER     :: positions
+       REAL(KIND=dp), DIMENSION(:), ALLOCATABLE :: positions
        CHARACTER(len=default_string_length)     :: command
 
        CALL swarm_message_get(cmd, "command", command)

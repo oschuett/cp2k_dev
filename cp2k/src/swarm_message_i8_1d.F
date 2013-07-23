@@ -1,7 +1,7 @@
  SUBROUTINE swarm_message_add_i8_1d(msg, key, value)
    TYPE(swarm_message_type), INTENT(INOUT)   :: msg
    CHARACTER(LEN=*), INTENT(IN)              :: key
-    INTEGER(KIND=int_8), DIMENSION(:), POINTER                                    :: value
+    INTEGER(KIND=int_8), DIMENSION(:) , INTENT(IN)                        :: value
 
    TYPE(message_entry_type), POINTER :: new_entry
 
@@ -13,8 +13,7 @@
    ALLOCATE(new_entry)
    new_entry%key = key
 
-   
-   new_entry%value_i8_1d => value
+   new_entry%value_i8_1d = value
 
    !WRITE (*,*) "swarm_message_add_i8_1d: key=",key, " value=",new_entry%value_i8_1d
 
@@ -33,7 +32,7 @@
  SUBROUTINE swarm_message_get_i8_1d(msg, key, value)
    TYPE(swarm_message_type), INTENT(IN)  :: msg
    CHARACTER(LEN=*), INTENT(IN)          :: key
-    INTEGER(KIND=int_8), DIMENSION(:), POINTER                                :: value
+    INTEGER(KIND=int_8), DIMENSION(:)  , ALLOCATABLE, INTENT(OUT)         :: value
 
    TYPE(message_entry_type), POINTER :: curr_entry
    !WRITE (*,*) "swarm_message_get_i8_1d: key=",key
@@ -41,10 +40,10 @@
    curr_entry => msg%root
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
-         IF(.NOT. ASSOCIATED(curr_entry%value_i8_1d)) &
+         IF(.NOT. ALLOCATED(curr_entry%value_i8_1d)) &
             STOP "swarm_message_get_i8_1d: value not associated"
             !TODO: check other datatypes, call mp_abort
-         value => curr_entry%value_i8_1d
+         value = curr_entry%value_i8_1d
          !WRITE (*,*) "swarm_message_get_i8_1d: value=",value
          RETURN
       ENDIF
