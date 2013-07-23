@@ -65,7 +65,7 @@ MODULE swarm_message
  PUBLIC :: swarm_message_type, swarm_message_add, swarm_message_get
  PUBLIC :: swarm_message_mpi_send, swarm_message_mpi_recv, swarm_message_mpi_bcast
  PUBLIC :: swarm_message_file_write, swarm_message_file_read
- PUBLIC :: swarm_message_length, swarm_message_haskey
+ PUBLIC :: swarm_message_length, swarm_message_haskey, swarm_message_equal
  PUBLIC :: swarm_message_free
 
  CONTAINS
@@ -97,6 +97,90 @@ MODULE swarm_message
 
      IF(swarm_message_length(msg) > 0) STOP "swarm_message_free failed"
   END SUBROUTINE swarm_message_free
+
+! *****************************************************************************
+! *****************************************************************************
+  FUNCTION swarm_message_equal(msg1, msg2) result(res)
+     TYPE(swarm_message_type),INTENT(IN) :: msg1, msg2
+     LOGICAL                             :: res
+
+     res =  swarm_message_equal_oneway(msg1, msg2) .AND. &
+            swarm_message_equal_oneway(msg2, msg1)
+
+  END FUNCTION swarm_message_equal
+
+! *****************************************************************************
+! *****************************************************************************
+  FUNCTION swarm_message_equal_oneway(msg1, msg2) result(res)
+     TYPE(swarm_message_type),INTENT(IN) :: msg1, msg2
+     TYPE(message_entry_type), POINTER   :: entry1, entry2
+     LOGICAL                             :: res
+     LOGICAL                             :: found
+
+     res = .FALSE.
+
+     !loop over entries of msg1
+     entry1 => msg1%root
+     DO WHILE(ASSOCIATED(entry1))
+
+        ! finding matching entry in msg2
+        entry2 => msg2%root
+        found = .FALSE.
+        DO WHILE(ASSOCIATED(entry2))
+           IF(TRIM(entry2%key) == TRIM(entry1%key)) THEN
+              found = .TRUE.
+              EXIT
+           END IF
+           entry2 => entry2%next
+        END DO
+        IF(.NOT. found) RETURN
+
+        !compare the two entries
+        IF(ASSOCIATED(entry1%value_str)) THEN
+           IF(.NOT.ASSOCIATED(entry2%value_str)) RETURN
+           If(TRIM(entry1%value_str) /= TRIM(entry2%value_str)) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_i4)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_i4)) RETURN
+           IF(entry1%value_i4 /= entry2%value_i4) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_i8)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_i8)) RETURN
+           IF(entry1%value_i8 /= entry2%value_i8) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_r4)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_r4)) RETURN
+           IF(ABS(entry1%value_r4-entry2%value_r4)>1e-5) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_r8)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_r8)) RETURN
+           IF(ABS(entry1%value_r8-entry2%value_r8)>1e-10) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_i4_1d)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_i4_1d)) RETURN
+           IF(ANY(entry1%value_i4_1d /= entry2%value_i4_1d)) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_i8_1d)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_i8_1d)) RETURN
+           IF(ANY(entry1%value_i8_1d /= entry2%value_i8_1d)) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_r4_1d)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_r4_1d)) RETURN
+           IF(ANY(ABS(entry1%value_r4_1d-entry2%value_r4_1d)>1e-5)) RETURN
+
+        ELSE IF(ASSOCIATED(entry1%value_r8_1d)) THEN
+           IF(.NOT. ASSOCIATED(entry2%value_r8_1d)) RETURN
+           IF(ANY(ABS(entry1%value_r8_1d-entry2%value_r8_1d)>1e-10)) RETURN
+        ELSE
+           STOP "swarm_message_equal_oneway: no value ASSOCIATED"
+        END IF
+
+        entry1 => entry1%next
+     END DO
+
+     ! if we reach this point no differences were found
+     res = .TRUE.
+  END FUNCTION swarm_message_equal_oneway
 
 
 ! *****************************************************************************
@@ -549,9 +633,7 @@ MODULE swarm_message
     IF(at_end) RETURN
     READ (parser%input_line,*) label, entry%key
     IF(TRIM(label)/="key:") STOP "swarm_message_entry_file_read failed (1)"
-    
-    WRITE (*,*) "key: ", entry%key
-    
+
     CALL parser_get_next_line(parser, 1, at_end, error)
     at_end = at_end .OR. LEN_TRIM(parser%input_line)==0
     IF(at_end) RETURN

@@ -29,7 +29,9 @@ MODULE swarm_master
                                              swarm_message_get,&
                                              swarm_message_length,&
                                              swarm_message_file_write,&
-                                             swarm_message_file_read
+                                             swarm_message_file_read,&
+                                             swarm_message_equal,&
+                                             swarm_message_free
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -42,6 +44,9 @@ MODULE swarm_master
   USE timings_types,                   ONLY: timer_env_type
   USE input_constants,                 ONLY: swarm_do_glbopt,&
                                              swarm_do_paramopt
+  USE kinds,                           ONLY: default_path_length,&
+                                             default_string_length,&
+                                             dp
 #include "cp_common_uses.h"
 
  IMPLICIT NONE
@@ -155,8 +160,8 @@ MODULE swarm_master
     INTEGER, DIMENSION(master%n_workers)     :: last_iframe
     TYPE(swarm_message_type)                 :: report_log
 
-    INTEGER :: cmd_log_worker_id
-
+    INTEGER                                  :: cmd_worker_id
+    CHARACTER(len=default_string_length)     :: cmd_command
     NULLIFY(parser)
 
     ! Initialize parser for trajectory
@@ -173,15 +178,27 @@ MODULE swarm_master
     DO
       CALL swarm_message_file_read(report_log, parser, at_end, master%error)
       IF(at_end) EXIT
+
       CALL swarm_message_file_read(cmd_log, parser, at_end, master%error)
       IF(at_end) EXIT
+
       CALL swarm_master_steer(master, report_log, cmd_now)
       !TODO: maybe we should just exit the loop instead of stopping?
-      IF(.NOT. commands_equal(cmd_now, cmd_log, master%iw)) STOP "wrong behaviour"
+      CALL swarm_message_get(cmd_log, "command", cmd_command)
+      IF(TRIM(cmd_command) /= "shutdown") THEN
+        IF(.NOT. commands_equal(cmd_now, cmd_log, master%iw)) STOP "wrong behaviour"
+      END IF
 
-      CALL swarm_message_get(cmd_log, "worker_id", cmd_log_worker_id)
-      last_command(cmd_log_worker_id) = cmd_log
+      CALL swarm_message_free(cmd_log)
+      CALL swarm_message_free(report_log)
+      CALL swarm_message_get(cmd_now, "worker_id", cmd_worker_id)
+      CALL swarm_message_free(last_command(cmd_worker_id))
+      last_command(cmd_worker_id) = cmd_now
     END DO
+
+    CALL swarm_message_free(report_log) !don't worry about double-frees
+    CALL swarm_message_free(cmd_log)
+    !TODO: free queued commands
 
     IF(master%iw>0) WRITE(master%iw,'(A,A)') &
        " SWARM| Reached end of communication log. Queueing last commands."
@@ -208,22 +225,13 @@ MODULE swarm_master
     LOGICAL                                  :: res
     INTEGER                                  :: iw
 
-    res = .TRUE.
-
-    WRITE (*,*) "commands_equal: TODO: implement message equal"
-    !res =           cmd1%worker_id == cmd2%worker_id
-    !res = res .AND. cmd1%cmd_id == cmd2%cmd_id
-    !res = res .AND. ABS(cmd1%temperature - cmd2%temperature) < 1e-10
-    !res = res .AND. ALL(ABS(cmd1%positions -cmd2%positions) < 1e-10)
-    !
-    !IF(.NOT.res .AND. iw>0)THEN
-    !  WRITE (iw,*) "commands_equal failed"
-    !  WRITE (iw,*) "worker_id",cmd1%worker_id, cmd2%worker_id
-    !  WRITE (iw,*) "cmd_id", cmd1%cmd_id, cmd2%cmd_id
-    !  WRITE (iw,*) "temperature", cmd1%temperature, cmd2%temperature
-    !  WRITE (iw,*) "cmd1%positions: ", cmd1%positions
-    !  WRITE (iw,*) "cmd2%positions: ", cmd2%positions
-    !END IF
+    res = swarm_message_equal(cmd1, cmd2)
+    IF(.NOT. res .AND. iw>0) THEN
+       WRITE(iw, *) "Command 1:"
+       CALL swarm_message_file_write(cmd1, iw)
+       WRITE(iw, *) "Command 2:"
+       CALL swarm_message_file_write(cmd2, iw)
+    END IF
  END FUNCTION commands_equal
 
 
@@ -304,6 +312,7 @@ MODULE swarm_master
     END IF
 
     !IF(unit > 0) &
+
     CALL swarm_message_file_write(report, master%comlog_unit) ! master%i_iteration
 
     CALL swarm_message_add(cmd, "worker_id", worker_id)
@@ -313,7 +322,6 @@ MODULE swarm_master
        IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
          " SWARM| Sending shutdown command to worker",worker_id
     ELSE
-
        SELECT CASE(master%behavior)
          CASE(swarm_do_glbopt)
             CALL glbopt_master_steer(master%glbopt, report, cmd, should_stop)
@@ -324,15 +332,15 @@ MODULE swarm_master
        END SELECT
 
        IF(should_stop) THEN
+          !TODO: does overwritting entries in swarm_message actually work?
           CALL swarm_message_add(cmd, "command", "shutdown") !overwrite command
           IF(master%iw>0) WRITE(master%iw,'(A,25X,I8)') &
               " SWARM| Sending shutdown command to worker",worker_id
            master%should_stop = .TRUE.
-       ELSE
-          CALL swarm_message_file_write(cmd, master%comlog_unit) ! master%i_iteration
        ENDIF
     ENDIF
 
+    CALL swarm_message_file_write(cmd, master%comlog_unit) ! master%i_iteration
 
  END SUBROUTINE swarm_master_steer
 
