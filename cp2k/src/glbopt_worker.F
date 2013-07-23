@@ -184,13 +184,13 @@ MODULE glbopt_worker
 
        INTEGER                                  :: n_atoms
        REAL(KIND=dp)                            :: temperature, Epot
-       REAL(KIND=dp), DIMENSION(:), ALLOCATABLE :: positions
+       REAL(KIND=dp), DIMENSION(:), ALLOCATABLE :: positions_in, positions_out
        CHARACTER(len=default_string_length)     :: command
 
        CALL swarm_message_get(cmd, "command", command)
        IF(swarm_message_haskey(cmd, "positions")) THEN
-           CALL swarm_message_get(cmd, "positions", positions)
-           CALL unpack_subsys_particles(worker%subsys, r=positions, error=worker%error)
+           CALL swarm_message_get(cmd, "positions", positions_in)
+           CALL unpack_subsys_particles(worker%subsys, r=positions_in, error=worker%error)
            !WRITE (*,*) "unpacking positions", positions
        END IF
 
@@ -207,9 +207,9 @@ MODULE glbopt_worker
        CALL force_env_get(worker%force_env, potential_energy=Epot, error=worker%error)
        CALL swarm_message_add(report, "Epot", Epot)
        IF (worker%iw>0) WRITE (worker%iw,'(A,25X,E20.10)')' GLBOPT| Potential Energy [Hartree]',Epot
-       ALLOCATE(positions(3*worker%n_atoms))
-       CALL pack_subsys_particles(worker%subsys, r=positions, error=worker%error)
-       CALL swarm_message_add(report, "positions", positions)
+       ALLOCATE(positions_out(3*worker%n_atoms))
+       CALL pack_subsys_particles(worker%subsys, r=positions_out, error=worker%error)
+       CALL swarm_message_add(report, "positions", positions_out)
    END SUBROUTINE glbopt_worker_execute
 
 

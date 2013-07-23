@@ -42,11 +42,15 @@ MODULE glbopt_minhop
  PUBLIC :: minhop_init, minhop_finalize
  PUBLIC :: minhop_steer
 
+ TYPE worker_state_type
+   REAL(KIND=dp)                                       :: Epot = 0.0
+   REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: positions
+ END TYPE worker_state_type
 
  TYPE minhop_type
    PRIVATE
    TYPE(history_type), DIMENSION(:),ALLOCATABLE :: history
-   TYPE(swarm_message_type), DIMENSION(:), ALLOCATABLE :: prev_report
+   TYPE(worker_state_type), DIMENSION(:), ALLOCATABLE  :: prev_report
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: temperature
    REAL(KIND=dp), DIMENSION(:), ALLOCATABLE            :: Eaccept
    REAL(KIND=dp)                                       :: beta2 = 0
@@ -149,12 +153,16 @@ MODULE glbopt_minhop
        RETURN
     ENDIF
 
-    IF(swarm_message_length(minhop%prev_report(wid))==0) &
-              minhop%prev_report(wid)=report !init (first real report)
-
     CALL swarm_message_get(report, "Epot", report_Epot)
     CALL swarm_message_get(report, "positions", report_positions)
-    CALL swarm_message_get(minhop%prev_report(wid), "Epot", prev_Epot)
+
+    IF(.NOT. ALLOCATED(minhop%prev_report(wid)%positions)) THEN
+       !init (first real report)
+       minhop%prev_report(wid)%Epot = report_Epot
+       minhop%prev_report(wid)%positions = report_positions
+    END IF
+
+    prev_Epot = minhop%prev_report(wid)%Epot
 
     hid = wid ! history_id = worker_id unless ....
     IF(minhop%share_history) hid = 1 !...there is ONE shared history.
@@ -181,7 +189,7 @@ MODULE glbopt_minhop
       minhop%temperature(wid) = minhop%temperature(wid) * minhop%beta3 !decreasing temperature
       minhop%Eaccept(wid) = minhop%Eaccept(wid) * minhop%alpha1 !decreasing temperature
       CALL history_add(minhop%history(hid), report_Epot)
-      minhop%prev_report(wid) = report
+      minhop%prev_report(wid)%Epot = report_Epot
       minhop%n_accepted = minhop%n_accepted + 1
     END IF
 
@@ -208,7 +216,7 @@ MODULE glbopt_minhop
     CALL swarm_message_get(report, "iframe", iframe)
     CALL swarm_message_add(cmd, "iframe", iframe)
     CALL swarm_message_add(cmd, "command", "md_and_gopt")
-    CALL swarm_message_get(minhop%prev_report(wid), "positions", prev_positions)
+    prev_positions = minhop%prev_report(wid)%positions
     CALL swarm_message_add(cmd, "positions", prev_positions)
     CALL swarm_message_add(cmd, "temperature", minhop%temperature(wid))
 

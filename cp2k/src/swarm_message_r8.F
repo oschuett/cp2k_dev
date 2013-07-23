@@ -13,11 +13,12 @@
    ALLOCATE(new_entry)
    new_entry%key = key
 
+   ALLOCATE(new_entry%value_r8)
+
    new_entry%value_r8 = value
 
    !WRITE (*,*) "swarm_message_add_r8: key=",key, " value=",new_entry%value_r8
 
-   !TODO: check if name already exists
    IF(.NOT. ASSOCIATED(msg%root)) THEN
       msg%root => new_entry
    ELSE
@@ -40,7 +41,7 @@
    curr_entry => msg%root
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
-         IF(.NOT. ALLOCATED(curr_entry%value_r8)) &
+         IF(.NOT. ASSOCIATED(curr_entry%value_r8)) &
             STOP "swarm_message_get_r8: value not associated"
             !TODO: check other datatypes, call mp_abort
          value = curr_entry%value_r8
