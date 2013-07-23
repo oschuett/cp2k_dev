@@ -46,21 +46,27 @@ MODULE swarm_message
    REAL(KIND=real_8),   DIMENSION(:),   POINTER     :: value_r8_1d => Null()
  END TYPE message_entry_type
 
-  INTERFACE swarm_message_add
-     MODULE PROCEDURE swarm_message_add_str
-     MODULE PROCEDURE swarm_message_add_i4,    swarm_message_add_i8
-     MODULE PROCEDURE swarm_message_add_r4,    swarm_message_add_r8
-     MODULE PROCEDURE swarm_message_add_i4_1d, swarm_message_add_i8_1d
-     MODULE PROCEDURE swarm_message_add_r4_1d, swarm_message_add_r8_1d
-  END INTERFACE swarm_message_add
+ INTERFACE swarm_message_add
+    MODULE PROCEDURE swarm_message_add_str
+    MODULE PROCEDURE swarm_message_add_i4,    swarm_message_add_i8
+    MODULE PROCEDURE swarm_message_add_r4,    swarm_message_add_r8
+    MODULE PROCEDURE swarm_message_add_i4_1d, swarm_message_add_i8_1d
+    MODULE PROCEDURE swarm_message_add_r4_1d, swarm_message_add_r8_1d
+ END INTERFACE swarm_message_add
 
-  INTERFACE swarm_message_get
-     MODULE PROCEDURE swarm_message_get_str
-     MODULE PROCEDURE swarm_message_get_i4,    swarm_message_get_i8
-     MODULE PROCEDURE swarm_message_get_r4,    swarm_message_get_r8
-     MODULE PROCEDURE swarm_message_get_i4_1d, swarm_message_get_i8_1d
-     MODULE PROCEDURE swarm_message_get_r4_1d, swarm_message_get_r8_1d
-  END INTERFACE swarm_message_get
+ INTERFACE swarm_message_get
+    MODULE PROCEDURE swarm_message_get_str_subrt
+    MODULE PROCEDURE swarm_message_get_i4_subrt,    swarm_message_get_i8_subrt
+    MODULE PROCEDURE swarm_message_get_r4_subrt,    swarm_message_get_r8_subrt
+    MODULE PROCEDURE swarm_message_get_i4_1d_subrt, swarm_message_get_i8_1d_subrt
+    MODULE PROCEDURE swarm_message_get_r4_1d_subrt, swarm_message_get_r8_1d_subrt
+ END INTERFACE swarm_message_get
+
+ PUBLIC :: swarm_message_get_str
+ PUBLIC :: swarm_message_get_i4,    swarm_message_get_i8
+ PUBLIC :: swarm_message_get_r4,    swarm_message_get_r8
+ PUBLIC :: swarm_message_get_i4_1d, swarm_message_get_i8_1d
+ PUBLIC :: swarm_message_get_r4_1d, swarm_message_get_r8_1d
 
  PUBLIC :: swarm_message_type, swarm_message_add, swarm_message_get
  PUBLIC :: swarm_message_mpi_send, swarm_message_mpi_recv, swarm_message_mpi_bcast

@@ -1,7 +1,7 @@
  SUBROUTINE swarm_message_add_i8(msg, key, value)
    TYPE(swarm_message_type), INTENT(INOUT)   :: msg
    CHARACTER(LEN=*), INTENT(IN)              :: key
-    INTEGER(KIND=int_8), INTENT(IN)                        :: value
+   INTEGER(KIND=int_8), INTENT(IN)                        :: value
 
    TYPE(message_entry_type), POINTER :: new_entry
 
@@ -30,10 +30,10 @@
 
 ! *****************************************************************************
 ! *****************************************************************************
- SUBROUTINE swarm_message_get_i8(msg, key, value)
+ SUBROUTINE swarm_message_get_i8_subrt(msg, key, value)
    TYPE(swarm_message_type), INTENT(IN)  :: msg
    CHARACTER(LEN=*), INTENT(IN)          :: key
-    INTEGER(KIND=int_8) , INTENT(OUT)         :: value
+   INTEGER(KIND=int_8), INTENT(OUT)                :: value
 
    TYPE(message_entry_type), POINTER :: curr_entry
    !WRITE (*,*) "swarm_message_get_i8: key=",key
@@ -51,6 +51,32 @@
       curr_entry => curr_entry%next
    END DO
    CALL mp_abort("swarm_message_get: key not found: "//TRIM(key))
- END SUBROUTINE swarm_message_get_i8
+ END SUBROUTINE swarm_message_get_i8_subrt
+
+
+! *****************************************************************************
+! *****************************************************************************
+ FUNCTION swarm_message_get_i8(msg, key) RESULT(value)
+   TYPE(swarm_message_type), INTENT(IN)  :: msg
+   CHARACTER(LEN=*), INTENT(IN)          :: key
+   INTEGER(KIND=int_8)                             :: value
+
+   TYPE(message_entry_type), POINTER :: curr_entry
+   !WRITE (*,*) "swarm_message_get_i8: key=",key
+
+   curr_entry => msg%root
+   DO WHILE(ASSOCIATED(curr_entry))
+      IF(TRIM(curr_entry%key) == TRIM(key)) THEN
+         IF(.NOT. ASSOCIATED(curr_entry%value_i8)) &
+            STOP "swarm_message_get_i8: value not associated"
+            !TODO: check other datatypes, call mp_abort
+         value = curr_entry%value_i8
+         !WRITE (*,*) "swarm_message_get_i8: value=",value
+         RETURN
+      ENDIF
+      curr_entry => curr_entry%next
+   END DO
+   CALL mp_abort("swarm_message_get: key not found: "//TRIM(key))
+ END FUNCTION swarm_message_get_i8
 
 

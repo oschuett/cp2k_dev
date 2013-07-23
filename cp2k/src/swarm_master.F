@@ -31,7 +31,8 @@ MODULE swarm_master
                                              swarm_message_file_write,&
                                              swarm_message_file_read,&
                                              swarm_message_equal,&
-                                             swarm_message_free
+                                             swarm_message_free,&
+                                             swarm_message_get_str
   USE global_types,                    ONLY: global_environment_type
   USE input_section_types,             ONLY: section_vals_get_subs_vals,&
                                              section_vals_type,&
@@ -161,7 +162,6 @@ MODULE swarm_master
     TYPE(swarm_message_type)                 :: report_log
 
     INTEGER                                  :: cmd_worker_id
-    CHARACTER(len=default_string_length)     :: cmd_command
     NULLIFY(parser)
 
     ! Initialize parser for trajectory
@@ -184,8 +184,7 @@ MODULE swarm_master
 
       CALL swarm_master_steer(master, report_log, cmd_now)
       !TODO: maybe we should just exit the loop instead of stopping?
-      CALL swarm_message_get(cmd_log, "command", cmd_command)
-      IF(TRIM(cmd_command) /= "shutdown") THEN
+      IF(TRIM(swarm_message_get_str(cmd_log, "command")) /= "shutdown") THEN
         IF(.NOT. commands_equal(cmd_now, cmd_log, master%iw)) STOP "wrong behaviour"
       END IF
 
@@ -204,6 +203,7 @@ MODULE swarm_master
        " SWARM| Reached end of communication log. Queueing last commands."
 
     !TODO: maybe we don't need a queue here? Only one command per worker
+    ! But, we can't store them in master%queued_commands right away.
     WRITE (*,*) "replay_comlog: iframe ignored"
     DO i=1, master%n_workers
       IF(swarm_message_length(last_command(i)) > 0) THEN
