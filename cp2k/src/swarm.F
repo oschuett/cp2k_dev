@@ -28,7 +28,8 @@ MODULE swarm
                                              swarm_message_get,&
                                              swarm_message_mpi_send,&
                                              swarm_message_mpi_recv,&
-                                             swarm_message_free
+                                             swarm_message_free,&
+                                             swarm_message_get_str
 
   USE swarm_worker,                   ONLY:  swarm_worker_execute,&
                                              swarm_worker_finalize,&
@@ -143,7 +144,6 @@ MODULE swarm
 
     INTEGER                                  :: i_shutdowns, worker_id, handle
     LOGICAL                                  :: should_stop
-    CHARACTER(len=default_string_length)     :: command
     TYPE(swarm_message_type)                :: cmd, report
     TYPE(swarm_master_type)                 :: master
     TYPE(swarm_mpi_type)                    :: swarm_mpi
@@ -177,8 +177,8 @@ MODULE swarm
              CALL swarm_mpi_recv_report(swarm_mpi, report)
              CALL swarm_master_steer(master, report, cmd)
              CALL swarm_mpi_send_command(swarm_mpi, cmd)
-             CALL swarm_message_get(cmd, "command", command)
-             IF(TRIM(command) == "shutdown") i_shutdowns = i_shutdowns + 1
+             IF(TRIM(swarm_message_get_str(cmd,"command")) == "shutdown") &
+                i_shutdowns = i_shutdowns + 1
              CALL swarm_message_free(cmd)
              CALL swarm_message_free(report)
           END DO

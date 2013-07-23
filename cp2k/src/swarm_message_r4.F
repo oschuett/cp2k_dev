@@ -42,8 +42,8 @@
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
          IF(.NOT. ASSOCIATED(curr_entry%value_r4)) &
-            STOP "swarm_message_get_r4: value not associated"
-            !TODO: check other datatypes, call mp_abort
+            CALL mp_abort("swarm_message_get_r4: value not associated")
+            !TODO: check other datatypes
          value = curr_entry%value_r4
          !WRITE (*,*) "swarm_message_get_r4: value=",value
          RETURN
@@ -68,8 +68,8 @@
    DO WHILE(ASSOCIATED(curr_entry))
       IF(TRIM(curr_entry%key) == TRIM(key)) THEN
          IF(.NOT. ASSOCIATED(curr_entry%value_r4)) &
-            STOP "swarm_message_get_r4: value not associated"
-            !TODO: check other datatypes, call mp_abort
+            CALL mp_abort("swarm_message_get_r4: value not associated")
+            !TODO: check other datatypes
          value = curr_entry%value_r4
          !WRITE (*,*) "swarm_message_get_r4: value=",value
          RETURN

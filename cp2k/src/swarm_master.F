@@ -60,6 +60,10 @@ MODULE swarm_master
  PUBLIC :: swarm_master_init, swarm_master_finalize
  PUBLIC :: swarm_master_steer
 
+ TYPE swarm_message_p_type
+   TYPE(swarm_message_type), ALLOCATABLE               :: p
+ END TYPE swarm_message_p_type
+
 
  TYPE swarm_master_type
    PRIVATE
@@ -75,14 +79,10 @@ MODULE swarm_master
    TYPE(cp_error_type)                                 :: error
    TYPE(section_vals_type), POINTER                    :: swarm_section => Null()
    TYPE(cp_para_env_type), POINTER                     :: para_env => Null()
-   TYPE(cmd_linked_list_type), POINTER                 :: command_queue => Null()
+   TYPE(swarm_message_p_type), DIMENSION(:), ALLOCATABLE :: queued_commands
    TYPE(global_environment_type), POINTER              :: globenv => Null()
  END TYPE swarm_master_type
 
- TYPE cmd_linked_list_type
-   TYPE(swarm_message_type)            :: cmd
-   TYPE(cmd_linked_list_type), POINTER :: next
- END TYPE cmd_linked_list_type
 
  CONTAINS
 
@@ -115,6 +115,7 @@ MODULE swarm_master
     master%error = error
     master%para_env => para_env
     master%globenv => globenv
+    ALLOCATE(master%queued_commands(master%n_workers))
     master%iw = cp_print_key_unit_nr(logger, master%swarm_section,&
           "PRINT%MASTER_RUN_INFO",extension=".masterLog",error=error)
 
@@ -153,15 +154,15 @@ MODULE swarm_master
     CHARACTER(LEN=default_path_length)       :: filename
     INTEGER                                  :: i
     TYPE(swarm_message_type), &
-      DIMENSION(master%n_workers)            :: last_command
-    TYPE(swarm_message_type)                :: cmd_log, cmd_now
+      DIMENSION(master%n_workers)            :: last_commands
+    TYPE(swarm_message_type)                 :: cmd_log
+    TYPE(swarm_message_type), POINTER        :: cmd_now
     TYPE(cp_parser_type), POINTER            :: parser
-    TYPE(cmd_linked_list_type), POINTER      :: cmd_ll
+    !TYPE(cmd_linked_list_type), POINTER      :: cmd_ll
     LOGICAL                                  :: at_end, explicit
-    INTEGER, DIMENSION(master%n_workers)     :: last_iframe
     TYPE(swarm_message_type)                 :: report_log
 
-    INTEGER                                  :: cmd_worker_id
+    INTEGER                                  :: worker_id
     NULLIFY(parser)
 
     ! Initialize parser for trajectory
@@ -182,7 +183,9 @@ MODULE swarm_master
       CALL swarm_message_file_read(cmd_log, parser, at_end, master%error)
       IF(at_end) EXIT
 
+      ALLOCATE(cmd_now)
       CALL swarm_master_steer(master, report_log, cmd_now)
+
       !TODO: maybe we should just exit the loop instead of stopping?
       IF(TRIM(swarm_message_get_str(cmd_log, "command")) /= "shutdown") THEN
         IF(.NOT. commands_equal(cmd_now, cmd_log, master%iw)) STOP "wrong behaviour"
@@ -190,9 +193,10 @@ MODULE swarm_master
 
       CALL swarm_message_free(cmd_log)
       CALL swarm_message_free(report_log)
-      CALL swarm_message_get(cmd_now, "worker_id", cmd_worker_id)
-      CALL swarm_message_free(last_command(cmd_worker_id))
-      last_command(cmd_worker_id) = cmd_now
+      CALL swarm_message_get(cmd_now, "worker_id", worker_id)
+      CALL swarm_message_free(last_commands(worker_id))
+      last_commands(worker_id) = cmd_now
+      DEALLOCATE(cmd_now)
     END DO
 
     CALL swarm_message_free(report_log) !don't worry about double-frees
@@ -202,16 +206,8 @@ MODULE swarm_master
     IF(master%iw>0) WRITE(master%iw,'(A,A)') &
        " SWARM| Reached end of communication log. Queueing last commands."
 
-    !TODO: maybe we don't need a queue here? Only one command per worker
-    ! But, we can't store them in master%queued_commands right away.
-    WRITE (*,*) "replay_comlog: iframe ignored"
     DO i=1, master%n_workers
-      IF(swarm_message_length(last_command(i)) > 0) THEN
-         ALLOCATE(cmd_ll)
-         cmd_ll%cmd = last_command(i)
-         cmd_ll%next => master%command_queue
-         master%command_queue => cmd_ll
-      END IF
+       master%queued_commands(i)%p = last_commands(i)
     END DO
 
     CALL parser_release(parser, error=master%error)
@@ -235,62 +231,27 @@ MODULE swarm_master
  END FUNCTION commands_equal
 
 
-! *****************************************************************************
-! *****************************************************************************
-  FUNCTION command_queue_pop(master, worker_id) RESULT(cmd)
-    TYPE(swarm_master_type)                 :: master
-    INTEGER                                 :: worker_id
-    TYPE(swarm_message_type)                :: cmd
-
-    TYPE(cmd_linked_list_type), POINTER      :: cmd_ll, cmd_ll_prev
-    INTEGER :: cmd_ll_worker_id
-
-    !cmd%cmd_id = -1 ! default result = nothing found
-
-    NULLIFY(cmd_ll_prev)
-    cmd_ll => master%command_queue
-    DO WHILE(ASSOCIATED(cmd_ll))
-       CALL swarm_message_get(cmd_ll%cmd, "worker_id", cmd_ll_worker_id)
-       IF(cmd_ll_worker_id /= worker_id) THEN
-          cmd_ll_prev => cmd_ll
-          cmd_ll => cmd_ll%next
-          CYCLE
-       END IF
-
-       ! we found a queued command for this worker
-       cmd = cmd_ll%cmd
-       IF(ASSOCIATED(cmd_ll_prev)) THEN
-          cmd_ll_prev%next => cmd_ll%next
-       ELSE
-           master%command_queue => cmd_ll%next
-       END IF
-       DEALLOCATE(cmd_ll)
-       EXIT
-    END DO
-
-  END FUNCTION command_queue_pop
-
 
 ! *****************************************************************************
 ! *****************************************************************************
  SUBROUTINE swarm_master_steer(master, report, cmd)
-    TYPE(swarm_master_type)                 :: master
-    TYPE(swarm_message_type)                :: report
-    TYPE(swarm_message_type)                :: cmd
+    TYPE(swarm_master_type), INTENT(INOUT)        :: master
+    TYPE(swarm_message_type), INTENT(IN)          :: report
+    TYPE(swarm_message_type), INTENT(OUT)         :: cmd
 
-    INTEGER :: worker_id
-    LOGICAL                                 :: should_stop
+    INTEGER                                       :: worker_id
+    LOGICAL                                       :: should_stop
     should_stop = .FALSE.
 
-! First check if there are queued commands for this worker
-
+    ! First check if there are queued commands for this worker
     CALL swarm_message_get(report, "worker_id", worker_id)
 
-    cmd = command_queue_pop(master, worker_id)
-    IF(swarm_message_length(cmd) > 0) THEN
+    IF(ALLOCATED(master%queued_commands(worker_id)%p)) THEN
+       cmd = master%queued_commands(worker_id)%p
+       DEALLOCATE(master%queued_commands(worker_id)%p)
        IF(master%iw>0) WRITE (master%iw,'(A,A,A,I9,X,A)') ' SWARM| ',&
-         REPEAT("*", 9), " Sending out queued command to worker: ",&
-         worker_id,REPEAT("*", 9)
+          REPEAT("*", 9), " Sending out queued command to worker: ",&
+          worker_id,REPEAT("*", 9)
        RETURN
     END IF
 
@@ -314,6 +275,7 @@ MODULE swarm_master
     !IF(unit > 0) &
 
     CALL swarm_message_file_write(report, master%comlog_unit) ! master%i_iteration
+
 
     CALL swarm_message_add(cmd, "worker_id", worker_id)
 
