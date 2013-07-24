@@ -85,7 +85,7 @@ MODULE swarm
     CALL section_vals_val_get(root_section,"SWARM%NUMBER_OF_WORKERS",&
        i_val=n_workers,error=error)
 
-    IF(n_workers == 1) THEN
+    IF(n_workers==1 .AND. para_env%num_pe==1) THEN
        IF(iw > 0) WRITE(iw,"(A)") " SWARM| Running in single worker mode."
        CALL swarm_serial_driver(root_section, input_path, para_env, globenv, error)
     ELSE
