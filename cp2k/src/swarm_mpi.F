@@ -90,16 +90,15 @@ MODULE swarm_mpi
     IF (im_the_master) THEN
        CALL mp_comm_split_direct(swarm_mpi%world%group, subgroup, 1)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
-       !WRITE (*,*) "Hello, this is a Master - there are ",subgroup_size, " of us."
        IF(subgroup_size/=1) STOP "swarm: mp_comm_split_direct failed (master)"
+       CALL cp_para_env_create(swarm_mpi%master, group=subgroup, error=error)
+       !WRITE (*,*) "this is a master ", swarm_mpi%master%mepos, swarm_mpi%master%num_pe
     ELSE
        CALL mp_comm_split_direct(swarm_mpi%world%group, subgroup, 2)
        CALL mp_environ(subgroup_size, subgroup_rank, subgroup)
        !WRITE (*,*) "Hello, this is a Worker - there are ",subgroup_size, " of us."
        IF(subgroup_size/=swarm_mpi%world%num_pe-1) STOP "swarm: mp_comm_split_direct failed (worker)"
     ENDIF
-
-    CALL cp_para_env_create(swarm_mpi%master, group=subgroup, error=error)
 
     ALLOCATE(swarm_mpi%wid2group(n_workers))
     swarm_mpi%wid2group = 0
@@ -111,6 +110,8 @@ MODULE swarm_mpi
        worker_id = group_distribution(subgroup_rank) + 1 ! shall start by 1
        IF(n_groups_created/=n_workers) STOP "swarm: mp_comm_split failed."
        CALL cp_para_env_create(swarm_mpi%worker, group=worker_group, error=error)
+
+       !WRITE (*,*) "this is worker ", worker_id, swarm_mpi%worker%mepos, swarm_mpi%worker%num_pe
 
        ! collect world-ranks of each worker groups rank-0 node
        IF(swarm_mpi%worker%mepos == 0) &
@@ -203,7 +204,7 @@ MODULE swarm_mpi
     CALL logger_finalize(swarm_mpi, error)
 
     IF(ASSOCIATED(swarm_mpi%worker)) CALL mp_comm_free(swarm_mpi%worker%group)
-    CALL mp_comm_free(swarm_mpi%master%group)
+    IF(ASSOCIATED(swarm_mpi%master)) CALL mp_comm_free(swarm_mpi%master%group)
     NULLIFY(swarm_mpi%worker, swarm_mpi%master)
     DEALLOCATE(swarm_mpi%wid2group)
   END SUBROUTINE swarm_mpi_finalize
