@@ -197,9 +197,10 @@ MODULE swarm_message
 
     INTEGER, DIMENSION(key_length) :: key_arr
     INTEGER                        :: datatype, datasize
-    INTEGER, DIMENSION(:), ALLOCATABLE :: value_str_arr
-    if(src==mepos) key_arr = TRANSFER(entry%key, key_arr)
+    INTEGER, DIMENSION(:), POINTER :: value_str_arr
+    NULLIFY(value_str_arr)
 
+    if(src==mepos) key_arr = TRANSFER(entry%key, key_arr)
     CALL mp_bcast(key_arr, src, group)
     if(src/=mepos) entry%key = TRANSFER(key_arr, entry%key)
 
@@ -267,6 +268,7 @@ MODULE swarm_message
           ALLOCATE(entry%value_str)
           entry%value_str = TRANSFER(value_str_arr, entry%value_str)
        END IF
+       DEALLOCATE(value_str_arr)
     CASE DEFAULT
        STOP "swarm_message_entry_mpi_bcast: unkown datatype"
     END SELECT
@@ -280,7 +282,8 @@ MODULE swarm_message
     INTEGER, INTENT(IN)                 :: group, dest, tag
 
     INTEGER, DIMENSION(key_length) :: key_arr
-    INTEGER, DIMENSION(:), ALLOCATABLE :: value_str_arr
+    INTEGER, DIMENSION(:), POINTER :: value_str_arr
+    NULLIFY(value_str_arr)
 
     key_arr = TRANSFER(entry%key, key_arr)
     CALL mp_send(key_arr, dest, tag, group)
@@ -326,6 +329,7 @@ MODULE swarm_message
        ALLOCATE(value_str_arr(default_string_length))
        value_str_arr = TRANSFER(entry%value_str, value_str_arr)
        CALL mp_send(value_str_arr, dest, tag, group)
+       DEALLOCATE(value_str_arr)
     ELSE
        CALL abort()
        STOP "swarm_message_entry_mpi_send: no value ASSOCIATED"
@@ -341,8 +345,9 @@ MODULE swarm_message
     INTEGER, INTENT(INOUT)                 :: src, tag
 
     INTEGER, DIMENSION(key_length) :: key_arr
-    INTEGER, DIMENSION(:), ALLOCATABLE :: value_str_arr
+    INTEGER, DIMENSION(:), POINTER :: value_str_arr
     INTEGER :: datatype, s
+    NULLIFY(value_str_arr)
 
     CALL mp_recv(key_arr, src, tag, group)
     entry%key = TRANSFER(key_arr, entry%key)
@@ -384,6 +389,7 @@ MODULE swarm_message
        ALLOCATE(entry%value_str)
        CALL mp_recv(value_str_arr, src, tag, group)
        entry%value_str = TRANSFER(value_str_arr, entry%value_str)
+       DEALLOCATE(value_str_arr)
     CASE DEFAULT
        STOP "swarm_message_entry_mpi_recv: unkown datatype"
     END SELECT
