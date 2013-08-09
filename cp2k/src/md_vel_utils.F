@@ -635,8 +635,10 @@ CONTAINS
 
   END SUBROUTINE initialize_velocities
 
+
 ! *****************************************************************************
-! Read velocities from binary restart file if available
+!> \brief Read velocities from binary restart file if available
+!> \author CJM,MK,Toon Verstraelen <Toon.Verstraelen@gmail.com>
 ! *****************************************************************************
   SUBROUTINE read_input_velocities(simpar, part, force_env, md_env, subsys_section,&
        shell_present, shell_part, core_part, force_rescaling, para_env, is_fixed, success, error)
@@ -811,7 +813,8 @@ CONTAINS
 
 
 ! *****************************************************************************
-! Initializing velocities deterministically on all processors, if not given in input
+!> \brief Initializing velocities deterministically on all processors, if not given in input
+!> \author CJM,MK,Toon Verstraelen <Toon.Verstraelen@gmail.com>, Ole Schuett
 ! *****************************************************************************
   SUBROUTINE generate_velocities(simpar, part, force_env, globenv, md_env,&
                           shell_present, shell_part, core_part, is_fixed, error)
@@ -831,12 +834,10 @@ CONTAINS
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: i, natoms
-    REAL(KIND=dp)                            :: ekin, mass
-    REAL(KIND=dp), DIMENSION(3)              :: rcom, vang, vcom
+    REAL(KIND=dp)                            :: mass
     TYPE(atomic_kind_type), POINTER          :: atomic_kind
-    TYPE(cell_type), POINTER                 :: cell
 
-    NULLIFY (atomic_kind, cell)
+    NULLIFY (atomic_kind)
     natoms = SIZE(part)
 
      DO i = 1, natoms
@@ -870,6 +871,37 @@ CONTAINS
         END IF
      END DO
 
+     CALL normalize_velocities(simpar, part, force_env, md_env, is_fixed, error)
+
+     ! Initialize the core and the shell velocity. Atom velocities are just
+     ! copied so that the initial relative core-shell velocity is zero.
+     IF (shell_present) THEN
+       CALL optimize_shell_core(force_env,part,shell_part, core_part, globenv, error=error)
+     ENDIF
+  END SUBROUTINE generate_velocities
+
+
+! *****************************************************************************
+!> \brief
+!> \author CJM,MK,Toon Verstraelen <Toon.Verstraelen@gmail.com>, Ole Schuett
+! *****************************************************************************
+  SUBROUTINE normalize_velocities(simpar, part, force_env, md_env, is_fixed, error)
+     TYPE(simpar_type), POINTER               :: simpar
+     TYPE(particle_type), DIMENSION(:), &
+     POINTER                                  :: part
+     TYPE(force_env_type), POINTER            :: force_env
+     TYPE(md_environment_type), POINTER       :: md_env
+     INTEGER, DIMENSION(:), INTENT(INOUT)     :: is_fixed
+     TYPE(cp_error_type), INTENT(INOUT)       :: error
+
+     CHARACTER(LEN=*), PARAMETER :: routineN = 'normalize_velocities', &
+      routineP = moduleN//':'//routineN
+
+     REAL(KIND=dp), DIMENSION(3)              :: rcom, vang, vcom
+     TYPE(cell_type), POINTER                 :: cell
+     REAL(KIND=dp)                            :: ekin
+     NULLIFY(cell)
+
      ! Subtract the vcom
      CALL compute_vcom(part,is_fixed,vcom)
      CALL subtract_vcom(part,is_fixed,vcom)
@@ -887,13 +919,7 @@ CONTAINS
        ekin = compute_ekin(part)
        CALL rescale_vel(part,simpar,ekin)
      END IF
-
-     ! Initialize the core and the shell velocity. Atom velocities are just
-     ! copied so that the initial relative core-shell velocity is zero.
-     IF (shell_present) THEN
-       CALL optimize_shell_core(force_env,part,shell_part, core_part, globenv, error=error)
-     ENDIF
-  END SUBROUTINE generate_velocities
+  END SUBROUTINE normalize_velocities
 
 
 ! *****************************************************************************
