@@ -872,6 +872,7 @@ CONTAINS
      END DO
 
      CALL normalize_velocities(simpar, part, force_env, md_env, is_fixed, error)
+     CALL soften_velocities(simpar, part, force_env, md_env, is_fixed, error)
 
      ! Initialize the core and the shell velocity. Atom velocities are just
      ! copied so that the initial relative core-shell velocity is zero.
@@ -880,9 +881,69 @@ CONTAINS
      ENDIF
   END SUBROUTINE generate_velocities
 
+! *****************************************************************************
+!> \brief TODO
+!> \author Ole Schuett
+! *****************************************************************************
+  SUBROUTINE soften_velocities(simpar, part, force_env, md_env, is_fixed, error)
+     TYPE(simpar_type), POINTER               :: simpar
+     TYPE(particle_type), DIMENSION(:), &
+     POINTER                                  :: part
+     TYPE(force_env_type), POINTER            :: force_env
+     TYPE(md_environment_type), POINTER       :: md_env
+     INTEGER, DIMENSION(:), INTENT(INOUT)     :: is_fixed
+     TYPE(cp_error_type), INTENT(INOUT)       :: error
+
+     CHARACTER(LEN=*), PARAMETER :: routineN = 'soften_velocities', &
+      routineP = moduleN//':'//routineN
+
+    REAL(KIND=dp), DIMENSION(SIZE(part),3)    :: N, F, F_t
+    REAL(KIND=dp)                             :: alpha, d
+    INTEGER                                   :: i, k, nsoften
+
+    ! TODO: make param
+    d = 0.1
+    alpha=0.15
+    nsoften=40
+
+    IF(nsoften==0) RETURN !nothing todo
+
+    CALL cp_assert(ALL(is_fixed==use_perd_none), cp_fatal_level, cp_assertion_failed,&
+                 routineP,"Velocitiy softening with constraints is not supported.")
+
+    DO k=1, nsoften
+       DO i = 1, SIZE(part)
+          N(i,:) = part(i)%v
+       END DO
+
+       N = N / sqrt(sum(N**2)) !normalize excape direction
+
+       DO i = 1, SIZE(part)
+          part(i)%r = part(i)%r + d*N(i,:)  !change positions temporarily
+       END DO
+
+       CALL force_env_calc_energy_force(force_env,error=error)
+
+       DO i = 1, SIZE(part)
+          F(i,:) = part(i)%f
+       END DO
+
+       F_t = F - N * SUM(N*F)  !calc update direction
+
+       DO i = 1, SIZE(part)
+          part(i)%r = part(i)%r - d*N(i,:)  !restore positions
+          part(i)%v = part(i)%v + alpha*F_t(i,:)  !update velocities
+       END DO
+
+       CALL normalize_velocities(simpar, part, force_env, md_env, is_fixed, error)
+    END DO
+
+    WRITE (*,*) "softended velocities, norm(F_t): ",SQRT(SUM(F_t**2))
+  END SUBROUTINE soften_velocities
+
 
 ! *****************************************************************************
-!> \brief
+!> \brief TODO
 !> \author CJM,MK,Toon Verstraelen <Toon.Verstraelen@gmail.com>, Ole Schuett
 ! *****************************************************************************
   SUBROUTINE normalize_velocities(simpar, part, force_env, md_env, is_fixed, error)
