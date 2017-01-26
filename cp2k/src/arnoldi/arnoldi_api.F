@@ -34,10 +34,11 @@ MODULE arnoldi_api
         dbcsr_add, dbcsr_copy, dbcsr_get_block_p, dbcsr_get_info, dbcsr_iterator_blocks_left, &
         dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
         dbcsr_p_type, dbcsr_release, dbcsr_set, dbcsr_type
-   USE dbcsr_vector,                    ONLY: create_col_vec_from_matrix,&
-                                              create_replicated_col_vec_from_matrix,&
-                                              create_replicated_row_vec_from_matrix,&
-                                              dbcsr_matrix_colvec_multiply
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_create,&
+                                              dbcsr_vector_work_create,&
+                                              dbcsr_matrix_vector_multiply, &
+                                              dbcsr_vector_type, dbcsr_vector_release, &
+                                              dbcsr_vector_work_create, dbcsr_vector_work_release
    USE kinds,                           ONLY: dp
    USE message_passing,                 ONLY: mp_sum
 #include "../base/base_uses.f90"
@@ -105,21 +106,20 @@ CONTAINS
 
       INTEGER                                            :: handle, i_loop, ncol_local, nrow_local
       TYPE(arnoldi_control_type), POINTER                :: control
-      TYPE(dbcsr_type), POINTER                          :: restart_vec
+      TYPE(dbcsr_vector_type), POINTER                  :: restart_vec
       TYPE(m_x_v_vectors_type)                           :: vectors
 
       NULLIFY (restart_vec)
       CALL timeset(routineN, handle)
 
 !prepare the vector like matrives needed in the matrix vector products, they will be reused throughout the iterations
-      CALL create_col_vec_from_matrix(vectors%input_vec, matrix(1)%matrix, 1)
-      CALL dbcsr_copy(vectors%result_vec, vectors%input_vec)
-      CALL create_replicated_col_vec_from_matrix(vectors%rep_col_vec, matrix(1)%matrix, 1)
-      CALL create_replicated_row_vec_from_matrix(vectors%rep_row_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_vector_create(vectors%input_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_copy(vectors%result_vec%prv, vectors%input_vec%prv)
+      CALL dbcsr_vector_work_create(vectors%work_vec, matrix(1)%matrix, 1)
 
 ! Tells whether we have local data available on the processor (usually all in pcol 0 but even ther can be some without data)
       control => get_control(arnoldi_data)
-      CALL dbcsr_get_info(matrix=vectors%input_vec, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
+      CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
       control%local_comp = ncol_local > 0 .AND. nrow_local > 0
 
       DO i_loop = 0, get_nrestart(arnoldi_data)
@@ -151,11 +151,10 @@ CONTAINS
       END DO
 
 ! Deallocated the work vectors
-      CALL dbcsr_release(vectors%input_vec)
-      CALL dbcsr_release(vectors%result_vec)
-      CALL dbcsr_release(vectors%rep_col_vec)
-      CALL dbcsr_release(vectors%rep_row_vec)
-      CALL dbcsr_release(restart_vec)
+      CALL dbcsr_vector_release(vectors%input_vec)
+      CALL dbcsr_vector_release(vectors%result_vec)
+      CALL dbcsr_vector_work_release(vectors%work_vec)
+      CALL dbcsr_vector_release(restart_vec)
       DEALLOCATE (restart_vec)
       CALL timestop(handle)
 
@@ -197,14 +196,13 @@ CONTAINS
       matrix_arnoldi(2)%matrix => matrix(2)%matrix
 
 !prepare the vector like matrives needed in the matrix vector products, they will be reused throughout the iterations
-      CALL create_col_vec_from_matrix(vectors%input_vec, matrix(1)%matrix, 1)
-      CALL dbcsr_copy(vectors%result_vec, vectors%input_vec)
-      CALL create_replicated_col_vec_from_matrix(vectors%rep_col_vec, matrix(1)%matrix, 1)
-      CALL create_replicated_row_vec_from_matrix(vectors%rep_row_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_vector_create(vectors%input_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_copy(vectors%result_vec%prv, vectors%input_vec%prv)
+      CALL dbcsr_vector_work_create(vectors%work_vec, matrix(1)%matrix, 1)
 
 ! Tells whether we have local data available on the processor (usually all in pcol 0 but even ther can be some without data)
       control => get_control(arnoldi_data)
-      CALL dbcsr_get_info(matrix=vectors%input_vec, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
+      CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
       control%local_comp = ncol_local > 0 .AND. nrow_local > 0
 
       DO i_loop = 0, get_nrestart(arnoldi_data)
@@ -230,10 +228,9 @@ CONTAINS
       END DO
 
 ! Deallocated the work vectors
-      CALL dbcsr_release(vectors%input_vec)
-      CALL dbcsr_release(vectors%result_vec)
-      CALL dbcsr_release(vectors%rep_col_vec)
-      CALL dbcsr_release(vectors%rep_row_vec)
+      CALL dbcsr_vector_release(vectors%input_vec)
+      CALL dbcsr_vector_release(vectors%result_vec)
+      CALL dbcsr_vector_work_release(vectors%work_vec)
       CALL dbcsr_release(A_rho_B)
       DEALLOCATE (matrix_arnoldi)
 
@@ -327,12 +324,11 @@ CONTAINS
 
       !prepare the vector like matrices needed in the matrix vector products,
       !they will be reused throughout the iterations
-      CALL create_col_vec_from_matrix(vectors%input_vec, matrix_a, 1)
-      CALL dbcsr_copy(vectors%result_vec, vectors%input_vec)
-      CALL create_replicated_col_vec_from_matrix(vectors%rep_col_vec, matrix_a, 1)
-      CALL create_replicated_row_vec_from_matrix(vectors%rep_row_vec, matrix_a, 1)
+      CALL dbcsr_vector_create(vectors%input_vec, matrix_a, 1)
+      CALL dbcsr_copy(vectors%result_vec%prv, vectors%input_vec%prv)
+      CALL dbcsr_vector_work_create(vectors%work_vec, matrix_a, 1)
       !
-      CALL dbcsr_copy(x, vectors%input_vec)
+      CALL dbcsr_copy(x, vectors%input_vec%prv)
       !
       CALL dbcsr_get_info(x, nfullrows_local=nloc, row_blk_size=rb_size, row_blk_offset=rb_offset)
       !
@@ -376,10 +372,9 @@ CONTAINS
       CALL mp_sum(vec_x, mpgrp)
       ! Deallocated the work vectors
       CALL dbcsr_release(x)
-      CALL dbcsr_release(vectors%input_vec)
-      CALL dbcsr_release(vectors%result_vec)
-      CALL dbcsr_release(vectors%rep_col_vec)
-      CALL dbcsr_release(vectors%rep_row_vec)
+      CALL dbcsr_vector_release(vectors%input_vec)
+      CALL dbcsr_vector_release(vectors%result_vec)
+      CALL dbcsr_vector_work_release(vectors%work_vec)
 
       CALL deallocate_arnoldi_data(my_arnoldi)
       DEALLOCATE (arnoldi_matrices)
@@ -420,28 +415,44 @@ CONTAINS
 
       IF (ASSOCIATED(pmat)) THEN
          ! Preconditioned conjugate gradients
-         CALL dbcsr_copy(vectors%input_vec, xvec)
-         CALL dbcsr_matrix_colvec_multiply(pmat, vectors%input_vec, vectors%result_vec, 1.0_dp, &
-                                           0.0_dp, vectors%rep_row_vec, vectors%rep_col_vec)
-         CALL dbcsr_copy(pvec, vectors%result_vec)
-         CALL dbcsr_copy(vectors%input_vec, pvec)
-         CALL dbcsr_matrix_colvec_multiply(amat, vectors%input_vec, vectors%result_vec, 1.0_dp, &
-                                           0.0_dp, vectors%rep_row_vec, vectors%rep_col_vec)
-         CALL dbcsr_copy(apvec, vectors%result_vec)
+         CALL dbcsr_copy(vectors%input_vec%prv, xvec)
+         CALL dbcsr_matrix_vector_multiply(pmat, &
+                                           vec_in=vectors%input_vec, &
+                                           vec_out=vectors%result_vec, &
+                                           alpha=1.0_dp, &
+                                           beta=0.0_dp, &
+                                           work=vectors%work_vec)
+         CALL dbcsr_copy(pvec, vectors%result_vec%prv)
+         CALL dbcsr_copy(vectors%input_vec%prv, pvec)
+         CALL dbcsr_matrix_vector_multiply(amat, &
+                                           vec_in=vectors%input_vec, &
+                                           vec_out=vectors%result_vec, &
+                                           alpha=1.0_dp, &
+                                           beta=0.0_dp, &
+                                           work=vectors%work_vec)
+         CALL dbcsr_copy(apvec, vectors%result_vec%prv)
          CALL dbcsr_copy(rvec, xvec)
          CALL dbcsr_add(rvec, apvec, 1.0_dp, -1.0_dp)
          CALL dbcsr_copy(xvec, pvec)
-         CALL dbcsr_copy(vectors%input_vec, rvec)
-         CALL dbcsr_matrix_colvec_multiply(pmat, vectors%input_vec, vectors%result_vec, 1.0_dp, &
-                                           0.0_dp, vectors%rep_row_vec, vectors%rep_col_vec)
-         CALL dbcsr_copy(zvec, vectors%result_vec)
+         CALL dbcsr_copy(vectors%input_vec%prv, rvec)
+         CALL dbcsr_matrix_vector_multiply(pmat, &
+                                           vec_in=vectors%input_vec, &
+                                           vec_out=vectors%result_vec, &
+                                           alpha=1.0_dp, &
+                                           beta=0.0_dp, &
+                                           work=vectors%work_vec)
+         CALL dbcsr_copy(zvec, vectors%result_vec%prv)
          CALL dbcsr_copy(pvec, zvec)
          rsold = vec_dot_vec(rvec, zvec, mpgrp)
          DO iter = 1, control%max_iter
-            CALL dbcsr_copy(vectors%input_vec, pvec)
-            CALL dbcsr_matrix_colvec_multiply(amat, vectors%input_vec, vectors%result_vec, 1.0_dp, &
-                                              0.0_dp, vectors%rep_row_vec, vectors%rep_col_vec)
-            CALL dbcsr_copy(apvec, vectors%result_vec)
+            CALL dbcsr_copy(vectors%input_vec%prv, pvec)
+            CALL dbcsr_matrix_vector_multiply(amat, &
+                                              vec_in=vectors%input_vec, &
+                                              vec_out=vectors%result_vec, &
+                                              alpha=1.0_dp, &
+                                              beta=0.0_dp, &
+                                              work=vectors%work_vec)
+            CALL dbcsr_copy(apvec, vectors%result_vec%prv)
 
             pap = vec_dot_vec(pvec, apvec, mpgrp)
             IF (ABS(pap) < 1.e-24_dp) THEN
@@ -456,10 +467,14 @@ CONTAINS
             IF (SQRT(rsnew) < control%threshold) EXIT
             CPASSERT(alpha /= 0.0_dp)
 
-            CALL dbcsr_copy(vectors%input_vec, rvec)
-            CALL dbcsr_matrix_colvec_multiply(pmat, vectors%input_vec, vectors%result_vec, 1.0_dp, &
-                                              0.0_dp, vectors%rep_row_vec, vectors%rep_col_vec)
-            CALL dbcsr_copy(zvec, vectors%result_vec)
+            CALL dbcsr_copy(vectors%input_vec%prv, rvec)
+            CALL dbcsr_matrix_vector_multiply(pmat, &
+                                              vec_in=vectors%input_vec, &
+                                              vec_out=vectors%result_vec, &
+                                              alpha=1.0_dp, &
+                                              beta=0.0_dp, &
+                                              work=vectors%work_vec)
+            CALL dbcsr_copy(zvec, vectors%result_vec%prv)
             rsnew = vec_dot_vec(rvec, zvec, mpgrp)
             beta = rsnew/rsold
             CALL dbcsr_add(pvec, zvec, beta, 1.0_dp)
@@ -478,10 +493,14 @@ CONTAINS
          ! Conjugate gradients
          rsold = vec_dot_vec(rvec, rvec, mpgrp)
          DO iter = 1, control%max_iter
-            CALL dbcsr_copy(vectors%input_vec, pvec)
-            CALL dbcsr_matrix_colvec_multiply(amat, vectors%input_vec, vectors%result_vec, 1.0_dp, &
-                                              0.0_dp, vectors%rep_row_vec, vectors%rep_col_vec)
-            CALL dbcsr_copy(apvec, vectors%result_vec)
+            CALL dbcsr_copy(vectors%input_vec%prv, pvec)
+            CALL dbcsr_matrix_vector_multiply(amat, &
+                                              vec_in=vectors%input_vec, &
+                                              vec_out=vectors%result_vec, &
+                                              alpha=1.0_dp, &
+                                              beta=0.0_dp, &
+                                              work=vectors%work_vec)
+            CALL dbcsr_copy(apvec, vectors%result_vec%prv)
             pap = vec_dot_vec(pvec, apvec, mpgrp)
             IF (ABS(pap) < 1.e-24_dp) THEN
                alpha = 0.0_dp

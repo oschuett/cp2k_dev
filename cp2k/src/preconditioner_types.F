@@ -25,6 +25,7 @@ MODULE preconditioner_types
    USE input_constants,                 ONLY: cholesky_reduce,&
                                               ot_precond_solver_default
    USE kinds,                           ONLY: dp
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_vector_release
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -44,8 +45,8 @@ MODULE preconditioner_types
       TYPE(dbcsr_type), POINTER :: sparse_matrix
       TYPE(cp_fm_type), POINTER :: fm
       TYPE(dbcsr_type), POINTER           :: dbcsr_matrix
-      TYPE(dbcsr_type), POINTER           :: max_ev_vector
-      TYPE(dbcsr_type), POINTER           :: min_ev_vector
+      TYPE(dbcsr_vector_type), POINTER   :: max_ev_vector
+      TYPE(dbcsr_vector_type), POINTER   :: min_ev_vector
       TYPE(dbcsr_p_type), POINTER, DIMENSION(:) :: inverse_history
       TYPE(cp_para_env_type), POINTER   :: para_env
       TYPE(cp_blacs_env_type), POINTER   :: ctxt
@@ -91,11 +92,11 @@ CONTAINS
       NULLIFY (preconditioner_env%sparse_matrix)
       NULLIFY (preconditioner_env%fm)
       NULLIFY (preconditioner_env%dbcsr_matrix)
+      NULLIFY (preconditioner_env%max_ev_vector)
+      NULLIFY (preconditioner_env%min_ev_vector)
       NULLIFY (preconditioner_env%occ_evals)
       NULLIFY (preconditioner_env%full_evals)
       NULLIFY (preconditioner_env%inverse_history)
-      NULLIFY (preconditioner_env%max_ev_vector)
-      NULLIFY (preconditioner_env%min_ev_vector)
       preconditioner_env%solver = ot_precond_solver_default
       preconditioner_env%para_env => para_env
       preconditioner_env%ctxt => blacs_env
@@ -136,10 +137,12 @@ CONTAINS
          CALL dbcsr_release_p(preconditioner_env%dbcsr_matrix)
       ENDIF
       IF (ASSOCIATED(preconditioner_env%max_ev_vector)) THEN
-         CALL dbcsr_release_p(preconditioner_env%max_ev_vector)
+         CALL dbcsr_vector_release(preconditioner_env%max_ev_vector)
+         DEALLOCATE(preconditioner_env%max_ev_vector)
       ENDIF
       IF (ASSOCIATED(preconditioner_env%min_ev_vector)) THEN
-         CALL dbcsr_release_p(preconditioner_env%min_ev_vector)
+         CALL dbcsr_vector_release(preconditioner_env%min_ev_vector)
+         DEALLOCATE(preconditioner_env%min_ev_vector)
       ENDIF
       IF (ASSOCIATED(preconditioner_env%occ_evals)) THEN
          DEALLOCATE (preconditioner_env%occ_evals)

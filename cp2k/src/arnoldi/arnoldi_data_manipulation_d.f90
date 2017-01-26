@@ -60,10 +60,10 @@
 !> \param vector ...
 ! **************************************************************************************************
   SUBROUTINE get_selected_ritz_vector_d(arnoldi_data,ind,matrix,vector)
-    TYPE(arnoldi_data_type)                 :: arnoldi_data
-    INTEGER                                  :: ind
+    TYPE(arnoldi_data_type)                   :: arnoldi_data
+    INTEGER                                   :: ind
     TYPE(dbcsr_type)                          :: matrix
-    TYPE(dbcsr_type)                          :: vector
+    TYPE(dbcsr_vector_type)                  :: vector
 
     CHARACTER(LEN=*), PARAMETER :: routineN = 'get_selected_ritz_vector_d', &
       routineP = moduleN//':'//routineN
@@ -84,13 +84,13 @@
     ALLOCATE(ritz_v(vsize))
     ritz_v=CMPLX(0.0,0.0,real_8)
 
-    CALL dbcsr_release(vector)
-    CALL create_col_vec_from_matrix(vector,matrix,1)
+    CALL dbcsr_vector_release(vector)
+    CALL dbcsr_vector_create(vector,matrix,1)
     IF(control%local_comp)THEN
        DO i=1,sspace_size
           ritz_v(:)=ritz_v(:)+ar_data%local_history(:,i)*ar_data%revec(i,myind)
        END DO
-       data_vec => dbcsr_get_data_p (vector, select_data_type=0.0_real_8)
+       data_vec => dbcsr_get_data_p (vector%prv, select_data_type=0.0_real_8)
        ! is a bit odd but ritz_v is always complex and matrix type determines where it goes
        ! again I hope the user knows what is required
        data_vec(1:vsize) =REAL(ritz_v(1:vsize),KIND=real_8)
@@ -99,8 +99,7 @@
     DEALLOCATE(ritz_v)
 
   END SUBROUTINE get_selected_ritz_vector_d
-     
-   
+
 ! **************************************************************************************************
 !> \brief ...
 !> \param arnoldi_data ...
@@ -108,7 +107,7 @@
 ! **************************************************************************************************
   SUBROUTINE set_initial_vector_d(arnoldi_data,vector)
     TYPE(arnoldi_data_type)                 :: arnoldi_data
-    TYPE(dbcsr_type)                          :: vector
+    TYPE(dbcsr_vector_type)                :: vector
 
     CHARACTER(LEN=*), PARAMETER :: routineN = 'set_initial_vector_d', &
       routineP = moduleN//':'//routineN
@@ -120,9 +119,9 @@
 
     control=>get_control(arnoldi_data)
 
-    CALL dbcsr_get_info(matrix=vector, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
+    CALL dbcsr_get_info(matrix=vector%prv, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
     ar_data=>get_data_d(arnoldi_data)
-    data_vec => dbcsr_get_data_p (vector, select_data_type=0.0_real_8)
+    data_vec => dbcsr_get_data_p (vector%prv, select_data_type=0.0_real_8)
     IF(nrow_local*ncol_local>0)ar_data%f_vec(1:nrow_local)=data_vec(1:nrow_local)
 
   END SUBROUTINE set_initial_vector_d  

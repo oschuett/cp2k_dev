@@ -33,6 +33,8 @@ MODULE pexsi_types
                                               cp_pexsi_plan_finalize,&
                                               cp_pexsi_plan_initialize,&
                                               cp_pexsi_set_options
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_vector_release
+
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -96,7 +98,7 @@ MODULE pexsi_types
       INTEGER(kind=int_8)                      :: plan
       INTEGER                                  :: nspin, num_ranks_per_pole, mp_group
 
-      TYPE(dbcsr_type), DIMENSION(:), &
+      TYPE(dbcsr_vector_type), DIMENSION(:), &
          POINTER                                :: max_ev_vector
       TYPE(dbcsr_type)                      :: csr_sparsity
       INTEGER, DIMENSION(2)                    :: mp_dims

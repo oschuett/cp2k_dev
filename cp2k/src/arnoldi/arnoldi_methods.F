@@ -22,7 +22,7 @@ MODULE arnoldi_methods
         dbcsr_add, dbcsr_copy, dbcsr_get_data_p, dbcsr_get_info, dbcsr_iterator_blocks_left, &
         dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
         dbcsr_p_type, dbcsr_scale, dbcsr_type
-   USE dbcsr_vector,                    ONLY: dbcsr_matrix_colvec_multiply
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_matrix_vector_multiply
    USE kinds,                           ONLY: real_4,&
                                               real_8
    USE message_passing,                 ONLY: mp_bcast,&

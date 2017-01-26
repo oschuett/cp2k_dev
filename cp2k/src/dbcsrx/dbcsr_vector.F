@@ -82,17 +82,25 @@ MODULE dbcsr_vector
       TYPE(block_ptr_z), DIMENSION(:), ALLOCATABLE :: blk_map_z
    END TYPE
 
-   PUBLIC :: dbcsr_matrix_colvec_multiply, &
-             create_col_vec_from_matrix, &
-             create_row_vec_from_matrix, &
-             create_replicated_col_vec_from_matrix, &
-             create_replicated_row_vec_from_matrix
+   TYPE dbcsr_vector_type
+      TYPE(dbcsr_type) :: prv
+   END TYPE dbcsr_vector_type
 
-   INTERFACE dbcsr_matrix_colvec_multiply
-      MODULE PROCEDURE dbcsr_matrix_colvec_multiply_d
-      MODULE PROCEDURE dbcsr_matrix_colvec_multiply_s
-      MODULE PROCEDURE dbcsr_matrix_colvec_multiply_z
-      MODULE PROCEDURE dbcsr_matrix_colvec_multiply_c
+   TYPE dbcsr_vector_work_type
+      PRIVATE
+      TYPE(dbcsr_type) :: row
+      TYPE(dbcsr_type) :: col
+   END TYPE dbcsr_vector_work_type
+
+   PUBLIC :: dbcsr_matrix_vector_multiply
+   PUBLIC :: dbcsr_vector_type, dbcsr_vector_create, dbcsr_vector_release
+   PUBLIC :: dbcsr_vector_work_type, dbcsr_vector_work_create, dbcsr_vector_work_release
+
+   INTERFACE dbcsr_matrix_vector_multiply
+      MODULE PROCEDURE dbcsr_matrix_vector_multiply_d
+      MODULE PROCEDURE dbcsr_matrix_vector_multiply_s
+      MODULE PROCEDURE dbcsr_matrix_vector_multiply_z
+      MODULE PROCEDURE dbcsr_matrix_vector_multiply_c
    END INTERFACE
 
 CONTAINS
@@ -106,11 +114,12 @@ CONTAINS
 !> \param matrix a dbcsr matrix used as template
 !> \param ncol number of vectors in the dbcsr_typeect (1 for vector, n for skinny matrix)
 ! **************************************************************************************************
-   SUBROUTINE create_col_vec_from_matrix(dbcsr_vec, matrix, ncol)
-      TYPE(dbcsr_type)                                   :: dbcsr_vec, matrix
+   SUBROUTINE dbcsr_vector_create(vector, matrix, ncol)
+      TYPE(dbcsr_vector_type)                           :: vector
+      TYPE(dbcsr_type)                                   :: matrix
       INTEGER                                            :: ncol
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_col_vec_from_matrix'
+      CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_vector_create'
 
       INTEGER                                            :: handle, npcols, data_type
       INTEGER, DIMENSION(:), POINTER                     :: row_blk_size, col_blk_size, row_dist, col_dist
@@ -126,61 +135,50 @@ CONTAINS
       col_blk_size(1) = ncol
       CALL dbcsr_distribution_new(dist_col_vec, template=dist, row_dist=row_dist, col_dist=col_dist)
 
-      CALL dbcsr_create(dbcsr_vec, "D", dist_col_vec,&
+      CALL dbcsr_create(vector%prv, "D", dist_col_vec,&
                         matrix_type=dbcsr_type_no_symmetry, &
                         row_blk_size=row_blk_size,&
                         col_blk_size=col_blk_size, &
                         nze=0, data_type=data_type)
-      CALL dbcsr_reserve_all_blocks(dbcsr_vec)
+      CALL dbcsr_reserve_all_blocks(vector%prv)
 
       CALL dbcsr_distribution_release(dist_col_vec)
       DEALLOCATE (col_dist, col_blk_size)
       CALL timestop(handle)
 
-   END SUBROUTINE create_col_vec_from_matrix
+   END SUBROUTINE dbcsr_vector_create
 
 ! **************************************************************************************************
-!> \brief creates a dbcsr row vector like object which lives on proc_row 0
-!>        and has the same row dist as the template matrix
-!>        the returned matrix is fully allocated and all blocks are set to 0
-!>        this is not a sparse object (and must never be)
-!> \param dbcsr_vec ...
-!> \param matrix a dbcsr matrix used as template
-!> \param nrow number of vectors in the dbcsr_typeect (1 for vector, n for skinny matrix)
+!> \brief Create a DBCSR work vector
 ! **************************************************************************************************
-SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
-      TYPE(dbcsr_type)                                   :: dbcsr_vec, matrix
-      INTEGER                                            :: nrow
+   SUBROUTINE dbcsr_vector_work_create(work, matrix, ncol)
+      TYPE(dbcsr_vector_work_type)                      :: work
+      TYPE(dbcsr_type)                                  :: matrix
+      INTEGER, INTENT(IN)                               :: ncol
 
-      CHARACTER(LEN=*), PARAMETER :: routineN = 'create_row_vec_from_matrix'
+      CALL create_replicated_col_vec_from_matrix(work%col, matrix, ncol)
+      CALL create_replicated_row_vec_from_matrix(work%row, matrix, ncol)
+   END SUBROUTINE dbcsr_vector_work_create
 
-      INTEGER                                            :: handle, nprows, data_type
-      INTEGER, DIMENSION(:), POINTER                     :: row_blk_size, col_blk_size, row_dist, col_dist
-      TYPE(dbcsr_distribution_type)                      :: dist_row_vec, dist
 
-      CALL timeset(routineN, handle)
+! **************************************************************************************************
+!> \brief Release a DBCSR vector
+! **************************************************************************************************
+   SUBROUTINE dbcsr_vector_release(vector)
+      TYPE(dbcsr_vector_type)                           :: vector
 
-      CALL dbcsr_get_info(matrix, data_type=data_type, col_blk_size=col_blk_size, distribution=dist)
-      CALL dbcsr_distribution_get(dist, nprows=nprows, col_dist=col_dist)
+      CALL dbcsr_release(vector%prv)
+   END SUBROUTINE dbcsr_vector_release
 
-      ALLOCATE (row_dist(1), row_blk_size(1))
-      row_dist(1) = 0
-      row_blk_size(1) = nrow
-      CALL dbcsr_distribution_new(dist_row_vec, template=dist, row_dist=row_dist, col_dist=col_dist)
+! **************************************************************************************************
+!> \brief Release a DBCSR work vector
+! **************************************************************************************************
+   SUBROUTINE dbcsr_vector_work_release(work)
+      TYPE(dbcsr_vector_work_type)                      :: work
 
-      CALL dbcsr_create(dbcsr_vec, "D", dist_row_vec,&
-                        matrix_type=dbcsr_type_no_symmetry, &
-                        row_blk_size=row_blk_size,&
-                        col_blk_size=col_blk_size, &
-                        nze=0, data_type=data_type)
-      CALL dbcsr_reserve_all_blocks(dbcsr_vec)
-
-      CALL dbcsr_distribution_release(dist_row_vec)
-      DEALLOCATE (row_dist, row_blk_size)
-      CALL timestop(handle)
-
-   END SUBROUTINE create_row_vec_from_matrix
-
+      CALL dbcsr_release(work%row)
+      CALL dbcsr_release(work%col)
+   END SUBROUTINE dbcsr_vector_work_release
 
 ! **************************************************************************************************
 !> \brief creates a col vector like object whose blocks can be replicated
@@ -374,12 +372,13 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
 !> \param work_row ...
 !> \param work_col ...
 ! **************************************************************************************************
-  SUBROUTINE dbcsr_matrix_colvec_multiply_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work_row, work_col)
-    TYPE(dbcsr_type)                          :: matrix, vec_in, vec_out
+  SUBROUTINE dbcsr_matrix_vector_multiply_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work)
+    TYPE(dbcsr_type)                          :: matrix
+    TYPE(dbcsr_vector_type)                   :: vec_in, vec_out
     ${type}$                                  :: alpha, beta
-    TYPE(dbcsr_type)                          :: work_row, work_col
+    TYPE(dbcsr_vector_work_type)              :: work
 
-    CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_matrix_colvec_multiply_low', &
+    CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_matrix_vector_multiply_low', &
       routineP = moduleN//':'//routineN
 
     CHARACTER                                :: matrix_type
@@ -388,9 +387,9 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
 
     SELECT CASE(matrix_type)
     CASE(dbcsr_type_no_symmetry)
-       CALL dbcsr_matrix_vector_mult_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work_row, work_col)
+       CALL dbcsr_matrix_vector_mult_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work%row, work%col)
     CASE(dbcsr_type_symmetric)
-       CALL dbcsr_sym_matrix_vector_mult_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work_row, work_col)
+       CALL dbcsr_sym_matrix_vector_mult_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work%row, work%col)
     CASE(dbcsr_type_antisymmetric)
         ! Not yet implemented, should mainly be some prefactor magic, but who knows how antisymmetric matrices are stored???
        CPABORT("NYI, antisymmetric matrix not permitted")
@@ -398,7 +397,7 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
        CPABORT("Unknown matrix type, ...")
     END SELECT
 
-  END SUBROUTINE dbcsr_matrix_colvec_multiply_${nametype}$
+  END SUBROUTINE dbcsr_matrix_vector_multiply_${nametype}$
 
 ! **************************************************************************************************
 !> \brief low level routines for matrix vector multiplies
@@ -411,7 +410,8 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
 !> \param work_col ...
 ! **************************************************************************************************
   SUBROUTINE dbcsr_matrix_vector_mult_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work_row, work_col)
-    TYPE(dbcsr_type)                          :: matrix, vec_in, vec_out
+    TYPE(dbcsr_type)                          :: matrix
+    TYPE(dbcsr_vector_type)                  :: vec_in, vec_out
     ${type}$                                  :: alpha, beta
     TYPE(dbcsr_type)                          :: work_row, work_col
 
@@ -440,7 +440,7 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
     CALL create_fast_col_vec_access(work_col, fast_vec_col)
 
 ! Transfer the correct parts of the input vector to the correct locations so we can do a local multiply
-    CALL dbcsr_col_vec_to_rep_row_${nametype}$(vec_in, work_col, work_row, fast_vec_col)
+    CALL dbcsr_col_vec_to_rep_row_${nametype}$(vec_in%prv, work_col, work_row, fast_vec_col)
 
 ! Set the work vector for the results to 0
     CALL dbcsr_set(work_col, ${zero}$)
@@ -473,7 +473,7 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
 
 ! Local copy on the first mpi col (as this is the localtion of the vec_res blocks) of the result vector
 ! from the replicated to the original vector. Let's play it safe and use the iterator
-    CALL dbcsr_iterator_start(iter, vec_out)
+    CALL dbcsr_iterator_start(iter, vec_out%prv)
     DO WHILE (dbcsr_iterator_blocks_left(iter))
        CALL dbcsr_iterator_next_block(iter, row, col, vec_res)
        prow=hash_table_get(fast_vec_col%hash_table,row)
@@ -491,119 +491,6 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
     CALL timestop(handle)
 
   END SUBROUTINE dbcsr_matrix_vector_mult_${nametype}$
-
-! **************************************************************************************************
-!> \brief ...
-!> \param matrix ...
-!> \param vec_in ...
-!> \param vec_out ...
-!> \param alpha ...
-!> \param beta ...
-!> \param work_row ...
-!> \param work_col ...
-!> \param skip_diag ...
-! **************************************************************************************************
-  SUBROUTINE dbcsr_matrixT_vector_mult_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work_row, work_col, skip_diag)
-    TYPE(dbcsr_type)                          :: matrix, vec_in, vec_out
-    ${type}$                                  :: alpha, beta
-    TYPE(dbcsr_type)                          :: work_row, work_col
-    LOGICAL                                   :: skip_diag
-
-    CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_matrixT_vector_mult'
-
-    INTEGER                                  :: col, col_size, mypcol, &
-                                                myprow, &
-                                                ncols, pcol_group, nrows, &
-                                                prow_group, row, row_size, &
-                                                handle, handle1, ithread
-    ${type}$, DIMENSION(:), POINTER          :: data_vec
-    ${type}$, DIMENSION(:, :), POINTER       :: data_d, vec_bl, vec_res
-    TYPE(dbcsr_distribution_type)            :: dist
-    TYPE(dbcsr_iterator_type)                :: iter
-
-    TYPE(fast_vec_access_type)               :: fast_vec_row, fast_vec_col
-    INTEGER                                  :: prow, pcol
-
-    CALL timeset(routineN, handle)
-    ithread=0
-
-! Collect some data about the parallel environment. We will use them later to move the vector around
-    CALL dbcsr_get_info(matrix, distribution=dist)
-    CALL dbcsr_distribution_get(dist, prow_group=prow_group, pcol_group=pcol_group, myprow=myprow, mypcol=mypcol)
-
-    CALL create_fast_row_vec_access(work_row, fast_vec_row)
-    CALL create_fast_col_vec_access(work_col, fast_vec_col)
-
-! Set the work vector for the results to 0
-    CALL dbcsr_set(work_row, ${zero}$)
-
-! Transfer the correct parts of the input vector to the replicated vector on proc_col 0
-    CALL dbcsr_iterator_start(iter, vec_in)
-    DO WHILE (dbcsr_iterator_blocks_left(iter))
-       CALL dbcsr_iterator_next_block(iter, row, col, vec_bl, row_size=row_size, col_size=col_size)
-       prow=hash_table_get(fast_vec_col%hash_table,row)
-       fast_vec_col%blk_map_${nametype}$(prow)%ptr(1:row_size, 1:col_size)= vec_bl(1:row_size, 1:col_size)
-    END DO
-    CALL dbcsr_iterator_stop(iter)
-! Replicate the data on all processore in the row
-    data_vec => dbcsr_get_data_p(work_col, select_data_type=${zero}$)
-    CALL mp_bcast(data_vec, 0, prow_group)
-
-! Perform the local multiply. Here it is obvious why the vectors are replicated on the mpi rows and cols
-    CALL timeset(routineN//"local_mm", handle1)
-    CALL dbcsr_get_info(matrix=work_col, nfullcols_local=ncols)
-!$OMP PARALLEL DEFAULT(NONE) PRIVATE(row,col,iter,data_d,row_size,col_size,ithread,prow,pcol) &
-!$OMP          SHARED(matrix,fast_vec_row,fast_vec_col,skip_diag,ncols)
-    !$ ithread = omp_get_thread_num ()
-    CALL dbcsr_iterator_start(iter, matrix, shared=.FALSE.)
-    DO WHILE (dbcsr_iterator_blocks_left(iter))
-       CALL dbcsr_iterator_next_block(iter, row, col, data_d, row_size=row_size, col_size=col_size)
-       IF(skip_diag.AND.col==row)CYCLE
-       prow=hash_table_get(fast_vec_col%hash_table,row)
-       pcol=hash_table_get(fast_vec_row%hash_table,col)
-       IF ( ASSOCIATED(fast_vec_row%blk_map_${nametype}$(pcol)%ptr) .AND. &
-            ASSOCIATED(fast_vec_col%blk_map_${nametype}$(prow)%ptr) )THEN
-          IF(fast_vec_row%blk_map_${nametype}$(pcol)%assigned_thread .NE. ithread ) CYCLE
-          fast_vec_row%blk_map_${nametype}$(pcol)%ptr=fast_vec_row%blk_map_${nametype}$(pcol)%ptr+&
-               MATMUL(TRANSPOSE(fast_vec_col%blk_map_${nametype}$(prow)%ptr),data_d)
-       ELSE
-          prow=hash_table_get(fast_vec_row%hash_table,row)
-          pcol=hash_table_get(fast_vec_col%hash_table,col)
-          IF(fast_vec_row%blk_map_${nametype}$(prow)%assigned_thread .NE. ithread ) CYCLE
-          fast_vec_row%blk_map_${nametype}$(prow)%ptr=fast_vec_row%blk_map_${nametype}$(prow)%ptr+&
-             MATMUL(TRANSPOSE(fast_vec_col%blk_map_${nametype}$(pcol)%ptr),TRANSPOSE(data_d))
-       END IF
-    END DO
-    CALL dbcsr_iterator_stop(iter)
-!$OMP END PARALLEL
-
-    CALL timestop(handle1)
-
-! sum all the data within a processor column to obtain the replicated result
-    data_vec => dbcsr_get_data_p(work_row, select_data_type=${zero}$)
-! we use the replicated vector but the final answer is only summed to proc_col 0 for efficiency
-    CALL dbcsr_get_info(matrix=work_row, nfullrows_local=nrows, nfullcols_local=ncols)
-    CALL mp_sum(data_vec(1:nrows*ncols), pcol_group)
-
-! Convert the result to a column wise distribution
-    CALL dbcsr_rep_row_to_rep_col_vec_${nametype}$(work_col, work_row, fast_vec_row)
-    
-! Create_the final vector by summing it to the result vector which lives on proc_col 0
-    CALL dbcsr_iterator_start(iter, vec_out)
-    DO WHILE (dbcsr_iterator_blocks_left(iter))
-       CALL dbcsr_iterator_next_block(iter, row, col, vec_res, row_size=row_size)
-       prow=hash_table_get(fast_vec_col%hash_table,row)
-       IF(ASSOCIATED(fast_vec_col%blk_map_${nametype}$(prow)%ptr)) THEN
-          vec_res(:, :)= beta*vec_res(:, :)+alpha*fast_vec_col%blk_map_${nametype}$(prow)%ptr(:,:)
-       ELSE
-          vec_res(:, :)= beta*vec_res(:, :)
-       END IF
-    END DO
-    CALL dbcsr_iterator_stop(iter)
-
-    CALL timestop(handle)
-
-  END SUBROUTINE dbcsr_matrixT_vector_mult_${nametype}$
 
 ! **************************************************************************************************
 !> \brief ...
@@ -850,7 +737,8 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
 !> \param work_col ...
 ! **************************************************************************************************
   SUBROUTINE dbcsr_sym_matrix_vector_mult_${nametype}$(matrix, vec_in, vec_out, alpha, beta, work_row, work_col)
-    TYPE(dbcsr_type)                          :: matrix, vec_in, vec_out
+    TYPE(dbcsr_type)                          :: matrix
+    TYPE(dbcsr_vector_type)                  :: vec_in,vec_out
     ${type}$                                  :: alpha, beta
     TYPE(dbcsr_type)                          :: work_row, work_col
 
@@ -873,7 +761,7 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
     CALL timeset(routineN, handle)
     ithread=0
 ! We need some work matrices as we try to exploit operations on the replicated vectors which are duplicated otherwise
-    CALL dbcsr_get_info(matrix=vec_in,nfullcols_total=vec_dim)
+    CALL dbcsr_get_info(matrix=vec_in%prv,nfullcols_total=vec_dim)
 ! This is a performance hack as the new creation of a replicated vector is a fair bit more expensive
     CALL dbcsr_set(work_col, ${zero}$)
     CALL dbcsr_copy(result_col, work_col)
@@ -890,7 +778,7 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
     CALL create_fast_col_vec_access(result_col, res_fast_vec_col)
 
 ! Transfer the correct parts of the input vector to the correct locations so we can do a local multiply
-    CALL dbcsr_col_vec_to_rep_row_${nametype}$(vec_in, work_col, work_row, fast_vec_col)
+    CALL dbcsr_col_vec_to_rep_row_${nametype}$(vec_in%prv, work_col, work_row, fast_vec_col)
 
 ! Probably I should rename the routine above as it delivers both the replicated row and column vector
 
@@ -953,7 +841,7 @@ SUBROUTINE create_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
     CALL dbcsr_rep_row_to_rep_col_vec_${nametype}$(work_col, result_row, res_fast_vec_row, res_fast_vec_col)
 
 !    ! Create_the final vector by summing it to the result vector which lives on proc_col 0 lower
-    CALL dbcsr_iterator_start(iter, vec_out)
+    CALL dbcsr_iterator_start(iter, vec_out%prv)
     DO WHILE (dbcsr_iterator_blocks_left(iter))
        CALL dbcsr_iterator_next_block(iter, row, col, vec_res)
        prow=hash_table_get(fast_vec_col%hash_table,row)

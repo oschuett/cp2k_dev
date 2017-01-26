@@ -53,6 +53,8 @@ MODULE pexsi_methods
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_ks_types,                     ONLY: qs_ks_env_type
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_vector_release
+
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -276,7 +278,7 @@ CONTAINS
       CALL csr_destroy(pexsi_env%csr_mat_E)
       CALL csr_destroy(pexsi_env%csr_mat_F)
       DO ispin = 1, pexsi_env%nspin
-         CALL dbcsr_release(pexsi_env%max_ev_vector(ispin))
+         CALL dbcsr_vector_release(pexsi_env%max_ev_vector(ispin))
          CALL dbcsr_release(pexsi_env%matrix_w(ispin)%matrix)
       ENDDO
       CALL timestop(handle)
