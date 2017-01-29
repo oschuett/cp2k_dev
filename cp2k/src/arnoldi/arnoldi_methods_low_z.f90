@@ -55,7 +55,7 @@
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: i, iseed(4), row_size, col_size, &
-                                                nrow_local, ncol_local, pcol_group, &
+                                                nrow_local, pcol_group, &
                                                 row, col
     REAL(real_8)                        :: rnorm
     TYPE(dbcsr_iterator_type)                     :: iter
@@ -74,7 +74,7 @@
     ar_data=>get_data_z(arnoldi_data)
 
    ! create a local data copy to store the vectors and make Gram Schmidt a bit simpler
-    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
+    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local)
     ALLOCATE(v_vec(nrow_local))
     ALLOCATE(w_vec(nrow_local))
     v_vec = CMPLX(0.0, 0.0, real_8) ; w_vec = CMPLX(0.0, 0.0, real_8)
@@ -248,7 +248,7 @@
     CHARACTER(LEN=*), PARAMETER :: routineN = 'build_subspace_z', &
          routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: i, j, ncol_local, nrow_local
+    INTEGER                                  :: i, j, nrow_local
     REAL(real_8)                        :: rnorm
     TYPE(arnoldi_control_type), POINTER           :: control
     TYPE(arnoldi_data_z_type), POINTER  :: ar_data
@@ -261,7 +261,7 @@
     control%converged=.FALSE.
 
     ! create the vectors required during the iterations
-    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
+    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local)
     ALLOCATE(v_vec(nrow_local));  ALLOCATE(w_vec(nrow_local))
     v_vec = CMPLX(0.0, 0.0, real_8) ; w_vec = CMPLX(0.0, 0.0, real_8)
     ALLOCATE(s_vec(control%max_iter)); ALLOCATE(h_vec(control%max_iter))
@@ -479,7 +479,7 @@
       routineP = moduleN//':'//routineN
 
     INTEGER                                  :: iseed(4), row_size, col_size, &
-                                                nrow_local, ncol_local, pcol_group, &
+                                                nrow_local, pcol_group, &
                                                 row, col
     REAL(real_8)                        :: rnorm
     TYPE(dbcsr_iterator_type)                     :: iter
@@ -498,7 +498,7 @@
     ar_data=>get_data_z(arnoldi_data)
 
    ! create a local data copy to store the vectors and make Gram Schmidt a bit simpler
-    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
+    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local)
     ALLOCATE(v_vec(nrow_local))
     ALLOCATE(w_vec(nrow_local))
     v_vec = CMPLX(0.0, 0.0, real_8) ; w_vec = CMPLX(0.0, 0.0, real_8)
@@ -520,7 +520,7 @@
 
     CALL transfer_dbcsr_to_local_array_z(vectors%input_vec, v_vec, nrow_local, control%local_comp)
 
-    ! compute the vector norm of the reandom vectorm, get it real valued as well (rnorm)
+    ! compute the vector norm of the random vector, get it real valued as well (rnorm)
     CALL compute_norms_z(v_vec, norm, rnorm, control%pcol_group)
 
     IF (rnorm==0) rnorm=1 ! catch case where this rank has no actual data
@@ -579,7 +579,7 @@
     CHARACTER(LEN=*), PARAMETER :: routineN = 'build_subspace_z', &
          routineP = moduleN//':'//routineN
 
-    INTEGER                                  :: j, ncol_local, nrow_local, pcol_group
+    INTEGER                                  :: j, nrow_local, pcol_group
     TYPE(arnoldi_control_type), POINTER           :: control
     TYPE(arnoldi_data_z_type), POINTER            :: ar_data
     COMPLEX(kind=real_8)                         :: norm
@@ -592,7 +592,7 @@
     pcol_group=control%pcol_group
 
     ! create the vectors required during the iterations
-    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local, nfullcols_local=ncol_local)
+    CALL dbcsr_get_info(matrix=vectors%input_vec%prv, nfullrows_local=nrow_local)
     ALLOCATE(v_vec(nrow_local));  ALLOCATE(w_vec(nrow_local))
     v_vec = CMPLX(0.0, 0.0, real_8) ; w_vec = CMPLX(0.0, 0.0, real_8)
     ALLOCATE(s_vec(control%max_iter)); ALLOCATE(h_vec(control%max_iter))
