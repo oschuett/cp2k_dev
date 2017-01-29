@@ -112,12 +112,10 @@ CONTAINS
 !>        this is not a sparse object (and must never be)
 !> \param dbcsr_vec  the vector object to create must be allocated but not initialized
 !> \param matrix a dbcsr matrix used as template
-!> \param ncol number of vectors in the dbcsr_typeect (1 for vector, n for skinny matrix)
 ! **************************************************************************************************
-   SUBROUTINE dbcsr_vector_create(vector, matrix, ncol)
+   SUBROUTINE dbcsr_vector_create(vector, matrix)
       TYPE(dbcsr_vector_type)                           :: vector
       TYPE(dbcsr_type)                                   :: matrix
-      INTEGER                                            :: ncol
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'dbcsr_vector_create'
 
@@ -132,7 +130,7 @@ CONTAINS
 
       ALLOCATE (col_dist(1), col_blk_size(1))
       col_dist(1) = 0
-      col_blk_size(1) = ncol
+      col_blk_size(1) = 1
       CALL dbcsr_distribution_new(dist_col_vec, template=dist, row_dist=row_dist, col_dist=col_dist)
 
       CALL dbcsr_create(vector%prv, "D", dist_col_vec,&
@@ -151,13 +149,12 @@ CONTAINS
 ! **************************************************************************************************
 !> \brief Create a DBCSR work vector
 ! **************************************************************************************************
-   SUBROUTINE dbcsr_vector_work_create(work, matrix, ncol)
+   SUBROUTINE dbcsr_vector_work_create(work, matrix)
       TYPE(dbcsr_vector_work_type)                      :: work
       TYPE(dbcsr_type)                                  :: matrix
-      INTEGER, INTENT(IN)                               :: ncol
 
-      CALL create_replicated_col_vec_from_matrix(work%col, matrix, ncol)
-      CALL create_replicated_row_vec_from_matrix(work%row, matrix, ncol)
+      CALL create_replicated_col_vec_from_matrix(work%col, matrix)
+      CALL create_replicated_row_vec_from_matrix(work%row, matrix)
    END SUBROUTINE dbcsr_vector_work_create
 
 
@@ -187,11 +184,9 @@ CONTAINS
 !>        this is not a sparse object (and must never be)
 !> \param dbcsr_vec the vector object to create must be allocated but not initialized
 !> \param matrix a dbcsr matrix used as template
-!> \param ncol number of vectors in the dbcsr_typeect (1 for vector, n for skinny matrix)
 ! **************************************************************************************************
-   SUBROUTINE create_replicated_col_vec_from_matrix(dbcsr_vec, matrix, ncol)
+   SUBROUTINE create_replicated_col_vec_from_matrix(dbcsr_vec, matrix)
       TYPE(dbcsr_type)                                   :: dbcsr_vec, matrix
-      INTEGER                                            :: ncol
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'create_replicated_col_vec_from_matrix'
 
@@ -204,7 +199,7 @@ CONTAINS
       CALL dbcsr_distribution_get(dist, npcols=npcols, row_dist=row_dist)
 
       ALLOCATE (col_dist(npcols), col_blk_size(npcols))
-      col_blk_size(:) = ncol
+      col_blk_size(:) = 1
       DO i = 0, npcols-1
          col_dist(i+1) = i
       END DO
@@ -232,10 +227,9 @@ CONTAINS
 !> \param matrix a dbcsr matrix used as template
 !> \param nrow number of vectors in the dbcsr_typeect (1 for vector, n for skinny matrix)
 ! **************************************************************************************************
-   SUBROUTINE create_replicated_row_vec_from_matrix(dbcsr_vec, matrix, nrow)
+   SUBROUTINE create_replicated_row_vec_from_matrix(dbcsr_vec, matrix)
       TYPE(dbcsr_type)                                   :: dbcsr_vec
       TYPE(dbcsr_type)                                   :: matrix
-      INTEGER                                            :: nrow
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'create_replicated_row_vec_from_matrix'
 
@@ -249,7 +243,7 @@ CONTAINS
       CALL dbcsr_distribution_get(dist, nprows=nprows, col_dist=col_dist)
 
       ALLOCATE (row_dist(nprows), row_blk_size(nprows))
-      row_blk_size(:) = nrow
+      row_blk_size(:) = 1
       DO i = 0, nprows-1
          row_dist(i+1) = i
       END DO

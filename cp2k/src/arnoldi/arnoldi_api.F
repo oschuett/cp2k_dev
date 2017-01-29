@@ -113,9 +113,9 @@ CONTAINS
       CALL timeset(routineN, handle)
 
 !prepare the vector like matrives needed in the matrix vector products, they will be reused throughout the iterations
-      CALL dbcsr_vector_create(vectors%input_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_vector_create(vectors%input_vec, matrix(1)%matrix)
       CALL dbcsr_copy(vectors%result_vec%prv, vectors%input_vec%prv)
-      CALL dbcsr_vector_work_create(vectors%work_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_vector_work_create(vectors%work_vec, matrix(1)%matrix)
 
 ! Tells whether we have local data available on the processor (usually all in pcol 0 but even ther can be some without data)
       control => get_control(arnoldi_data)
@@ -196,9 +196,9 @@ CONTAINS
       matrix_arnoldi(2)%matrix => matrix(2)%matrix
 
 !prepare the vector like matrives needed in the matrix vector products, they will be reused throughout the iterations
-      CALL dbcsr_vector_create(vectors%input_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_vector_create(vectors%input_vec, matrix(1)%matrix)
       CALL dbcsr_copy(vectors%result_vec%prv, vectors%input_vec%prv)
-      CALL dbcsr_vector_work_create(vectors%work_vec, matrix(1)%matrix, 1)
+      CALL dbcsr_vector_work_create(vectors%work_vec, matrix(1)%matrix)
 
 ! Tells whether we have local data available on the processor (usually all in pcol 0 but even ther can be some without data)
       control => get_control(arnoldi_data)
@@ -324,9 +324,9 @@ CONTAINS
 
       !prepare the vector like matrices needed in the matrix vector products,
       !they will be reused throughout the iterations
-      CALL dbcsr_vector_create(vectors%input_vec, matrix_a, 1)
+      CALL dbcsr_vector_create(vectors%input_vec, matrix_a)
       CALL dbcsr_copy(vectors%result_vec%prv, vectors%input_vec%prv)
-      CALL dbcsr_vector_work_create(vectors%work_vec, matrix_a, 1)
+      CALL dbcsr_vector_work_create(vectors%work_vec, matrix_a)
       !
       CALL dbcsr_copy(x, vectors%input_vec%prv)
       !
