@@ -461,7 +461,7 @@ CONTAINS
     CALL timeset(routineN//"_local_mm", handle1)
 
 !$OMP PARALLEL DEFAULT(NONE) PRIVATE(row,col,iter,data_d,ithread,pcol,prow) &
-!$OMP          SHARED(matrix,fast_vec_col,fast_vec_row)
+!$OMP          SHARED(matrix,work)
     !$ ithread = omp_get_thread_num ()
     CALL dbcsr_iterator_start(iter, matrix, shared=.FALSE.)
     DO WHILE (dbcsr_iterator_blocks_left(iter))

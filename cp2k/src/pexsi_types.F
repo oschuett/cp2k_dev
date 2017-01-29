@@ -24,6 +24,7 @@ MODULE pexsi_types
                                               dbcsr_p_type,&
                                               dbcsr_scale,&
                                               dbcsr_type
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_type
    USE kinds,                           ONLY: dp,&
                                               int_8
    USE message_passing,                 ONLY: mp_dims_create,&
@@ -33,8 +34,6 @@ MODULE pexsi_types
                                               cp_pexsi_plan_finalize,&
                                               cp_pexsi_plan_initialize,&
                                               cp_pexsi_set_options
-   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_vector_release
-
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE

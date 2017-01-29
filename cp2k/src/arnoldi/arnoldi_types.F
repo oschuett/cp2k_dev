@@ -11,8 +11,8 @@
 ! **************************************************************************************************
 
 MODULE arnoldi_types
-   USE dbcsr_api,                       ONLY: dbcsr_type
-   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_vector_work_type
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_type,&
+                                              dbcsr_vector_work_type
    USE kinds,                           ONLY: real_4,&
                                               real_8
 

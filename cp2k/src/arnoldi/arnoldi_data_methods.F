@@ -21,11 +21,12 @@ MODULE arnoldi_data_methods
         set_data_z
    USE dbcsr_api,                       ONLY: &
         dbcsr_distribution_get, dbcsr_distribution_type, dbcsr_get_data_p, dbcsr_get_data_type, &
-        dbcsr_get_info, dbcsr_get_matrix_type, dbcsr_mp_grid_setup, dbcsr_p_type, dbcsr_release, &
-        dbcsr_type, dbcsr_type_complex_4, dbcsr_type_complex_8, dbcsr_type_real_4, &
-        dbcsr_type_real_8, dbcsr_type_symmetric
+        dbcsr_get_info, dbcsr_get_matrix_type, dbcsr_mp_grid_setup, dbcsr_p_type, dbcsr_type, &
+        dbcsr_type_complex_4, dbcsr_type_complex_8, dbcsr_type_real_4, dbcsr_type_real_8, &
+        dbcsr_type_symmetric
    USE dbcsr_vector,                    ONLY: dbcsr_vector_create,&
-                                              dbcsr_vector_type, dbcsr_vector_release
+                                              dbcsr_vector_release,&
+                                              dbcsr_vector_type
    USE kinds,                           ONLY: real_4,&
                                               real_8
    USE util,                            ONLY: sort
@@ -183,7 +184,7 @@ CONTAINS
       TYPE(arnoldi_data_type)                            :: arnoldi_data
       INTEGER                                            :: ind
       TYPE(dbcsr_type)                                   :: matrix
-      TYPE(dbcsr_vector_type)                           :: vector
+      TYPE(dbcsr_vector_type)                            :: vector
 
       CHARACTER(LEN=*), PARAMETER :: routineN = 'get_selected_ritz_vector', &
          routineP = moduleN//':'//routineN
@@ -393,7 +394,7 @@ CONTAINS
 ! **************************************************************************************************
    SUBROUTINE set_arnoldi_initial_vector(ar_data, vector)
       TYPE(arnoldi_data_type)                            :: ar_data
-      TYPE(dbcsr_vector_type)                           :: vector
+      TYPE(dbcsr_vector_type)                            :: vector
 
       TYPE(arnoldi_control_type), POINTER                :: control
 

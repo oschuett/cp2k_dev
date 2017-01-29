@@ -31,6 +31,7 @@ MODULE pexsi_methods
         dbcsr_distribution_get, dbcsr_distribution_type, dbcsr_get_info, dbcsr_has_symmetry, &
         dbcsr_p_type, dbcsr_release, dbcsr_scale, dbcsr_set, dbcsr_type, dbcsr_type_no_symmetry, &
         dbcsr_type_real_8
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_release
    USE dm_ls_scf_qs,                    ONLY: matrix_ls_to_qs
    USE dm_ls_scf_types,                 ONLY: ls_scf_env_type
    USE input_section_types,             ONLY: section_vals_type,&
@@ -53,8 +54,6 @@ MODULE pexsi_methods
    USE qs_environment_types,            ONLY: get_qs_env,&
                                               qs_environment_type
    USE qs_ks_types,                     ONLY: qs_ks_env_type
-   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_vector_release
-
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE

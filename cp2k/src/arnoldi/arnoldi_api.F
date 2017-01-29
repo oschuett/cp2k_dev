@@ -34,11 +34,12 @@ MODULE arnoldi_api
         dbcsr_add, dbcsr_copy, dbcsr_get_block_p, dbcsr_get_info, dbcsr_iterator_blocks_left, &
         dbcsr_iterator_next_block, dbcsr_iterator_start, dbcsr_iterator_stop, dbcsr_iterator_type, &
         dbcsr_p_type, dbcsr_release, dbcsr_set, dbcsr_type
-   USE dbcsr_vector,                    ONLY: dbcsr_vector_create,&
+   USE dbcsr_vector,                    ONLY: dbcsr_matrix_vector_multiply,&
+                                              dbcsr_vector_create,&
+                                              dbcsr_vector_release,&
+                                              dbcsr_vector_type,&
                                               dbcsr_vector_work_create,&
-                                              dbcsr_matrix_vector_multiply, &
-                                              dbcsr_vector_type, dbcsr_vector_release, &
-                                              dbcsr_vector_work_create, dbcsr_vector_work_release
+                                              dbcsr_vector_work_release
    USE kinds,                           ONLY: dp
    USE message_passing,                 ONLY: mp_sum
 #include "../base/base_uses.f90"
@@ -106,7 +107,7 @@ CONTAINS
 
       INTEGER                                            :: handle, i_loop, ncol_local, nrow_local
       TYPE(arnoldi_control_type), POINTER                :: control
-      TYPE(dbcsr_vector_type), POINTER                  :: restart_vec
+      TYPE(dbcsr_vector_type), POINTER                   :: restart_vec
       TYPE(m_x_v_vectors_type)                           :: vectors
 
       NULLIFY (restart_vec)

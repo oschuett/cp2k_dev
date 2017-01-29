@@ -22,10 +22,11 @@ MODULE preconditioner_types
                                               dbcsr_p_type,&
                                               dbcsr_release_p,&
                                               dbcsr_type
+   USE dbcsr_vector,                    ONLY: dbcsr_vector_release,&
+                                              dbcsr_vector_type
    USE input_constants,                 ONLY: cholesky_reduce,&
                                               ot_precond_solver_default
    USE kinds,                           ONLY: dp
-   USE dbcsr_vector,                    ONLY: dbcsr_vector_type, dbcsr_vector_release
 #include "./base/base_uses.f90"
 
    IMPLICIT NONE
@@ -138,11 +139,11 @@ CONTAINS
       ENDIF
       IF (ASSOCIATED(preconditioner_env%max_ev_vector)) THEN
          CALL dbcsr_vector_release(preconditioner_env%max_ev_vector)
-         DEALLOCATE(preconditioner_env%max_ev_vector)
+         DEALLOCATE (preconditioner_env%max_ev_vector)
       ENDIF
       IF (ASSOCIATED(preconditioner_env%min_ev_vector)) THEN
          CALL dbcsr_vector_release(preconditioner_env%min_ev_vector)
-         DEALLOCATE(preconditioner_env%min_ev_vector)
+         DEALLOCATE (preconditioner_env%min_ev_vector)
       ENDIF
       IF (ASSOCIATED(preconditioner_env%occ_evals)) THEN
          DEALLOCATE (preconditioner_env%occ_evals)
